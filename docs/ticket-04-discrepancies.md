@@ -9,8 +9,8 @@ audit produced. Three tables still differ, and two of the three differences
 are decisions rather than defects. One new defect appeared: **F10**, in this
 repository.
 
-The live pins below read `-dirty`: that side's bump is applied but not yet
-committed, so these numbers are reproducible only from this working tree.
+Both sides are committed and both pins are clean, so these numbers are
+reproducible from the two recorded revisions.
 
 This report compares the Bronze output of this repository's historical
 extractor against `stellar-postgres-ingester`'s live extractor over identical
@@ -27,8 +27,8 @@ precisely because the decisions have not been made.
 
 | Side | Revision | `stellar-extract` |
 |---|---|---|
-| Historical | `stellar-ingest` @ `6fc0279` | `v0.2.1` |
-| Live | `ttp-processor-demo` @ `bd618bb` **+ uncommitted bump**, `obsrvr-lake/stellar-postgres-ingester` | `v0.2.1` |
+| Historical | `stellar-ingest` @ `afa8da7` | `v0.2.1` |
+| Live | `ttp-processor-demo` @ `83cbd2e`, `obsrvr-lake/stellar-postgres-ingester` | `v0.2.1` |
 
 Both trees were clean apart from this ticket's own additions. Fixtures:
 the eight committed pubnet fixtures under `testdata/fixtures/`, SHA-256
@@ -105,12 +105,13 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | F6 `envelope_size_bytes` | open — unverified | recomputed at insert; needs the storage tier |
 | F7 `created_at` | open — decision | canonical row contract |
 | F8 ledgers | open — provenance-only | — |
-| **F10 ScVal rendering** | **new defect** | this repository; see below |
+| **F10 ScVal rendering** | **closed** | local converter deleted; both sides use the library's |
+| **F11 `soroban_contract_id`** | **new, minor** | 1 row of 2,913; see below |
 | L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
 
 Three tables still differ:
 
-- **`operations`** — F4's 36 columns, plus F10 below.
+- **`operations`** — F4's 36 columns, plus F11 below.
 - **`transactions`** — F6's memo policy and the `envelope_size_bytes`
   artefact, plus the known column-set differences.
 - **`ledgers`** — provenance-only (F8).
@@ -339,32 +340,45 @@ this, so a harness fault can never masquerade as "the live side emitted no
 rows". Confirming the production behaviour's blast radius needs a fault-
 injection test against a migrated database; it is not changed here.
 
-### F10 — this repository's ScVal converter renders bytes as a boolean
+### F10 — ScVal bytes rendered as a boolean — **closed**
 
-Found by comparing `operations.contract_calls_json` once both sides were on
-v0.2.1 and the call graph was populated on each. Two operations of 7,027 on
-`pubnet-soroban-p29` disagree, with identical call edges and differing
-argument payloads:
+This repository rendered a 32-byte ScVal as `false`.
 
-| | second argument |
-|---|---|
-| Historical | `false` |
-| Live (library) | `{"type":"bytes","length":32,"hex":"000…a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","base64":"…"}` |
+`scval_converter.go` tried to decode `ScvBytes` as a nested XDR ScVal
+first, on the theory that some contracts wrap structured data in bytes. The
+decode was accepted whenever it merely parsed; it was never required to
+consume the input. A 32-byte Ethereum address left-padded with zeros begins
+with four zero bytes, which parse as `ScvBool`, and the next four as
+`false` — the remaining 24 bytes were discarded and the value became a
+boolean. Any byte string whose prefix forms a valid ScVal was exposed to the
+same reinterpretation, and zero-padded addresses and hashes are common.
 
-Both read the same XDR, so one is wrong, and the hex decodes to a
-recognizable 20-byte Ethereum address left-padded to 32 — real data that
-this repository is rendering as `false`.
+Fixed by deleting the local converter and using the library's, which has no
+such heuristic. The two handle an identical set of ScVal arms; the only other
+difference was `ScvExecutableTag`, reported under key `tag` locally and
+`value` in the library.
 
-Cause: `adapter conversion`. `operations` is one of the five tables this
-repository extracts locally rather than through the library, so it uses its
-own `scval_converter.go`. The library's `ConvertScValToJSON` handles the
-`ScvBytes` arm; this copy evidently does not reach it. Scope is limited to
-the locally-extracted paths — `operations.contract_calls_json` and
-`operations.soroban_arguments_json`. `contract_events` is unaffected and
-compares equal, because both sides take it from the library.
+Scope was the locally-extracted `operations` path —
+`contract_calls_json` and `soroban_arguments_json`. `contract_events` takes
+the library route on both sides and already compared equal, which is why
+this survived until the call graph existed on both sides to compare.
 
-The fix is the canonical-Bronze direction rather than a patch: use the
-library's converter. That changes golden output and wants its own review.
+### F11 — `operations.soroban_contract_id` on a contract-creation operation
+
+One row of 2,913 on `pubnet-contract-creation`. Historical reports the
+contract ID; the library reports NULL.
+
+The operation is an `InvokeHostFunction` whose host function creates a
+contract rather than invoking one. The library's
+`extractContractInvocationDetails` resolves a contract ID only for the
+invoke case; this repository's local extractor also derives one for the
+create case.
+
+Which is correct is a contract question, not a bug report: `contract_id` on
+an operation that creates a contract is arguably the created contract, and
+arguably nothing, given `contract_creations` already records the creation.
+Left for the canonical row contract. It is the last remaining value
+difference in `operations`.
 
 ## Root causes in `stellar-extract`
 

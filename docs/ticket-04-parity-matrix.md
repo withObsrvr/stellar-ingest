@@ -20,8 +20,8 @@ Two verdicts are easy to misread:
 
 ### pubnet-auto-restore-p25
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -50,8 +50,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-classic-p19
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -80,13 +80,13 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-contract-creation
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
-| `operations` | values-differ | 2913 | 2913 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | `ContractCallsJSON`, `SorobanContractID` | — |
+| `operations` | values-differ | 2913 | 2913 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | `SorobanContractID` | — |
 | `transactions` | values-differ | 1106 | 1106 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes`, `Memo`, `MemoType` | — |
 | `ledgers` | equal-on-shared-columns | 5 | 5 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
 | `account_signers` | equal | 182 | 182 | — | — | — | `CreatedAt` |
@@ -110,8 +110,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-genesis-p1
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -140,8 +140,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-protocol-boundary
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -170,15 +170,15 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-soroban-p29
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
-| `operations` | values-differ | 7027 | 7027 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | `ContractCallsJSON` | — |
 | `transactions` | values-differ | 4181 | 4181 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes`, `Memo`, `MemoType` | — |
 | `ledgers` | equal-on-shared-columns | 10 | 10 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
+| `operations` | equal-on-shared-columns | 7027 | 7027 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 826 | 826 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 4426 | 4426 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | equal | 2 | 2 | — | — | — | `CreatedAt` |
@@ -200,8 +200,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-state-eviction-p23
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -230,8 +230,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-tiny-dump
 
-Historical pins: `repo=stellar-ingest revision=2d56a90b109056bab0c85e01ba51f5d584af8695 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
