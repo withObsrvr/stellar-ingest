@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -82,7 +83,10 @@ func NewXDRStreamSource(filePath string) (*XDRStreamSource, error) {
 		var lcm xdr.LedgerCloseMeta
 		_, err := xdr.Unmarshal(f, &lcm)
 		if err != nil {
-			if err == io.EOF {
+			// The XDR decoder wraps io.EOF rather than returning it bare, so a
+			// clean end of stream must be detected with errors.Is. Comparing
+			// with == made every complete file look like a decode failure.
+			if errors.Is(err, io.EOF) {
 				break // clean end of stream
 			}
 			return nil, fmt.Errorf("XDR stream decode error: %w", err)

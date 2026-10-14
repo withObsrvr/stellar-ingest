@@ -84,7 +84,7 @@ architecture is changed on the strength of those numbers.
 | Ticket | Description | Status |
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
-| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | Planned — `docs/phase0-fixtures.md`. **Next.** |
+| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **In progress** — see `docs/ticket-02-progress.md`. Protocol map derived, first fixture committed, one blocking bug fixed. |
 | 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | Blocked on 02 |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
