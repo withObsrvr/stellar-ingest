@@ -238,6 +238,14 @@ type TradeData struct {
 	// Price
 	Price string
 
+	// Pool
+	//
+	// LiquidityPoolID is the hex-encoded pool hash, non-nil exactly when
+	// TradeType is "liquidity_pool". An AMM match has no resting offer and
+	// no counterparty account, so SellerAccount is empty on those rows and
+	// this identifies the pool instead.
+	LiquidityPoolID *string
+
 	// Metadata
 	CreatedAt   time.Time
 	LedgerRange uint32
@@ -461,6 +469,11 @@ type ConfigSettingData struct {
 	TxMaxReadBytes              *uint32
 	TxMaxWriteLedgerEntries     *uint32
 	TxMaxWriteBytes             *uint32
+
+	// TxMaxFootprintEntries is CAP-0062's per-transaction cap on declared
+	// footprint entries. It arrives in its own config setting entry
+	// (ContractLedgerCostExtV0), not alongside the ledger-wide limits above.
+	TxMaxFootprintEntries *uint32
 
 	// Contract size limit (1 field, nullable)
 	ContractMaxSizeBytes *uint32
@@ -740,10 +753,17 @@ type ContractCreationData struct {
 	ContractID     string
 	CreatorAddress string
 	WasmHash       *string
-	CreatedLedger  uint32
-	CreatedAt      time.Time
-	LedgerRange    uint32
-	EraID          *string
+	// ExecutableType is "wasm", "stellar_asset", or "external_ref"
+	// (Protocol 28, CAP-0085). It exists because a nil WasmHash alone no
+	// longer implies a SAC deployment: the inference this replaced broke
+	// when the third kind arrived, and it broke silently.
+	ExecutableType   string
+	ExternalRefOwner *string
+	ExternalRefTag   *string
+	CreatedLedger    uint32
+	CreatedAt        time.Time
+	LedgerRange      uint32
+	EraID            *string
 }
 
 // TokenTransferData represents a unified token transfer event (token_transfers_stream_v1)

@@ -815,6 +815,7 @@ func convertExtractedConfigSetting(r extract.ConfigSettingData) ConfigSettingDat
 		TxMaxReadBytes:                  r.TxMaxReadBytes,
 		TxMaxWriteLedgerEntries:         r.TxMaxWriteLedgerEntries,
 		TxMaxWriteBytes:                 r.TxMaxWriteBytes,
+		TxMaxFootprintEntries:           r.TxMaxFootprintEntries,
 		ContractMaxSizeBytes:            r.ContractMaxSizeBytes,
 		ConfigSettingXDR:                r.ConfigSettingXDR,
 		CreatedAt:                       r.CreatedAt,

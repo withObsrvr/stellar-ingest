@@ -213,6 +213,10 @@ CREATE TABLE IF NOT EXISTS bronze.trades_row_v1 (
     buying_asset_issuer TEXT,
     buying_amount TEXT,
     price TEXT,
+    -- Non-NULL exactly on liquidity_pool trades, where there is no resting
+    -- offer and seller_account is empty. Added with stellar-extract v0.2.1,
+    -- which started emitting AMM matches at all.
+    liquidity_pool_id TEXT,
     created_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
@@ -453,6 +457,9 @@ CREATE TABLE IF NOT EXISTS bronze.config_settings_snapshot_v1 (
     tx_max_read_bytes BIGINT,
     tx_max_write_ledger_entries BIGINT,
     tx_max_write_bytes BIGINT,
+    -- CAP-0062 per-transaction footprint entry cap, carried in its own
+    -- ContractLedgerCostExtV0 entry rather than with the limits above.
+    tx_max_footprint_entries BIGINT,
     contract_max_size_bytes BIGINT,
     config_setting_xdr TEXT,
     created_at TIMESTAMP,
@@ -509,6 +516,12 @@ CREATE TABLE IF NOT EXISTS bronze.contract_creations_v1 (
     contract_id TEXT,
     creator_address TEXT,
     wasm_hash TEXT,
+    -- 'wasm' | 'stellar_asset' | 'external_ref'. Recorded rather than
+    -- inferred: a NULL wasm_hash meant "SAC" until Protocol 28 (CAP-0085)
+    -- added a third kind, at which point the inference broke silently.
+    executable_type TEXT,
+    external_ref_owner TEXT,
+    external_ref_tag TEXT,
     created_ledger BIGINT,
     created_at TIMESTAMP,
     ledger_range BIGINT,

@@ -157,11 +157,14 @@
     },
     "contract_creations": {
       "row_count": 1,
-      "content_hash": "0ae7eb682ccee673c36eb7c5274af364",
+      "content_hash": "0d08143e246b7e176a2329e0fea732ec",
       "columns": [
         "contract_id",
         "creator_address",
         "wasm_hash",
+        "executable_type",
+        "external_ref_owner",
+        "external_ref_tag",
         "created_ledger",
         "ledger_range"
       ],
@@ -169,6 +172,9 @@
         "contract_id": "2458f92629fbdae714e8661faee3d28b",
         "created_ledger": "78c1384ea4d3aa7fff19f1c5787ff6ce",
         "creator_address": "e282aa1068f36a026382013eef984660",
+        "executable_type": "668d7c9da2684ea9ae48910cd8872e6c",
+        "external_ref_owner": "9f4572f734cb415bc42914029566a6a8",
+        "external_ref_tag": "9f4572f734cb415bc42914029566a6a8",
         "ledger_range": "c6d037fe8720b052b3f705f0e5fe2a79",
         "wasm_hash": "e29f64c8c31af57e072fb4f6f09f0383"
       }
@@ -656,8 +662,8 @@
       }
     },
     "trades": {
-      "row_count": 64,
-      "content_hash": "09c4311a8fb3de73976d1a2b3de54a61",
+      "row_count": 382,
+      "content_hash": "97b51224ca079d192280e0c76b4e9dd5",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -674,25 +680,27 @@
         "buying_asset_issuer",
         "buying_amount",
         "price",
+        "liquidity_pool_id",
         "ledger_range"
       ],
       "column_hashes": {
-        "buyer_account": "7e43b6fb17b4ee2ea365dc343564a2c2",
-        "buying_amount": "438eb21283eac608bc79a47fa0df2200",
-        "buying_asset_code": "ec1edd3bdc49dce1ca8d6a8d684ff4cf",
-        "buying_asset_issuer": "4ffe170221ac7a7761a1a42ae480673d",
-        "ledger_range": "77ae7cf2250198cf0bd3156e36af790d",
-        "ledger_sequence": "ddc84ecba596e961ac9fc77e71103af5",
-        "operation_index": "5df03ad34cf31353faf3cc7a2a3cc642",
-        "price": "f9a156dd4c75f05d7f93f6a48d53e1df",
-        "seller_account": "8ad18b0dc354db64c9946522c0a35499",
-        "selling_amount": "63779a0849b5d047e835a10fb21e7aed",
-        "selling_asset_code": "7c7cde8c56af73888d5b0f6eeb3bb3ab",
-        "selling_asset_issuer": "f063166fc5d1c1aaea990cb620cbea30",
-        "trade_index": "72041c6eee460df18bb507dc38588a32",
-        "trade_timestamp": "55b662e6928cd0005a5d9f627c360a17",
-        "trade_type": "172b9dc326c81ea36bcea3662a07bff3",
-        "transaction_hash": "b28b7ebd1e394494ac6fb3cf31dba05d"
+        "buyer_account": "221da20fd94f7b4999ce289c849a1344",
+        "buying_amount": "bce6d3ea98f486544f3e9e2a5c2371b1",
+        "buying_asset_code": "5529feb53d06396fea88cb3cda39f38f",
+        "buying_asset_issuer": "ce92e2fc89585b5285223469ccccf6a0",
+        "ledger_range": "4ec328865115ee3c5ea8e61bc521a09e",
+        "ledger_sequence": "da2a3a9fb304dd2962174c13db6d350f",
+        "liquidity_pool_id": "6bbfec44beba8a8d1721a422c26a8408",
+        "operation_index": "e5d4284fe654d049a5cc38ec51eafa92",
+        "price": "dc182950e3cbe81e5e9e88fc29acec3f",
+        "seller_account": "1be0fcb7801f0103ec5f194dae25dec5",
+        "selling_amount": "f01f3a3358df2ee10a73c4f8bf6a86cd",
+        "selling_asset_code": "1ca1a71cdc27743764af8d61aa443270",
+        "selling_asset_issuer": "cc2f7933557d534f7b510eff4eea2f93",
+        "trade_index": "985af602a79ad0320fb6f8cc94230408",
+        "trade_timestamp": "ff3c957533cc83a02263c1a6ff4a0e8b",
+        "trade_type": "66fce20077455ae2ef629294963cdd27",
+        "transaction_hash": "cc53b0de02a97bae1f62a62db659c704"
       }
     },
     "transactions": {

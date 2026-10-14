@@ -616,8 +616,8 @@
       }
     },
     "trades": {
-      "row_count": 14,
-      "content_hash": "27e377497a8ae0c846eb98e06a870d89",
+      "row_count": 1330,
+      "content_hash": "e01a65a237fccf30c61516af6b9e9399",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -634,25 +634,27 @@
         "buying_asset_issuer",
         "buying_amount",
         "price",
+        "liquidity_pool_id",
         "ledger_range"
       ],
       "column_hashes": {
-        "buyer_account": "bf203fe81628246149f1de9126ff9f3f",
-        "buying_amount": "f4ab7c975912c73abe1437845c891527",
-        "buying_asset_code": "49298ed788dcc94f00b76e75afa1ff96",
-        "buying_asset_issuer": "a3b365c4562b231de7ca726a6f26f146",
-        "ledger_range": "9d1f5cb479cfbf9ebd48afda3d04f1b0",
-        "ledger_sequence": "3f95aa42aff792bca3d4918a5f9e5f61",
-        "operation_index": "7023bc5bb353015e6a8070f1179cf39e",
-        "price": "ed09fca5f7ad20bbf13981c0e9555738",
-        "seller_account": "d71559b953ce00905b784702b08447b6",
-        "selling_amount": "06f88ca331027c0296206c8a00773c83",
-        "selling_asset_code": "02acab0795c9b937ba5ed0f3967bff6a",
-        "selling_asset_issuer": "b89b3bf8441a7b292e4daee44cd49703",
-        "trade_index": "34759c62dd8801a4c0d14ed352bcde0e",
-        "trade_timestamp": "4226d87d19cc70b4296398c10cfa7e4a",
-        "trade_type": "68641e435b49270809db9a6a0338bbe5",
-        "transaction_hash": "41f615a1671dda3b1df7a21f633f9b88"
+        "buyer_account": "3477bf095cb55ce13663891dbe9d24b8",
+        "buying_amount": "5474cbdd5f15942bae23b9e09b42a30c",
+        "buying_asset_code": "095a02a16f83c980877ff68d92eb67b9",
+        "buying_asset_issuer": "ff4ff1722d8008aebd0537ac6163f105",
+        "ledger_range": "c894cd3e951cfaa13811b60930f21270",
+        "ledger_sequence": "9ed4d1be4ddd10d968294669a1235640",
+        "liquidity_pool_id": "0295c126cb8f4af9f286133814b7d42a",
+        "operation_index": "4fddd39a3b6e1c42925cc9a3ebe839a0",
+        "price": "32158d506aabb33fece93d770e94e0fb",
+        "seller_account": "aed41cf29dc886f4e9ee3e80872a6d22",
+        "selling_amount": "cfe0c0c4b127e1bfc1cfa14b832d48b2",
+        "selling_asset_code": "17da55a9cacde18dc8ff5c3de59899ed",
+        "selling_asset_issuer": "1feeb3fe5c2e31ae57c745e269751e10",
+        "trade_index": "e38b39405c086dac6b6640b6a4ec06ac",
+        "trade_timestamp": "ff6c0ea2dc567e9d28325b28dd455cba",
+        "trade_type": "b59666a61b10f8594b2026d891da17da",
+        "transaction_hash": "fecd028f5fc192e8443672ef2de27d15"
       }
     },
     "transactions": {

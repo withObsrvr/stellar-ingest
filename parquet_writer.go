@@ -272,6 +272,7 @@ type ParquetTrade struct {
 	BuyingAssetIssuer  *string `parquet:"buying_asset_issuer,optional"`
 	BuyingAmount       string  `parquet:"buying_amount"`
 	Price              string  `parquet:"price"`
+	LiquidityPoolID    *string `parquet:"liquidity_pool_id,optional"`
 	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
@@ -535,14 +536,20 @@ type ParquetRestoredKey struct {
 }
 
 type ParquetContractCreation struct {
-	ContractID      string  `parquet:"contract_id"`
-	CreatorAddress  string  `parquet:"creator_address"`
-	WasmHash        *string `parquet:"wasm_hash,optional"`
-	CreatedLedger   uint32  `parquet:"created_ledger"`
-	CreatedAt       int64   `parquet:"created_at,timestamp(microsecond)"`
-	LedgerRange     uint32  `parquet:"ledger_range"`
-	EraID           *string `parquet:"era_id,optional"`
-	PipelineVersion string  `parquet:"version_label"`
+	ContractID     string  `parquet:"contract_id"`
+	CreatorAddress string  `parquet:"creator_address"`
+	WasmHash       *string `parquet:"wasm_hash,optional"`
+	// ExecutableType records the deployment kind explicitly. A NULL
+	// wasm_hash no longer implies a SAC: Protocol 28 added external_ref as
+	// a third kind, and the inference broke silently when it arrived.
+	ExecutableType   string  `parquet:"executable_type"`
+	ExternalRefOwner *string `parquet:"external_ref_owner,optional"`
+	ExternalRefTag   *string `parquet:"external_ref_tag,optional"`
+	CreatedLedger    uint32  `parquet:"created_ledger"`
+	CreatedAt        int64   `parquet:"created_at,timestamp(microsecond)"`
+	LedgerRange      uint32  `parquet:"ledger_range"`
+	EraID            *string `parquet:"era_id,optional"`
+	PipelineVersion  string  `parquet:"version_label"`
 }
 
 type ParquetConfigSetting struct {
@@ -563,6 +570,7 @@ type ParquetConfigSetting struct {
 	TxMaxReadBytes                  *int64  `parquet:"tx_max_read_bytes,optional"`
 	TxMaxWriteLedgerEntries         *int64  `parquet:"tx_max_write_ledger_entries,optional"`
 	TxMaxWriteBytes                 *int64  `parquet:"tx_max_write_bytes,optional"`
+	TxMaxFootprintEntries           *int64  `parquet:"tx_max_footprint_entries,optional"`
 	ContractMaxSizeBytes            *int64  `parquet:"contract_max_size_bytes,optional"`
 	ConfigSettingXDR                string  `parquet:"config_setting_xdr"`
 	CreatedAt                       int64   `parquet:"created_at,timestamp(microsecond)"`
@@ -907,6 +915,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				BuyingAssetIssuer:  t.BuyingAssetIssuer,
 				BuyingAmount:       t.BuyingAmount,
 				Price:              t.Price,
+				LiquidityPoolID:    t.LiquidityPoolID,
 				CreatedAt:          t.CreatedAt.UnixMicro(),
 				LedgerRange:        t.LedgerRange,
 				EraID:              t.EraID,
@@ -1186,7 +1195,9 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 		for i, c := range batch.ContractCreations {
 			rows[i] = ParquetContractCreation{
 				ContractID: c.ContractID, CreatorAddress: c.CreatorAddress, WasmHash: c.WasmHash,
-				CreatedLedger: c.CreatedLedger, CreatedAt: c.CreatedAt.UnixMicro(), LedgerRange: c.LedgerRange,
+				ExecutableType: c.ExecutableType, ExternalRefOwner: c.ExternalRefOwner,
+				ExternalRefTag: c.ExternalRefTag,
+				CreatedLedger:  c.CreatedLedger, CreatedAt: c.CreatedAt.UnixMicro(), LedgerRange: c.LedgerRange,
 				EraID: c.EraID, PipelineVersion: pw.pipelineVersion,
 			}
 		}
