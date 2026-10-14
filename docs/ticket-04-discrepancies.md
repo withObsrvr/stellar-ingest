@@ -1,13 +1,16 @@
 # Ticket 04 — historical/live Bronze discrepancy report
 
-**Status: second pass, after the historical `stellar-extract` bump to
-v0.2.1. 21 of 21 tables have an extraction-tier result; the storage tier is
-`unverified` for all of them.**
+**Status: third pass, with both ingesters on `stellar-extract` v0.2.1.
+18 of 21 tables are equal on every compared column. The storage tier remains
+`unverified` for all 21.**
 
-**F2 is closed.** F1's unit mismatch is closed and its row-set mismatch has
-inverted: historical now emits liquidity-pool trades and live, still pinned
-at `v0.1.5`, does not. Four findings now wait on the live side rather than
-on either library or this repository — see *Where each finding stands*.
+F1, F2, F3 and F5 are closed, along with the three findings the adapter
+audit produced. Three tables still differ, and two of the three differences
+are decisions rather than defects. One new defect appeared: **F10**, in this
+repository.
+
+The live pins below read `-dirty`: that side's bump is applied but not yet
+committed, so these numbers are reproducible only from this working tree.
 
 This report compares the Bronze output of this repository's historical
 extractor against `stellar-postgres-ingester`'s live extractor over identical
@@ -25,7 +28,7 @@ precisely because the decisions have not been made.
 | Side | Revision | `stellar-extract` |
 |---|---|---|
 | Historical | `stellar-ingest` @ `6fc0279` | `v0.2.1` |
-| Live | `ttp-processor-demo` @ `bd618bb`, `obsrvr-lake/stellar-postgres-ingester` | `v0.1.5` |
+| Live | `ttp-processor-demo` @ `bd618bb` **+ uncommitted bump**, `obsrvr-lake/stellar-postgres-ingester` | `v0.2.1` |
 
 Both trees were clean apart from this ticket's own additions. Fixtures:
 the eight committed pubnet fixtures under `testdata/fixtures/`, SHA-256
@@ -90,18 +93,29 @@ protocol-boundary fixture — are not exercised by the fixture set.
 
 ## Where each finding stands after the v0.2.1 bump
 
-| Finding | Before | Now | Waiting on |
-|---|---|---|---|
-| F1 units (10⁷) | historical stroops, live decimals | **closed** — both use `amount.String` | — |
-| F1 row set | live had 62 trades historical missed | **inverted** — historical now emits pool trades, live does not | live pin bump |
-| F2 config NULLs | 13 columns NULL on historical | **closed** — all 13 now match | — |
-| F3 call graph | live NULL, historical populated | unchanged | live pin bump (its `convertOperation` already copies the fields) |
-| F4 36 op columns | live drops them | unchanged | live schema decision |
-| F5 account sequence | live writes 0 | unchanged | live `convertAccount` + the columns already exist |
-| F6 memo policy | differs by design | unchanged | canonical row contract |
-| F7 `created_at` | two meanings | unchanged | canonical row contract |
-| F8 ledgers | provenance-only | unchanged | — |
-| **L-series** | library gaps | **closed in `stellar-extract` v0.2.1** | consumers |
+| Finding | Status | Note |
+|---|---|---|
+| F1 units (10⁷) | **closed** | both sides use `amount.String` |
+| F1 row set | **closed** | `trades` is equal on every fixture; 135 pool trades recovered on `pubnet-tiny-dump` alone |
+| F2 config NULLs | **closed** | all 13 columns match |
+| F3 call graph | **closed** | library populates it; live's `convertOperation` already copied the fields |
+| F4 36 op columns | open — decision | live stores "core fields only"; the library provides all 36 |
+| F5 account sequence | **closed** | `convertAccount` now maps them; the columns had existed since migration 009 and were receiving zeros |
+| F6 memo policy | open — decision | canonical row contract |
+| F6 `envelope_size_bytes` | open — unverified | recomputed at insert; needs the storage tier |
+| F7 `created_at` | open — decision | canonical row contract |
+| F8 ledgers | open — provenance-only | — |
+| **F10 ScVal rendering** | **new defect** | this repository; see below |
+| L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
+
+Three tables still differ:
+
+- **`operations`** — F4's 36 columns, plus F10 below.
+- **`transactions`** — F6's memo policy and the `envelope_size_bytes`
+  artefact, plus the known column-set differences.
+- **`ledgers`** — provenance-only (F8).
+
+Everything else is equal on every compared column across all eight fixtures.
 
 Three findings are new since the first pass, all of them fields that both
 stores were missing — so the comparison reported the tables as `equal` and
@@ -324,6 +338,33 @@ The parity adapter deliberately returns every error instead of mirroring
 this, so a harness fault can never masquerade as "the live side emitted no
 rows". Confirming the production behaviour's blast radius needs a fault-
 injection test against a migrated database; it is not changed here.
+
+### F10 — this repository's ScVal converter renders bytes as a boolean
+
+Found by comparing `operations.contract_calls_json` once both sides were on
+v0.2.1 and the call graph was populated on each. Two operations of 7,027 on
+`pubnet-soroban-p29` disagree, with identical call edges and differing
+argument payloads:
+
+| | second argument |
+|---|---|
+| Historical | `false` |
+| Live (library) | `{"type":"bytes","length":32,"hex":"000…a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48","base64":"…"}` |
+
+Both read the same XDR, so one is wrong, and the hex decodes to a
+recognizable 20-byte Ethereum address left-padded to 32 — real data that
+this repository is rendering as `false`.
+
+Cause: `adapter conversion`. `operations` is one of the five tables this
+repository extracts locally rather than through the library, so it uses its
+own `scval_converter.go`. The library's `ConvertScValToJSON` handles the
+`ScvBytes` arm; this copy evidently does not reach it. Scope is limited to
+the locally-extracted paths — `operations.contract_calls_json` and
+`operations.soroban_arguments_json`. `contract_events` is unaffected and
+compares equal, because both sides take it from the library.
+
+The fix is the canonical-Bronze direction rather than a patch: use the
+library's converter. That changes golden output and wants its own review.
 
 ## Root causes in `stellar-extract`
 

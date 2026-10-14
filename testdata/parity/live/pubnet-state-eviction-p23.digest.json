@@ -5,7 +5,7 @@
   "pins": {
     "repo": "ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester",
     "revision": "bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty",
-    "stellar-extract": "v0.1.5"
+    "stellar-extract": "v0.2.1"
   },
   "excluded_columns": [
     "EraID",
@@ -31,7 +31,7 @@
       "column_digests": {
         "AccountID": "f1654c74d52297fb615ef76764497716c271a82e639eede6feafbb21bcf294b3",
         "ClosedAt": "13f67abe17c774c29694b72586ed37312650b1e4985e3d5b49146cd2ef33d7b5",
-        "CreatedAt": "45bdc9f454bb05e93dcb1832f8c5dacb6d8926cf59a3ad3fec63ab2175883618",
+        "CreatedAt": "e0b6e996aa6ef87f58f457dcaa8b9538a94703a0195c72d88ace86d7b672715d",
         "Deleted": "fe234fab9642170ffa50f7a426697d2295fdfaa3fa49ee0e14df4915574c133d",
         "LedgerRange": "42bf70b50d4cabcb1d0e096a0d3d7a763a36c8efe92deb13e1cc893b61f65927",
         "LedgerSequence": "3bdda55d6705f9f1bcd6506554b4dda6a767e03f5b6bdc0e438ab17098932e90",
@@ -84,7 +84,7 @@
         "AuthRevocable": "3460c91f725dd19d353d76b0739c2955ff5a0c4c66cc9d6b131e1f9882dd33ba",
         "Balance": "b383eb14536aad397a0abeb17ed60977f190d04439bc39e21377644f261a66ba",
         "ClosedAt": "84522335f267fc52052b0deb59e254601b83fe1edf9ed20c3f82d5e21eb156e8",
-        "CreatedAt": "74dad7d67772180775b156bf6dcf53960204de6e9247fe533248d8c08e0809aa",
+        "CreatedAt": "4ce69f8343771cb040773bb5cfd91061b89f7f44e4c9064ccd77be1eff306413",
         "Flags": "a77d5b734119c3cbf4c15bfedca5c9372ffc39a66267a5d3db0f5ee1487a4a2e",
         "HighThreshold": "96f2cdcd0ab7167c6452d14acf7393c921d1bb972576470d91998b4de6968866",
         "HomeDomain": "0267c7edb4accecef5953763ed12b32bdc9ef082728c12de8296993f6f8c9083",
@@ -96,18 +96,18 @@
         "NumSponsored": "0f0e6ddd817d308e49e3bb6b255b4e5347b02333a13d944a47d13c6f0b00f55b",
         "NumSponsoring": "ba58d383880e1d57c1114a94c5d9f08b0e9c6ab24192758b86d10d6d443f4799",
         "NumSubentries": "79f4849de8c7bd4117daf9c0e6a99bd18cb6cb3f61eb0eaf31e81673b1d76797",
-        "SequenceLedger": "a77d5b734119c3cbf4c15bfedca5c9372ffc39a66267a5d3db0f5ee1487a4a2e",
+        "SequenceLedger": "9e0017aaa0d2b11e58683df7a692c6c3dbfc89512d88be082dbbdac21643d38e",
         "SequenceNumber": "b8faae6037ac446ec266b09e807a6f8a11ad1b3bad0ae7033bde009d7efa3ee2",
-        "SequenceTime": "a77d5b734119c3cbf4c15bfedca5c9372ffc39a66267a5d3db0f5ee1487a4a2e",
+        "SequenceTime": "76a3e4b4dd56c901f7af0f5f56376aee7e46bcbb44e87ff010dcc6d66acd44d5",
         "Signers": "3bf0b2b7c36c37965ace10059895d48fb0608b48413c32ee8b40792c393700ec",
         "SponsorAccount": "c3714bd94d75a0a83b6ecc59a221f89a90004e44ce89da8ec91b94731736db4e",
-        "UpdatedAt": "74dad7d67772180775b156bf6dcf53960204de6e9247fe533248d8c08e0809aa"
+        "UpdatedAt": "4ce69f8343771cb040773bb5cfd91061b89f7f44e4c9064ccd77be1eff306413"
       },
       "non_deterministic_columns": [
         "CreatedAt",
         "UpdatedAt"
       ],
-      "table_digest": "64e5e5db914ca4024369250db30fa63ba93e0a034653320c4c75c35dbd2dfb05"
+      "table_digest": "9153f58df3baea24d7435101642733ece3743912fb37b84986df37c781afb8bb"
     },
     "claimable_balances": {
       "emitted": true,
@@ -171,7 +171,7 @@
         "ContractDurability": "78b04b9afc6e57107f392c9514135da43b54eab0cba989c0945ce7330d62f01a",
         "ContractId": "69903af549886fbcb428520df47b069d3481a0ee8b21db35b06fc926009e5b6e",
         "ContractKeyType": "6a5189fc82efb60a010603403010c76b3ca75b3510aa6b74d156a519d1e53ba0",
-        "CreatedAt": "f4c7a6ba59ae061c2acb691a8ff1e0ee0dccf9b2402a46dc93fd0e5f7d9658d8",
+        "CreatedAt": "23b206308643592ae3787df59bd3138786466149a47e0416769f4e4c4daae185",
         "Deleted": "ec01518b260520a7d69177fc76e4acbc2635d6d77749f75cbcf466090efe6001",
         "LastModifiedLedger": "a787f2dee690afce4979bbdfe3d93470ed4e70640b8543dff30998cae027853a",
         "LedgerEntryChange": "3343855d7aacf7dd65f1f610da48c700f095b6e91f9ebe510ed03750d8e6cb61",
@@ -220,7 +220,7 @@
         "ClosedAt": "bde8aa7cf05408c6a3275ebaac202ea3d7bca8549dcb974eab01fc3a08773822",
         "ContractEventXDR": "e189ec4e22901dd4b32d10cf6eb61ea43cbd35d31137303f332dc9979acca302",
         "ContractID": "98608e17c112dc507b763abf973e92fb3f84d52d30289009505bd76526b1e717",
-        "CreatedAt": "354c639718e83753279fca4ebe513ef596c980cbf5cd2f4a8e26a201d5f735d6",
+        "CreatedAt": "cbb3f3052a96402640efe1410f3c54d3a6a1507537eb7a6e9e7cd99739402479",
         "DataDecoded": "cf27cba702b0a9ce1dac33bef48f82d7f796150eec79d454264a5d61b8b043f3",
         "DataXDR": "a06a0aa74d707f7c800d1346bbde5bb177f42d091ad5c872ec22a4483dd89dfa",
         "EventID": "cd4e029ef73b22e29391159bdabc0c56aa1c4ef4240842754a16eb84e31b3ffa",
@@ -318,7 +318,7 @@
       "column_digests": {
         "ClosedAt": "7f38aef29e044e2d14bd2f50ead4301af73c01032ad1728916feddf18d98e762",
         "ContractID": "cc77c91ac7506e48c98c9a1aea8a0e3dfc1b5065ed9d5e8eeefedeead5893ce3",
-        "CreatedAt": "a5e062037978d5c9a94014c37b732acc3a152d57e9d93598bef1283131f7368d",
+        "CreatedAt": "73f2fd9b3b11ee2e467df1229334b256f3fc314b6e4574591fdacf71c49760e3",
         "Durability": "643f15042e61e73aa5c7ecab55e04dd7e39f9fbdbabb38914198a04c9f14e354",
         "KeyHash": "4bad49237c1dff8f30cf9a58d2a980d3294136531a0adc9617a9287cb7924377",
         "KeyType": "f5da07d691ef96c5379426e4383b042e5ac33024a7d0643ff274ead93957658d",
@@ -387,7 +387,7 @@
         "EvictedKeysCount": "1f8b30d06ddb3e96fa686a81b2f9bc4634200112beb9fbf4b78a47280cb213b3",
         "FailedTxCount": "4714b66c90eb2a5c4e7ad3f8c4f901e094951d0d91332e08d9951b52dbf1fd1a",
         "FeePool": "7eeb91ecff4fda3de2de3848de2711f6d0c6b2173e9c9a2031ee4441ef94b173",
-        "IngestionTimestamp": "866040195340852bb1ea5494976d9fe7423e2e7e977d60c85fc15e4e857fd257",
+        "IngestionTimestamp": "82a6877185fa6951ae3e071303fff48ed2af12e6ebfcfd56340d33155ff024b0",
         "LedgerHash": "c5dc8fd52ba323a914f606638c7d2845175eccf3dae78272bbda3064b4aa690c",
         "LedgerHeader": "4650eb807133f783aa1c1726975846836479243b080247cab5b4ab078126e149",
         "LedgerRange": "8b89ba68438b3b4c012f00ba4d8d1e018a08293c75700d922ba81711b715ba40",
@@ -446,7 +446,7 @@
         "AssetBIssuer": "540e37ea7f3abd5f3c0609629eb0bf7fccca75f527b90ee6ae2a148b9729793e",
         "AssetBType": "5367f69c4b443ddd0817ca824ec24fe0e793d4b0c2b703b59224ffff55a0d389",
         "ClosedAt": "1f94fd1de06ce5f906dbdc05765bf420a3404336d45f480f7233ffbf02eea0ba",
-        "CreatedAt": "9302ff447e715153fd927e672836521b1fb32d070ffeae4bffdd46a72e395a6e",
+        "CreatedAt": "a2ab1bf9da6ed0899ac5c00af1fb8a990ead1a098698ce2418d149f8d2a512b1",
         "Fee": "c9ebe3ae5787b4e65e6e50a2985ffb0411b532653e01e57258830c5b81b1877c",
         "LedgerRange": "c9ff2eea743c28af1d646644aee32a2aba518cc354d7eabf13daa48ee1e2bc64",
         "LedgerSequence": "264198f7ce831404038fa8a1ccd5576c9a5c1500defc74adb341832b47aa913f",
@@ -521,7 +521,7 @@
         "BuyingAssetIssuer": "5a0250d7887b63248708524d1c373cb3f9104ad8ec6786a7c51bcc8c84ebafc2",
         "BuyingAssetType": "361c705051cc5dcd1c582fd2019d5fa7327267d0101622c52a267fc1405e04e5",
         "ClosedAt": "4f380199ca47f6e61c3274d31bff5dfcb114a69f96f9de665355f1c8c1736a94",
-        "CreatedAt": "e7b6601c93733f356549fc34cc0366377ce1b030e86cb5172bbe0641fc73a9f4",
+        "CreatedAt": "b3f6167f61edbe546c7bc97fdbd19dcd7d37c9fb041664e735c93bd1c4bce191",
         "Flags": "ebb153cc1119ecef8ebe392a58ee36b4e8c187a48fa0c7cab121dde5afcb6073",
         "LedgerRange": "ef2af0ed7c0fe881f036ec03978337e5443be6399e2558798c78e0c7ec10a4e9",
         "LedgerSequence": "6786d0afb02fc1ddb2f04432ec45bea5330412a03c4a0ff5b91ae44a8f63cc5d",
@@ -572,13 +572,13 @@
       "column_digests": {
         "Amount": "8ccdf4a4d962e564be9fb7954af21f8b381b5be094d7e8286dee65c58e3d4abf",
         "Asset": "dae7c1c26a7ac05d591f9a7e2fce37e601f91db1be94912837cf0050f719e1d3",
-        "ContractCallsJSON": "12990bf1fb4b4ee2aba78fcbcfd20fc9241c1b5fd8912df66a8be0b0c8e10c47",
-        "ContractsInvolved": "12990bf1fb4b4ee2aba78fcbcfd20fc9241c1b5fd8912df66a8be0b0c8e10c47",
+        "ContractCallsJSON": "4dadffb522c4b923e270a5b7a1283d23feb929ff05338b964d629843e186a1de",
+        "ContractsInvolved": "1e3263a432cf5f70f7bf6bf2ece56fd0051a8367f1846c88d20f67f068af5cec",
         "CreatedAt": "1bc5c5e02b1fc8112cc6255d7075a4f2fbdb2048e37bb72506ab3ccb158e7d0a",
         "Destination": "dad3d0348098fa032807b064fe35acc9b5306ec832535b53b12db76c1ad5f4c9",
         "LedgerRange": "1043fb952849755b9de4b33d96841755d56e35c66ba10cc9ede7fc170a1295fc",
         "LedgerSequence": "0e72bb832c659951c2131e7be170105f90bd01639df1b87e2ad2343fb9134d78",
-        "MaxCallDepth": "12990bf1fb4b4ee2aba78fcbcfd20fc9241c1b5fd8912df66a8be0b0c8e10c47",
+        "MaxCallDepth": "7e6e8c8b9dd2bce7393d520579261a4ae46bd9746497621cb02833fc08055aa8",
         "OpType": "5137c8ce03c89c5fab2d1be27a8878e7ec0275f2fed80cd7261bc6ecee05b363",
         "OperationID": "ea3e1c8a5243904099e4c121dfd07b638d8496c8674658a9957f053df89c1e88",
         "OperationIndex": "e0dad8b5791b96fd2c92b0d3b0de2854d4d5b3964cbb332305d95da040ab3093",
@@ -596,7 +596,7 @@
         "TransactionSuccessful": "e5e53e45a1898f0c51a6d224d2dd918de5af4de3cc7fd5b39abba28198609749",
         "TypeString": "9887cfe28b13beb35c2d87b98bcc11635ad481ed3fc07bd660cdeca9ebcbab88"
       },
-      "table_digest": "e0ae7576448b9d39bb84097b8c0f6e7702dc094d4474146cc967000b21b9f1b7"
+      "table_digest": "4d388ab864b0db125605969a6a74340d20e17d13bb857d5e4c8042d1a6966ea5"
     },
     "restored_keys": {
       "emitted": true,
@@ -638,7 +638,7 @@
         "AssetType": "5243b9330e78de2021224d38905ba968a7fc3b5ea9db2566dfaffb7027cff38a",
         "ClosedAt": "a8891e27823a061d61618eb41abe0005e598856c316d63250e3a0cafcd39b1a0",
         "ContractID": "f0ddf0c8ac0df83d745732a766673ec0b6a5dd99ae3b8e2df2d1e86056fe8785",
-        "CreatedAt": "f240c80c6bd7448029cba6f664b6c3bd1233c09d28fe24a43a8b93af332b5ed7",
+        "CreatedAt": "9dae80daddff11d7c62c0b8ab2980c3df485bfc2a32673ebbc155c764e0e1221",
         "EventType": "5148ecb3eb3422af935c7757c1be23c9caf44b9746d958a8f50e9c8d8926cd33",
         "From": "c323308a72364d788d32f0d87675682c3b36ccd1959240dd0223cadb0cdd741b",
         "LedgerRange": "d4b92ffa021ef51821792177c30751f53e750ff4d78af90f416ec30f2b519765",
@@ -656,7 +656,7 @@
     },
     "trades": {
       "emitted": true,
-      "row_count": 225,
+      "row_count": 344,
       "columns": [
         "BuyerAccount",
         "BuyingAmount",
@@ -666,6 +666,7 @@
         "EraID",
         "LedgerRange",
         "LedgerSequence",
+        "LiquidityPoolID",
         "OperationIndex",
         "Price",
         "SellerAccount",
@@ -679,25 +680,26 @@
         "VersionLabel"
       ],
       "column_digests": {
-        "BuyerAccount": "a9be3cb6b6a1064509f1b1bdac71f89cf20865296736c573e947b30f1c18e7a7",
-        "BuyingAmount": "3faf99b63ba0afe5c42905bec2fda01d704b4e19f81a9261d7f2460631a073af",
-        "BuyingAssetCode": "59c4609f311c5171b29bc8a4cddb177a3055a33be8c22ff4405a8f1be3aa0dab",
-        "BuyingAssetIssuer": "1d943a11ace29321607f0ebb98563de0988424bc8a730d8da6ebe8742884a5e6",
-        "CreatedAt": "295dcb651e1867a54c367fc649de2ae8b763d1ab2ea197405fbc6c836bdef2a3",
-        "LedgerRange": "47a0cce05853f16b4902ca5ceeed4f2fdacf2b79864d604cc1a67bb120c35ed4",
-        "LedgerSequence": "5d26402f695565d6eda5154413f9b37c373de179e0c9ed44b5889d8422cdd0e2",
-        "OperationIndex": "e5d8362520c0de8ffc9f9340123958e1e96ff2e0cc938ef67531ef0f46159ee2",
-        "Price": "3c89591e85989a6be42e8530d770baffd0d3478e986bff3593c08d86da9ec88e",
-        "SellerAccount": "40a83b46ca54890532ee9d8a997c6f4b3930d8bbca3670e33650c43a44b5ca17",
-        "SellingAmount": "15b41973acdee3f96d2c78f013673e87705ce97f1e4e9ebdaf70d3d216f6467c",
-        "SellingAssetCode": "c4873810d3db44a87eb52a1096d1bb5a1e12d10f5c9b7d39e2dab3ef1858a3f2",
-        "SellingAssetIssuer": "7754f159b2fde8f12f826c9e69042f9d8b228f285580598809397376ba779a12",
-        "TradeIndex": "0f2d35b84fd31bfcb653f35eabd0c813a8ff1de19f2f5673cc3bc2f76638a5f4",
-        "TradeTimestamp": "295dcb651e1867a54c367fc649de2ae8b763d1ab2ea197405fbc6c836bdef2a3",
-        "TradeType": "de2d6e7318016733fe6083644c48cba1a5f244d4a44d9dccc481691a74e3be24",
-        "TransactionHash": "d03acff3f56945f173aed2762c07802ef9bdd82e41252fd0c2003de82c1dfcd0"
+        "BuyerAccount": "b3fcf313e4decb06babbfe746992e53a9a863279454e8e3b6ad0d27197844881",
+        "BuyingAmount": "acd88d02b02bf24d7185b0b673163d12bc928879bf96f320f43dc48574a87a66",
+        "BuyingAssetCode": "f897ba51b498e6675f22b615da88ca8fb41945aa5daec60f3860f56aeaa8e88b",
+        "BuyingAssetIssuer": "cff360e5db00d2ba0e23f6a2aeac55e05a7fffbcb1b3e4a053f620cc192d4c1a",
+        "CreatedAt": "bdc6274c9b639c3b307b18ba3147e9bb56c055a883e1e2872d2ec3fe176bdfe7",
+        "LedgerRange": "f65d6ca8cf16ae123baae39862a9e659417390ea017261c9b3942491cfaef999",
+        "LedgerSequence": "b14cc9da63ffc6afd412f021a1d7378537adbbc15e218c4fcb1be927f597d93a",
+        "LiquidityPoolID": "416139e38b93a718a049e8f1dcedd60e4c37a569199f239e090fbd096c2ec6a5",
+        "OperationIndex": "ea4ed7754e0a659d31095edeaf9d0a285ac9329e6bd111bbe470cd4e7b702f37",
+        "Price": "72a97e66d997b84966ea329f9ed2b51df39bebaed4f3ce0cbf7b8ea73ed13c42",
+        "SellerAccount": "12ec1cd128678cf12a4f0b75a6c97d245291e42aa1bad5b7ed9f556394220502",
+        "SellingAmount": "b9929fedb23b7e4b5c49dd3dd05f8a72fde27bd3ccc9d4cfc0c27aa254d53e73",
+        "SellingAssetCode": "84906a5fc97c9717343cd5737176a92906a9eef487a43190e8b85492db98c1ab",
+        "SellingAssetIssuer": "405ba3a99e090497b3e98896362b147ed801cde65f78716e155bfdd5dd6097e3",
+        "TradeIndex": "fae6bd17ee9ebd957a606c574ee47772ac0b4bc860144f2eb0849274d68dc513",
+        "TradeTimestamp": "bdc6274c9b639c3b307b18ba3147e9bb56c055a883e1e2872d2ec3fe176bdfe7",
+        "TradeType": "7f28afe30d0238559411fc1335e497db2849b04be7d9548afbc46d488618d6ca",
+        "TransactionHash": "b3377876b0e79962bfde434ececffa8d3e5745a5003d7f236387a7e370a99c1e"
       },
-      "table_digest": "4edf11f484264397111fbfb4e0369e982a418cccc08fa808f36a8e48e9c58c34"
+      "table_digest": "54cd7ba781484692d91ddfb944e07fdbe2cd5a1c04cf0065ed65885a188db376"
     },
     "transactions": {
       "emitted": true,
@@ -801,7 +803,7 @@
         "Balance": "419bef1d5d0461a108d37408da68e68255404fb6b3d90b692d84634c79adc7b2",
         "BuyingLiabilities": "7df46010590c694533a5beaf064f972f846bba89fb7d13a16a3e1b54f667eb80",
         "ClawbackEnabled": "3870f7aacda6922b939180067f4da462a5eb8ee2dcdeee4b31b91bfea9769ece",
-        "CreatedAt": "faa24126fc068ec4e84ee10c309bc73e560479132f72c45a8c3327e793ecb8e4",
+        "CreatedAt": "7836429cde916596e3513f0f5c9ed106abd53ef3913cce47b24693cdfea2395f",
         "LedgerRange": "e81b566de69329964a575c068abb5b682b13fb39e8f40e6121ba59b56847ff2b",
         "LedgerSequence": "6fc6a3ccbf32df0bfa7bfc261ff5c1bffea800b28d3dcbe7286d9e98523e711d",
         "SellingLiabilities": "7b5bf842b6bdcfcce09dbb47066191f622a1d6446d47353fcf6aaa9d163e31b5",
@@ -831,7 +833,7 @@
       ],
       "column_digests": {
         "ClosedAt": "be7b1178605d285996eeff23c80822eca55bbbe855fdfe95b3f48d3f23730ef7",
-        "CreatedAt": "1f444c86ba66690c8e1a1140d2bf716cf3f2b56378fa5775d5bf7faabd5db77a",
+        "CreatedAt": "2f7708db2f6ed060848fbc05cc4746f6bb37f9fb639107ec571a47e4cc23d2ee",
         "Deleted": "9cd0467cf17f8568c2e85e80a12f7e92f941895b3d95ce7948def67c4d95ce80",
         "Expired": "465a70886fa57bd21866a73a366c5e957c346061105da2e0143ee815de98434f",
         "KeyHash": "14dddc5ea532eb6f896e20f422accd4de48aaa216f81121eda912eea9c5fac49",
