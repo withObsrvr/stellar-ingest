@@ -1,8 +1,9 @@
 # Ticket 04 — historical/live Bronze discrepancy report
 
-**Status: fourth pass. Both ingesters on `stellar-extract` v0.2.1, 18 of 21
-tables equal at the extraction tier, and the live storage tier is now
-verified against a real migrated hot buffer.**
+**Status: fifth pass. Both ingesters on `stellar-extract` v0.2.1, 18 of 21
+tables equal at the extraction tier, and both storage tiers verified — the
+live one against a real migrated hot buffer, the historical one against
+Parquet read back through DuckDB.**
 
 The storage tier was worth running: it found that **86% of contract events
 were being discarded on insert** — invisible to every extraction-tier
@@ -113,7 +114,9 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | **F10 ScVal rendering** | **closed** | local converter deleted; both sides use the library's |
 | **F11 `soroban_contract_id`** | open, minor | 1 row of 2,913 |
 | **F12 contract events discarded** | **fixed** | 86% of rows lost on insert; migration 018 |
-| **F13 event identity** | **new** | `event_id` is not unique; 4% of rows unstorable |
+| **F13 event identity** | open | `event_id` is not unique; 4% of rows unstorable |
+| **F14 Parquet all-NULL column** | **fixed** | `tx_max_footprint_entries` never populated |
+| **F15 `claimable_balances.created_at`** | open, minor | no column; wall clock, see F7 |
 | L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
 
 Three tables still differ:
@@ -468,10 +471,36 @@ environment or a new region silently differed until the first batch failed.
 
 ### Storage tier — historical
 
-Still unverified. The Parquet path has its own hand-written mapping layer
-(`parquet_writer.go`'s `Parquet*` structs), which the adapter audit does not
-cover, and which is where a field can reach `types.go` and still never reach
-a file.
+Verified. `parquet_coverage_test.go` audits the `LedgerData` → `Parquet*`
+mapping statically; `parquet_storage_tier_test.go` writes a fixture through
+the real orchestrator and reads the files back through DuckDB, comparing
+row counts, column presence, null rates and distinct counts against the
+extracted rows. Both run in the default suite — no credentials, no database.
+
+### F14 — `config_settings.tx_max_footprint_entries` shipped all-NULL
+
+Found by the readback test, immediately. The field was added to
+`ConfigSettingData`, to `ParquetConfigSetting` and to
+`v3_bronze_schema.sql`, and the one edit that populates it did not land.
+The column therefore appeared in the Parquet schema and in the golden
+diff, looking like a successful addition, while every row held NULL.
+
+Fixed. Worth recording because of how it hid: a new column showing up in a
+golden diff reads as the change working, and no other check in the
+repository compares what a column holds against what was extracted.
+
+A null-rate check alone would not have caught the general case either. A
+dropped field only reads NULL if its column is nullable; a non-nullable
+one takes Go's zero value. The test therefore also compares distinct
+counts, and both halves were verified by reintroducing real drops.
+
+### F15 — `claimable_balances` has no `created_at` column
+
+Every other snapshot table in Parquet carries one. The value is an
+ingestion wall clock, so adding the column would add a field **F7**
+already identifies as unreproducible from the ledger, and removing it from
+the siblings is a schema break. Allowlisted and left for the canonical row
+contract to settle alongside F7.
 
 ## Root causes in `stellar-extract`
 
