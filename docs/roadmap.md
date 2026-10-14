@@ -53,8 +53,9 @@ binary/image runs independently; operational rollbacks documented":
 ## Phase 2 — Consolidate shared processing internals
 
 **Status: incremental work underway.** Target layout in `docs/target-architecture.md`.
-A private Parquet worker boundary and failure-injection checkpoint tests are in
-place; see `docs/ticket-03-progress.md`. The full package extraction and
+A private Parquet worker boundary, failure-injection checkpoint tests, and a
+worker-independent Bronze mapping entry point are in place; see
+`docs/ticket-03-progress.md`. The full package extraction and
 cross-repository Bronze parity are still outstanding. Existing goldens guard
 all 21 tables, including a real automatic-restoration ledger.
 
@@ -90,7 +91,7 @@ architecture is changed on the strength of those numbers.
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
 | 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **21-table fixture coverage complete** — 8 fixtures, including a 22-row automatic-restoration ledger. Crash injection and opt-in large ranges remain. See `docs/ticket-02-progress.md`. |
-| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **In progress** — private worker writer seam and fault tests; no package extraction yet. See `docs/ticket-03-progress.md`. |
+| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **In progress** — private worker writer seam and fault tests; mapping callable without a worker, no package extraction yet. See `docs/ticket-03-progress.md`. |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |

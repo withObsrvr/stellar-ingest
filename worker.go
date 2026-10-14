@@ -468,11 +468,16 @@ type extractorResult struct {
 	err  error
 }
 
-// extractLedger fans out to all 21 extractors in parallel, each receiving the
-// already-decoded LCM. Results are collected and merged into a single LedgerData.
+// extractLedger preserves the worker call site while keeping the mapping
+// independent of scheduling, sources, sinks, and checkpoint state.
 func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
+	return extractBronzeLedger(meta, w.config.NetworkPassphrase, w.config.OnlyTables, w.id)
+}
+
+// extractBronzeLedger fans out to all 21 extractors over an already-decoded
+// ledger. It is not exported yet: the live consumer's contract is unresolved.
+func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool, workerID int) (*LedgerData, error) {
 	lcm := meta.LCM
-	np := w.config.NetworkPassphrase
 	lr := meta.LedgerRange
 
 	resultCh := make(chan extractorResult, len(extractorOutputDirByName))
@@ -481,7 +486,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 
 	// Helper to launch an extractor goroutine
 	launch := func(name string, fn func() (*LedgerData, error)) {
-		if !w.shouldExtractTable(name) {
+		if !shouldExtractTable(onlyTables, name) {
 			return
 		}
 		launched++
@@ -501,7 +506,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 	// Fan out to all extractors. Transactions use the local extractor because it
 	// carries Horizon XDR/signature fields not yet exposed by stellar-extract.
 	launch("transactions", func() (*LedgerData, error) {
-		rows, err := extractTransactions(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractTransactions(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -512,7 +517,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{Transactions: rows}, nil
 	})
 	launch("operations", func() (*LedgerData, error) {
-		rows, err := extractOperations(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractOperations(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -541,7 +546,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{Trades: rows}, nil
 	})
 	launch("accounts", func() (*LedgerData, error) {
-		rows, err := extractAccounts(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractAccounts(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -644,7 +649,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		for i, r := range libRows {
 			rows[i] = ContractEventData(r)
 			if repairs := sanitizeContractEventUTF8(&rows[i]); repairs > 0 {
-				log.Printf("[Worker %d] contract_events utf8_repaired ledger=%d event_id=%s repairs=%d", w.id, meta.LedgerSequence, rows[i].EventID, repairs)
+				log.Printf("[Worker %d] contract_events utf8_repaired ledger=%d event_id=%s repairs=%d", workerID, meta.LedgerSequence, rows[i].EventID, repairs)
 			}
 		}
 		return &LedgerData{ContractEvents: rows}, nil
@@ -704,7 +709,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{ContractCreations: rows}, nil
 	})
 	launch("ledgers", func() (*LedgerData, error) {
-		rows, err := extractLedgers(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractLedgers(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -723,7 +728,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 	})
 
 	if launched == 0 {
-		return nil, fmt.Errorf("no extractors selected by --only-tables=%q", tableSetKey(w.config.OnlyTables))
+		return nil, fmt.Errorf("no extractors selected by --only-tables=%q", tableSetKey(onlyTables))
 	}
 
 	// Wait for all extractors to complete, then close the results channel
@@ -768,7 +773,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 
 	if len(extractErrors) > 0 {
 		for _, err := range extractErrors {
-			log.Printf("[Worker %d] extractor error on ledger %d: %v", w.id, meta.LedgerSequence, err)
+			log.Printf("[Worker %d] extractor error on ledger %d: %v", workerID, meta.LedgerSequence, err)
 		}
 		return nil, fmt.Errorf("%d extractor(s) failed for ledger %d", len(extractErrors), meta.LedgerSequence)
 	}
@@ -810,12 +815,16 @@ func convertExtractedConfigSetting(r extract.ConfigSettingData) ConfigSettingDat
 }
 
 func (w *Worker) shouldExtractTable(name string) bool {
-	if len(w.config.OnlyTables) == 0 {
+	return shouldExtractTable(w.config.OnlyTables, name)
+}
+
+func shouldExtractTable(onlyTables map[string]bool, name string) bool {
+	if len(onlyTables) == 0 {
 		return true
 	}
 	sourceName := extractorOutputDir(name)
 	duckTableName := mapToDuckLakeTable(sourceName)
-	return tableSetIncludes(w.config.OnlyTables, name, sourceName, duckTableName)
+	return tableSetIncludes(onlyTables, name, sourceName, duckTableName)
 }
 
 // stampEraID sets the EraID field on every row in every table slice.

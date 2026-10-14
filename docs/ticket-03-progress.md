@@ -14,6 +14,15 @@ then processes the full range and checkpoints only after successful Close.
 This is a **Parquet footer** boundary, not proof of a DuckLake or PostgreSQL
 commit, and the test simulates failures rather than killing a process.
 
+## Second slice: mapping separated from worker state
+
+`extractBronzeLedger` now accepts decoded ledger metadata, network passphrase,
+table selection, and a diagnostic worker ID. `Worker.extractLedger` is a small
+adapter; a direct test processes the restored-entry fixture without a worker,
+checkpoint, CLI, or destination. The function is still private and remains in
+the flat package until the row contracts and second consumer are specified.
+All eight full-output goldens and the worker fault tests guard the change.
+
 ## Extraction ownership discovered during inspection
 
 At the beginning of this ticket, `Worker.extractLedger` called
@@ -44,7 +53,7 @@ which implementation each table actually uses and test its row-level contract.
   and contract-creation differences before switching the other mappings.
 - Add an orchestrator-level failure/restart test using real Parquet files;
   a writer mock alone does not prove cleanup or manifest publication.
-- Isolate extraction independently of scheduling after output parity; migrate
-  one table group at a time, leaving storage transactions destination-specific.
+- Move the now-isolated extraction logic into a cohesive package one table
+  group at a time, leaving storage transactions destination-specific.
 - Add externally importable Bronze APIs only after the live ingester's second
   consumer requirements and all-table parity are characterized.
