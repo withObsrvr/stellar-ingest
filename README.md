@@ -30,6 +30,18 @@ The incremental refactor toward reusable packages has not started. The
 destination is recorded in
 [`docs/target-architecture.md`](docs/target-architecture.md).
 
+## Build with Nix
+
+```sh
+nix build .#stellar-ingest     # binary + stellar-history-loader alias
+nix run . -- --start ... --end ...
+nix develop                    # dev shell: Go, CGO toolchain, duckdb, zstd, gcloud
+nix flake check                # builds and runs the hermetic test suite
+nix build .#docker             # container image tarball
+```
+
+Flakes only see git-tracked files, so `git add` a new file before building it.
+
 ## Requirements
 
 - Go 1.26.1+
@@ -99,6 +111,17 @@ Extraction is skipped when `--bucket` is empty; a `manifest.json` in
 ```sh
 duckdb -c "SELECT count(*) FROM read_parquet('/data/output/bronze/**/*.parquet')"
 ```
+
+## Tests
+
+```sh
+make test     # unit suite
+make golden   # hermetic Bronze snapshot suite over 7 committed pubnet fixtures
+```
+
+The golden suite needs no network and no credentials — fixtures are committed
+raw pubnet XDR. It covers 20 of the 21 Bronze tables; `restored_keys` is a
+recorded gap.
 
 ## Two things that will bite you
 

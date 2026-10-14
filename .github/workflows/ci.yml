@@ -54,3 +54,24 @@ jobs:
         run: |
           docker run --rm stellar-ingest:ci --help > /dev/null
           docker run --rm --entrypoint stellar-history-loader stellar-ingest:ci --help > /dev/null
+
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # Builds the package, which runs the hermetic test suite inside the
+      # sandbox — including the golden Bronze snapshots.
+      - name: nix flake check
+        run: nix flake check --print-build-logs
+
+      - name: Verify both executables
+        run: |
+          nix build .#stellar-ingest --print-build-logs
+          ./result/bin/stellar-ingest --help > /dev/null
+          ./result/bin/stellar-history-loader --help > /dev/null

@@ -1,7 +1,7 @@
 # TICKET 02 — progress
 
 Golden ledger fixtures and baseline snapshot tests for all Bronze outputs.
-**Harness complete; two coverage gaps remain.** This records the decisions made, what was measured, and what
+**Harness complete; one coverage gap remains.** This records the decisions made, what was measured, and what
 is left, so the work can be picked up without re-deriving any of it.
 
 ## Decisions
@@ -59,12 +59,29 @@ first P20 ledger is 50,457,424.**
 All committed, 5.5 MB total. Stored as `zstd -19` framed XDR except the
 genesis fixture, which is small enough to commit raw.
 
-**Still uncovered: `evicted_keys` and `restored_keys`.** State archival is
-rare; neither a 401-ledger scan at the chain tip nor a 1,000-ledger scan found
-a single ledger with `evicted_keys_count > 0`. These are recorded in
-`knownUncoveredTables` in `golden_test.go`, which fails both if an unrecorded
-table goes missing and if a recorded gap closes without the list being updated.
-Finding an archival window needs a targeted search.
+| `pubnet-state-eviction-p23` | 59,000,625–59,000,629 | 5 | 0.71 MB | Mass Soroban state archival — 2,000 evicted keys per ledger, 10,000 `evicted_keys` rows |
+
+**The archival window.** Eviction turned out to be bursty, not steady. Sampling
+400-ledger windows at protocols 20, 22, 23, 25 and 27 found zero evictions
+anywhere. A contiguous 2,000-ledger scan at 59,000,000 (protocol 23) found
+**990 of 2,000 ledgers evicting, 1,970,054 keys in total**, a steady 2,000 per
+ledger — a bulk state-archival event rather than routine background eviction.
+That is why sparse sampling kept missing it, and it is the reason the fixture
+is pinned to an exact range rather than "somewhere in protocol 23".
+
+**Still uncovered: `restored_keys`.** It needs a successful `RestoreFootprint`
+operation. None appeared in 8,000 ledgers — four windows around the archival
+event (59,000,625 / 59,002,000 / 59,010,000 / 59,100,000) and four later ones
+at 59.5M, 61M, 63M and 64.9M. Restores are far rarer on pubnet than evictions.
+
+There is also a **suspected extraction gap** that may be part of the reason.
+`extractRestoredKeys` unwraps fee-bump envelopes to find the operation list,
+but the `switch` that resolves the footprint handles only
+`EnvelopeTypeEnvelopeTypeTx`. A fee-bumped `RestoreFootprint` is therefore
+located and then silently skipped at `if footprint == nil { continue }`. Fee
+bumps are common, so this could be hiding real restores. It is left unfixed
+deliberately: confirming the fix needs a fee-bumped restore to test against,
+and changing Bronze output without one would be unverifiable.
 
 ## Table coverage gap
 
@@ -224,3 +241,35 @@ extractors.
    idempotent repair.
 5. `--chunk-size 0` versus non-zero producing identical Bronze output.
 6. Decide whether the wall-clock columns belong in Bronze at all.
+
+## Nix flake
+
+`flake.nix` provides a reproducible build, a dev shell, a container image, and
+`nix flake check`.
+
+| Output | What it is |
+|---|---|
+| `packages.default` / `packages.stellar-ingest` | The binary, with `stellar-history-loader` symlinked beside it and `v3_bronze_schema.sql` installed under `share/` |
+| `packages.docker` | Layered image, entrypoint `stellar-ingest`, non-root |
+| `apps.default`, `apps.stellar-history-loader` | `nix run` targets for both names |
+| `checks.stellar-ingest` | What `nix flake check` builds |
+| `devShells.default` | Go, CGO toolchain, `duckdb`, `zstd`, `google-cloud-sdk`, golangci-lint |
+
+Unlike the other Obsrvr services, this cannot be built with `CGO_ENABLED=0` —
+`duckdb-go/v2` is cgo and bundles its own DuckDB. The flake sets
+`CGO_ENABLED=1` accordingly.
+
+`doCheck = true`, so the hermetic test suite — golden Bronze snapshots
+included — runs inside the nix sandbox on every build. `preCheck` unsets
+`ENABLE_FLOWCTL` and the `ledgerstream` variables so nothing leaks in. The
+check timeout is raised to 20 minutes because linking DuckDB is slow.
+
+### The one thing that will trip you up
+
+**Flakes only see git-tracked files.** A new or edited file must be at least
+`git add`-ed before nix will build it, otherwise you get
+`Path 'flake.nix' ... is not tracked by Git`. This bit during setup. The
+`Makefile` nix targets carry a comment saying so.
+
+The `vendorHash` is pinned in `flake.nix`. It changes whenever dependencies
+change: build once, take the `got:` hash from the mismatch error, paste it in.

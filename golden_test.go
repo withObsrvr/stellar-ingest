@@ -342,8 +342,13 @@ func TestFixturesCoverAllBronzeTables(t *testing.T) {
 // fails both when an unrecorded table is missing and when a recorded one
 // becomes covered, so the list has to stay accurate.
 var knownUncoveredTables = map[string]string{
-	"evicted_keys":  "state archival eviction is rare; a 401-ledger scan at the chain tip and a 1000-ledger scan both found zero ledgers with evicted_keys_count > 0. Needs a targeted search of an archival window.",
-	"restored_keys": "same archival window as evicted_keys; no committed fixture range contains a restore.",
+	"restored_keys": "requires a successful RestoreFootprint operation, and none was found in 8,000 ledgers: " +
+		"59,000,625 / 59,002,000 / 59,010,000 / 59,100,000 around the protocol 23 archival event, " +
+		"then 59.5M, 61M, 63M and 64.9M. Restores are far rarer on pubnet than evictions. " +
+		"Note also that extractRestoredKeys resolves a footprint only for EnvelopeTypeEnvelopeTypeTx " +
+		"even though it unwraps fee-bump envelopes to find the operations, so a fee-bumped " +
+		"RestoreFootprint is located and then silently skipped. That is a suspected extraction gap, " +
+		"not yet confirmed — confirming it needs a fee-bumped restore to test against.",
 }
 
 func uniqueOutputDirs() []string {

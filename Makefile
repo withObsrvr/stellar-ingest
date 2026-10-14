@@ -1,5 +1,6 @@
 .PHONY: all build build-compat build-all build-offline run clean test test-race test-coverage \
         deps vendor fmt vet lint install parity-baseline golden golden-update \
+        nix-build nix-run nix-shell nix-check nix-docker \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
         ci-build release help
 
@@ -129,6 +130,29 @@ clean:
 	rm -f coverage.out
 	$(GOCLEAN)
 
+# ---- Nix --------------------------------------------------------------------
+#
+# Flakes only see git-tracked files: a new or edited file must be at least
+# `git add`-ed before nix will build it, or you get a confusing
+# "not tracked by Git" error.
+
+nix-build:
+	nix build .#stellar-ingest
+
+nix-run:
+	nix run . -- $(ARGS)
+
+nix-shell:
+	nix develop
+
+# Builds the package, which runs the hermetic test suite in the sandbox.
+nix-check:
+	nix flake check
+
+nix-docker:
+	nix build .#docker
+	@echo "✓ image tarball at ./result — load with: docker load < result"
+
 # ---- Docker -----------------------------------------------------------------
 
 docker-build:
@@ -201,5 +225,9 @@ help:
 	@echo "  docker-build / docker-buildx / docker-push"
 	@echo "  docker-run ARGS=\"...\"                   Pass flags through"
 	@echo "  docker-shell / docker-clean"
+	@echo ""
+	@echo ""
+	@echo "Nix (flakes only see git-tracked files — git add new files first):"
+	@echo "  nix-build / nix-run ARGS=\"...\" / nix-shell / nix-check / nix-docker"
 	@echo ""
 	@echo "CI / Release: ci-build / release"

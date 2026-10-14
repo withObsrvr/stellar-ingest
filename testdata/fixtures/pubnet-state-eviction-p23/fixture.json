@@ -1,0 +1,15 @@
+{
+  "name": "pubnet-state-eviction-p23",
+  "description": "Five protocol 23 pubnet ledgers inside a mass Soroban state-archival event, each evicting 2000 keys. The only committed fixture producing evicted_keys rows. Located by scanning 59,000,000-59,002,000, where 990 of 2000 ledgers evict and 1,970,054 keys are evicted in total; sampling 400-ledger windows at protocol 20, 22, 23, 25 and 27 elsewhere found none, so eviction is bursty rather than steady.",
+  "network_passphrase": "Public Global Stellar Network ; September 2015",
+  "protocol_version": 23,
+  "start_ledger": 59000625,
+  "end_ledger": 59000629,
+  "ledger_count": 5,
+  "source": "gs://obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet",
+  "fetched_with": "nebu fetch --mode archive --bucket-path obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet 59000625 59000629",
+  "format": "bare concatenated LedgerCloseMeta XDR, zstd -19 (--storage-type XDR after decompression)",
+  "bytes": 6442176,
+  "compressed_bytes": 722535,
+  "sha256": "5256ec307b899a24d77891a5bda3a0d35246824d094cc0a187126478f2f5aacf"
+}
