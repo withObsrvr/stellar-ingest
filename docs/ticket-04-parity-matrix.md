@@ -20,15 +20,14 @@ Two verdicts are easy to misread:
 
 ### pubnet-auto-restore-p25
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
 | `transactions` | values-differ | 527 | 527 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 1 | 1 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
-| `operations` | equal-on-shared-columns | 967 | 967 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 18 | 18 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 581 | 581 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | both-empty | 0 | 0 | — | — | — | — |
@@ -42,6 +41,7 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 | `liquidity_pools` | equal | 28 | 28 | — | — | — | `CreatedAt` |
 | `native_balances` | equal | 581 | 581 | — | — | — | — |
 | `offers` | equal | 206 | 206 | — | — | — | `CreatedAt` |
+| `operations` | equal | 967 | 967 | — | — | — | — |
 | `restored_keys` | equal | 22 | 22 | — | — | — | `CreatedAt` |
 | `token_transfers` | equal | 1116 | 1116 | — | — | — | `CreatedAt` |
 | `trades` | equal | 95 | 95 | — | — | — | — |
@@ -50,15 +50,14 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-classic-p19
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
 | `transactions` | values-differ | 3820 | 3820 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 10 | 10 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
-| `operations` | equal-on-shared-columns | 7720 | 7720 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 89 | 89 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 4221 | 4221 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | both-empty | 0 | 0 | — | — | — | — |
@@ -72,6 +71,7 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 | `liquidity_pools` | equal | 122 | 122 | — | — | — | `CreatedAt` |
 | `native_balances` | equal | 4221 | 4221 | — | — | — | — |
 | `offers` | equal | 2413 | 2413 | — | — | — | `CreatedAt` |
+| `operations` | equal | 7720 | 7720 | — | — | — | — |
 | `restored_keys` | both-empty | 0 | 0 | — | — | — | — |
 | `token_transfers` | equal | 7822 | 7822 | — | — | — | `CreatedAt` |
 | `trades` | equal | 985 | 985 | — | — | — | — |
@@ -80,13 +80,13 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-contract-creation
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
-| `operations` | values-differ | 2913 | 2913 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | `SorobanContractID` | — |
+| `operations` | values-differ | 2913 | 2913 | — | — | `SorobanContractID` | — |
 | `transactions` | values-differ | 1106 | 1106 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 5 | 5 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
 | `account_signers` | equal | 182 | 182 | — | — | — | `CreatedAt` |
@@ -110,8 +110,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-genesis-p1
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -140,15 +140,14 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-protocol-boundary
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
 | `transactions` | values-differ | 4339 | 4339 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 10 | 10 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
-| `operations` | equal-on-shared-columns | 8751 | 8751 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 293 | 293 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 4934 | 4934 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | equal | 601 | 601 | — | — | — | `CreatedAt` |
@@ -162,6 +161,7 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 | `liquidity_pools` | equal | 633 | 633 | — | — | — | `CreatedAt` |
 | `native_balances` | equal | 4934 | 4934 | — | — | — | — |
 | `offers` | equal | 2803 | 2803 | — | — | — | `CreatedAt` |
+| `operations` | equal | 8751 | 8751 | — | — | — | — |
 | `restored_keys` | both-empty | 0 | 0 | — | — | — | — |
 | `token_transfers` | equal | 10862 | 10862 | — | — | — | `CreatedAt` |
 | `trades` | equal | 2097 | 2097 | — | — | — | — |
@@ -170,15 +170,14 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-soroban-p29
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
 | `transactions` | values-differ | 4181 | 4181 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 10 | 10 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
-| `operations` | equal-on-shared-columns | 7027 | 7027 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 826 | 826 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 4426 | 4426 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | equal | 2 | 2 | — | — | — | `CreatedAt` |
@@ -192,6 +191,7 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 | `liquidity_pools` | equal | 703 | 703 | — | — | — | `CreatedAt` |
 | `native_balances` | equal | 4426 | 4426 | — | — | — | — |
 | `offers` | equal | 1067 | 1067 | — | — | — | `CreatedAt` |
+| `operations` | equal | 7027 | 7027 | — | — | — | — |
 | `restored_keys` | equal | 2 | 2 | — | — | — | `CreatedAt` |
 | `token_transfers` | equal | 11736 | 11736 | — | — | — | `CreatedAt` |
 | `trades` | equal | 1330 | 1330 | — | — | — | — |
@@ -200,15 +200,14 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-state-eviction-p23
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
 | `transactions` | values-differ | 1376 | 1376 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 5 | 5 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
-| `operations` | equal-on-shared-columns | 2895 | 2895 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 88 | 88 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 1536 | 1536 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | both-empty | 0 | 0 | — | — | — | — |
@@ -222,6 +221,7 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 | `liquidity_pools` | equal | 104 | 104 | — | — | — | `CreatedAt` |
 | `native_balances` | equal | 1536 | 1536 | — | — | — | — |
 | `offers` | equal | 852 | 852 | — | — | — | `CreatedAt` |
+| `operations` | equal | 2895 | 2895 | — | — | — | — |
 | `restored_keys` | both-empty | 0 | 0 | — | — | — | — |
 | `token_transfers` | equal | 3209 | 3209 | — | — | — | `CreatedAt` |
 | `trades` | equal | 344 | 344 | — | — | — | — |
@@ -230,15 +230,14 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-tiny-dump
 
-Historical pins: `repo=stellar-ingest revision=a3826a8a5a39ad6c3eba1ed1c3a0ce2e078ccee0-dirty stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=8b0f39df530727885f30400d2b3235689c06f9d0 stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=b26999ef65dee5a658edbe5e6fdb281cf72de214-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
 |---|---|---:|---:|---|---|---|---|
 | `transactions` | values-differ | 874 | 874 | `SorobanContractID`, `SorobanHostFunctionType`, `SourceAccountMuxed`, `TimeboundsMaxTime`, `TimeboundsMinTime` | `ContractErrorCode`, `ContractErrorType`, `SorobanFootprintReadEntries`, `SorobanFootprintWriteEntries` | `EnvelopeSizeBytes` | — |
 | `ledgers` | equal-on-shared-columns | 3 | 3 | `PipelineVersion`, `SorobanFeeWrite1kb` | `EntryChangesByType`, `EntryChangesCreated`, `EntryChangesDeleted`, `EntryChangesRestored`, `EntryChangesTotal`, `EntryChangesUpdated`, `EvictedKeysByType`, `SorobanFeeWrite1KB` | — | `IngestionTimestamp` |
-| `operations` | equal-on-shared-columns | 2023 | 2023 | `AssetCode`, `AssetIssuer`, `AssetType`, `BalanceID`, `BumpTo`, `BuyingAsset`, `BuyingAssetCode`, `BuyingAssetIssuer`, `BuyingAssetType`, `ClearFlags`, `DataName`, `DataValue`, `DestinationMin`, `HighThreshold`, `HomeDomain`, `LowThreshold`, `MasterWeight`, `MediumThreshold`, `OfferID`, `Price`, `PriceR`, `SellingAsset`, `SellingAssetCode`, `SellingAssetIssuer`, `SellingAssetType`, `SetFlags`, `SorobanAuthRequired`, `SourceAccountMuxed`, `SourceAmount`, `SourceAsset`, `SourceAssetCode`, `SourceAssetIssuer`, `SourceAssetType`, `SponsoredID`, `StartingBalance`, `TrustlineLimit` | — | — | — |
 | `account_signers` | equal | 60 | 60 | — | — | — | `CreatedAt` |
 | `accounts` | equal | 1011 | 1011 | — | — | — | `CreatedAt`, `UpdatedAt` |
 | `claimable_balances` | both-empty | 0 | 0 | — | — | — | — |
@@ -252,6 +251,7 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 | `liquidity_pools` | equal | 78 | 78 | — | — | — | `CreatedAt` |
 | `native_balances` | equal | 1011 | 1011 | — | — | — | — |
 | `offers` | equal | 540 | 540 | — | — | — | `CreatedAt` |
+| `operations` | equal | 2023 | 2023 | — | — | — | — |
 | `restored_keys` | both-empty | 0 | 0 | — | — | — | — |
 | `token_transfers` | equal | 3038 | 3038 | — | — | — | `CreatedAt` |
 | `trades` | equal | 354 | 354 | — | — | — | — |

@@ -1,7 +1,7 @@
 # Canonical Bronze row contract — candidate v1
 
-**Status: candidate v1. Two decisions ratified and implemented; three open.**
-Ticket 04 deliverable 3.
+**Status: candidate v1. All three product decisions ratified; two upstream
+library changes open.** Ticket 04 deliverable 3.
 
 This is what a Bronze row *is*, independent of which ingester produced it or
 which store it landed in. It exists because two implementations wrote the
@@ -279,21 +279,50 @@ because it set `text_base64` directly — and with memo agreed, `transactions`
 now differs between the stores on `envelope_size_bytes` alone, which is the
 insert-time recomputation rather than an extraction difference.
 
-## 7. Column-set scope — may a store be narrower?
+## 7. Column-set scope — ratified: Bronze is one shape everywhere
 
-**Unresolved (F4).** `stellar-extract` populates 36 classic operation detail
-columns — asset triples, thresholds, offer fields, flags — that the hot
-buffer's `OperationData` has no columns for, by a declared "core fields only"
-design. The cold store carries all of them.
+**Rule: a store carries every Bronze column. A store may not declare a
+subset.**
 
-So `operations` means something different in the two stores. That is a
-legitimate choice, but it is currently implicit, and a Silver consumer
-pointed at the hot buffer will find columns missing with nothing to say they
-were intended to be.
+`stellar-extract` populates 36 classic operation detail fields — the asset
+triples, the offer and price fields, the account thresholds and flags, the
+data entry name and value — and the hot buffer's `OperationData` was declared
+"simplified, core fields only" and had columns for none of them. The data
+arrived and was dropped. The cold store had carried all 36 since it existed
+(**F4**).
 
-Whatever is decided, the contract needs it stated: either Bronze is one shape
-everywhere, or a store declares its subset and consumers can read that
-declaration. **Decision owner: live ingester + data platform.**
+A subset was defensible as a performance choice, but it was implicit: a
+consumer found columns missing with nothing to say whether that was a
+decision or a defect, and a Silver transformation written against one store
+broke when pointed at the other. Making the subset *explicit* would have
+meant a declaration format, a way for consumers to read it, and a rule for
+what happens when they need a column a store does not have — more machinery
+than simply carrying the column.
+
+Closed by migration 021 on the hot side, with column names matching
+`v3_bronze_schema.sql` exactly, so `operations` is now joinable
+column-for-column between the two stores. Enforced going forward by
+`TestConvertFunctionsReadEveryLibraryField`, whose allowlist no longer has
+anything to say about operations.
+
+Two column-set differences remain, and the same rule decides both — they are
+work, not open questions:
+
+- **`transactions`.** The cold store carries `source_account_muxed`,
+  `timebounds_min_time`, `timebounds_max_time`, `soroban_host_function_type`
+  and `soroban_contract_id`; the hot store carries `contract_error_type`,
+  `contract_error_code`, `soroban_footprint_read_entries` and
+  `soroban_footprint_write_entries`. Under this rule both stores take all
+  nine.
+- **`ledgers`.** The hot store's migration-014 entry-change aggregates are
+  the same case. `soroban_fee_write1kb` versus `soroban_fee_write1KB` is just
+  a casing mismatch, and the library spells it `1kb`.
+
+A narrower related case (**F11**): `operations.soroban_contract_id` is
+populated by the cold store on an `InvokeHostFunction` that *creates* a
+contract, and NULL in the library. Arguably the created contract; arguably
+nothing, since `contract_creations` records it. One row in 2,913, and the
+last value difference in `operations`.
 
 A narrower related case (**F11**): `operations.soroban_contract_id` is
 populated by the cold store on an `InvokeHostFunction` that *creates* a
@@ -348,13 +377,14 @@ accident it cost most of a table.
 |---|---|---|---|
 | ~~1~~ | ~~`created_at` split~~ — **ratified and implemented**; see §4 | F7 | — |
 | ~~2~~ | ~~Memo encoding~~ — **ratified and implemented**; see §6 | F6 | — |
-| 3 | May a store carry a declared subset of Bronze? | F4, F11 | Live ingester + data platform |
+| ~~3~~ | ~~Declared subset of Bronze~~ — **ratified**: one shape everywhere; see §7 | F4 | — |
 | 4 | `contract_events` identity — unique index or richer `event_id` | F13 | `stellar-extract` |
 | 5 | `token_transfers` event index | F16 | `stellar-extract` |
 
-Decisions 1 and 2 are ratified and implemented. Decision 3 is the remaining
-product call; 4 and 5 are implementation with a clear shape, both upstream in
-`stellar-extract`.
+All three product decisions are ratified and implemented. What remains is
+4 and 5, both upstream in `stellar-extract` and both with a clear shape, plus
+the `transactions` and `ledgers` column sets that decision 3 now settles as
+work rather than questions.
 
 ## What is already enforced
 

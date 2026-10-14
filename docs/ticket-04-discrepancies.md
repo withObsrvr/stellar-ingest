@@ -105,7 +105,7 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | F1 row set | **closed** | `trades` is equal on every fixture; 135 pool trades recovered on `pubnet-tiny-dump` alone |
 | F2 config NULLs | **closed** | all 13 columns match |
 | F3 call graph | **closed** | library populates it; live's `convertOperation` already copied the fields |
-| F4 36 op columns | open — decision | live stores "core fields only"; the library provides all 36 |
+| F4 36 op columns | **closed** | migration 021; `operations` has no one-sided columns |
 | F5 account sequence | **closed** | `convertAccount` now maps them; the columns had existed since migration 009 and were receiving zeros |
 | F6 memo policy | **closed** | raw bytes kept in `memo_raw`; `memo_type` is the protocol value |
 | F6 `envelope_size_bytes` | open — unverified | recomputed at insert; needs the storage tier |
