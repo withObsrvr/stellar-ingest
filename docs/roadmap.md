@@ -94,7 +94,7 @@ architecture is changed on the strength of those numbers.
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
 | 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **21-table fixture coverage complete** — 8 fixtures, including a 22-row automatic-restoration ledger. Crash injection and opt-in large ranges remain. See `docs/ticket-02-progress.md`. |
 | 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Done (bounded scope)** — module ownership inventory, worker-independent mapping, private `internal/bronze/restored` package with direct/fixture/golden tests, Parquet fault/restart tests. The remaining four local mappings and public canonical API depend on Ticket 04 parity; see `docs/module-boundaries.md`. |
-| 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
+| 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | **Ready for implementation** — local live repo inspected; scope, fixture procedure, risks and acceptance criteria in `docs/ticket-04-developer-handoff.md`. No parity report yet. |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |
 | 07 | Benchmark identical batches through DuckLake and PostgreSQL sinks | Not started |

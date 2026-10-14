@@ -201,6 +201,7 @@ listings and shell history. Environment fallbacks are a known gap, recorded in
 | [`docs/phase0-fixtures.md`](docs/phase0-fixtures.md) | Golden fixture plan (TICKET 02) |
 | [`docs/target-architecture.md`](docs/target-architecture.md) | Ownership boundaries and the target package layout |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phases, tickets, and current state |
+| [`docs/ticket-04-developer-handoff.md`](docs/ticket-04-developer-handoff.md) | Historical/live Bronze parity work plan and discrepancy-report acceptance gate |
 | `docs/baseline/cli-help.txt` | Recorded CLI contract, enforced by `make parity-baseline` |
 
 ## Related repositories
