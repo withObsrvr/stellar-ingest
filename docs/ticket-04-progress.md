@@ -5,9 +5,10 @@ Companion to [`ticket-04-developer-handoff.md`](ticket-04-developer-handoff.md)
 (the findings). This file covers the harness: how it works, how to run it,
 and what is left.
 
-**State:** deliverables 1 and 2 are done, extraction tier and live storage
-tier. Deliverable 3 (canonical row contract) and the historical Parquet
-storage tier are open.
+**State:** all four deliverables done. The candidate canonical row contract
+is [`bronze-row-contract.md`](bronze-row-contract.md); its logical keys are
+machine-verified rather than asserted, and five decisions in it remain open
+for review.
 
 ## Why two processes
 
@@ -179,10 +180,16 @@ revision.
    structs) that no audit covers, so a field can reach `types.go` and never
    reach a file. Read the columns back through DuckDB as
    `golden_harness.go` does.
-2. **Canonical row contract** (deliverable 3). Per-table logical keys, null
-   semantics, units, and `created_at`'s two meanings. The harness pairs
-   sample rows by sorted rank precisely because the keys are undecided, and
-   guessing would produce confident, wrong pairings.
+2. **Canonical row contract: drafted.** `docs/bronze-row-contract.md`.
+   Logical keys live in `internal/parity/keys.go` rather than in prose, and
+   `TestLogicalKeysAreUnique` verifies all 21 against ~300,000 rows across
+   protocols 1 to 29. Nineteen are unique; `contract_events` collides on 4%
+   of rows (F13) and `token_transfers` has no key at all (F16), both
+   recorded as defects rather than papered over.
+
+   Still open in the contract: `created_at`'s two meanings, memo encoding,
+   and whether a store may carry a declared subset of Bronze. Those are
+   product decisions, not harness work.
 3. **Fixture gaps.** `contract_code` emits nothing on any fixture;
    `config_settings` is exercised by one.
 4. **Field-name alias map.** The comparison matches columns by name, so

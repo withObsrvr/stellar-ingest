@@ -22,7 +22,7 @@ const liveParityPackageDir = "../../../ttp-processor-demo/obsrvr-lake/stellar-po
 //
 // compare.go is deliberately not in the list: only this side runs the
 // comparison, and copying it would be dead code in the live tree.
-var syncedFiles = []string{"canonical.go", "record.go"}
+var syncedFiles = []string{"canonical.go", "keys.go", "record.go"}
 
 // TestCanonicalCopyInSync is the drift guard for the duplicated canonical
 // form.

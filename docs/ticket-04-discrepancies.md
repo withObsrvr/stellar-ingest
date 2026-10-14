@@ -117,6 +117,7 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | **F13 event identity** | open | `event_id` is not unique; 4% of rows unstorable |
 | **F14 Parquet all-NULL column** | **fixed** | `tx_max_footprint_entries` never populated |
 | **F15 `claimable_balances.created_at`** | open, minor | no column; wall clock, see F7 |
+| **F16 `token_transfers` has no key** | **new** | no event index; 8-attribute key still collides |
 | L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
 
 Three tables still differ:
@@ -608,6 +609,26 @@ Worth stating, because the first reading of the evidence suggested otherwise:
   local ledger types. The library uses `SorobanFeeWrite1kb` and neither app
   calls its `ExtractLedgers`, so its spelling is only a tiebreaker if the two
   ever converge.
+
+### F16 — `token_transfers` has no logical key
+
+Found while deriving the canonical row contract. The row carries no event
+index, so two transfers cannot be told apart by anything the schema holds.
+A key of eight attributes — ledger, transaction, operation, event type,
+from, to, asset, raw amount — still collides once across the 40,606
+token-transfer rows in the fixture corpus, and legitimately: the same
+contract may transfer the same amount between the same parties twice in one
+operation.
+
+The live hot buffer has no primary key on this table either, so nothing
+deduplicates on the missing identity today and no rows are being lost. The
+cost is that the table cannot be joined, replayed idempotently, or compared
+row-for-row between the two stores.
+
+The fix is upstream: `stellar-extract` would have to emit an index within
+the operation, as it does for `effects` and `trades`. Recorded in
+`internal/parity.KeylessTables` so a sink cannot start deduplicating on a
+key that does not exist.
 
 ## Coverage gaps
 

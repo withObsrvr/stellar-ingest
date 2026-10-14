@@ -1,0 +1,320 @@
+# Canonical Bronze row contract — candidate v1
+
+**Status: candidate. Not yet ratified.** Ticket 04 deliverable 3.
+
+This is what a Bronze row *is*, independent of which ingester produced it or
+which store it landed in. It exists because two implementations wrote the
+same 21 tables for months without one, and the differences that opened up —
+amounts off by 10⁷, a column of zeros where data should be, 86% of a table
+discarded on insert — were all cases where neither side was wrong against a
+written rule, because there was no rule.
+
+Every claim here is either verified against the committed fixture corpus or
+marked as an open decision with an owner. Where a rule is machine-checked,
+the test is named.
+
+Companion documents: [`ticket-04-discrepancies.md`](ticket-04-discrepancies.md)
+for the findings this is built on, [`ticket-04-progress.md`](ticket-04-progress.md)
+for the harness.
+
+## Scope
+
+Applies to the 21 Bronze tables listed in `internal/parity.AllTables`, as
+produced by `stellar-ingest` (Parquet) and `stellar-postgres-ingester`
+(PostgreSQL hot buffer), both on `stellar-extract` v0.2.1.
+
+It deliberately does **not** say that `stellar-extract`'s Go structs are the
+contract. Three mapping layers sit between the library and a file, and two of
+them are hand-written; the stored row is what a consumer reads, not what the
+library returned.
+
+## 1. Row identity
+
+Every table has a **logical key**: the smallest set of columns identifying
+one row within a ledger range. Without one a consumer cannot join,
+deduplicate, or replay idempotently, and two stores can only be compared by
+sorted rank, which is a guess.
+
+The keys live in `internal/parity/keys.go`, not in prose, so they can be
+checked. `TestLogicalKeysAreUnique` extracts all eight fixtures — about
+300,000 rows across protocols 1 to 29 — and fails if a key does not identify
+exactly one row.
+
+### Event-stream tables — identity is a position in the ledger
+
+| Table | Key | Verified |
+|---|---|---|
+| `ledgers` | `Sequence` | 49 rows |
+| `transactions` | `LedgerSequence, TransactionHash` | 16,223 |
+| `operations` | `+ OperationIndex` | 32,296 |
+| `effects` | `+ OperationIndex, EffectIndex` | 38,187 |
+| `trades` | `+ OperationIndex, TradeIndex` | 5,587 |
+| `contract_events` | `+ OperationIndex, EventIndex` | **not unique — see below** |
+
+### Snapshot tables — identity is the entry, scoped to a ledger
+
+`LedgerSequence` is part of every snapshot key: Bronze keeps the history of
+an entry, not only its latest state.
+
+| Table | Key | Verified |
+|---|---|---|
+| `accounts`, `native_balances` | `AccountID, LedgerSequence` | 17,956 / 17,957 |
+| `account_signers` | `AccountID, Signer, LedgerSequence` | 1,556 |
+| `trustlines` | `AccountID, AssetCode, AssetIssuer, AssetType, LedgerSequence` | 17,824 |
+| `offers` | `OfferID, LedgerSequence` | 8,662 |
+| `liquidity_pools` | `LiquidityPoolID, LedgerSequence` | 1,783 |
+| `claimable_balances` | `BalanceID, LedgerSequence` | 605 |
+| `config_settings` | `ConfigSettingID, LedgerSequence` | 14 |
+| `contract_data` | `ContractId, LedgerKeyHash, LedgerSequence` | 5,286 |
+| `contract_code` | `ContractCodeHash, LedgerSequence` | 2 |
+| `ttl`, `evicted_keys`, `restored_keys` | `KeyHash, LedgerSequence` | 5,981 / 12,000 / 24 |
+| `contract_creations` | `ContractID` | 1 |
+
+`contract_creations` is keyed on the contract alone: a contract is created
+once, and the creating ledger is an attribute, not identity.
+
+### Two tables without a working key
+
+Recorded as defects, not omissions.
+
+**`contract_events` — key in use, 4.0% collisions.** The contract and
+diagnostic event streams index separately, so a contract event and a
+diagnostic event from different contracts can share an operation and event
+index. 4,165 of 104,730 rows collide. Those rows also share an `event_id`,
+so the library cannot distinguish them either — this key is exactly the
+identity `event_id` claims, no more. Tracked as **F13**; the fix is upstream,
+either an index unique across streams within an operation or an `event_id`
+derived from something that separates them.
+
+**`token_transfers` — no key at all.** The row carries no event index.
+Eight attributes — ledger, transaction, operation, event type, from, to,
+asset, raw amount — still collide once in the corpus, and legitimately: the
+same contract may transfer the same amount between the same parties twice in
+one operation. The live hot buffer has no primary key on this table either.
+Tracked as **F16**; needs an index field from the library.
+
+### Rule
+
+> A sink must not deduplicate on a key that is not in `LogicalKeys`, and must
+> not deduplicate at all on a table in `KeylessTables`.
+
+This rule is written because breaking it cost 86% of `contract_events`: the
+hot buffer's primary key omitted `OperationIndex`, and the `ON CONFLICT`
+built on it silently discarded 12,480 of 14,515 rows on three ledgers
+(**F12**).
+
+## 2. Null semantics
+
+Three states must stay distinguishable, and two of them have been conflated
+in production:
+
+| State | Meaning | Encoding |
+|---|---|---|
+| NULL | the ledger did not provide a value | SQL NULL, Parquet null |
+| Zero / empty | the ledger provided zero or an empty string | `0`, `''` |
+| Absent column | this store does not carry the field | no column |
+
+**Rule: a field the producer cannot populate is NULL, never a zero value.**
+
+`accounts.sequence_ledger` and `.sequence_time` broke this: the columns
+existed, the insert wrote them, and `convertAccount` never set them, so every
+account row carried a literal `0` (**F5**). A zero reads as data. A NULL reads
+as absence. The difference is not cosmetic — it is the difference between "this
+account was never bumped" and "we did not look".
+
+**Rule: a column present in a schema must be populated by some code path.**
+
+`config_settings.tx_max_footprint_entries` shipped in the Parquet schema and
+in the golden snapshots with every row NULL, because the conversion was never
+wired (**F14**). A new column appearing in a diff reads as the change working.
+Enforced by `TestParquetLayerWritesEveryRowField` and
+`TestParquetStorageTierPreservesValues`.
+
+**Rule: an empty list is not NULL.** `nil` means no authorization entries;
+`[]` would mean an authorization with no entries. The canonical encoding in
+`internal/parity/canonical.go` keeps these distinct and
+`TestEncodeKeepsDistinctionsThatMatter` pins it.
+
+## 3. Units and numeric fidelity
+
+**Rule: amounts are decimal strings in whole units, not stroops.**
+
+`trades` carried raw stroops on the cold side and XLM-scaled decimals on the
+hot side — the same trade reading `70627` and `0.0070627` (**F1**). Resolved
+in favour of decimals, matching Horizon and `amount.String`. A consumer
+joining the two stores was previously off by a factor of ten million with
+nothing in either schema to say which was which.
+
+**Rule: amounts are strings, never floats.** `int64` stroop values exceed
+`float64`'s exact range above 2⁵³. `token_transfers.Amount` is a `float64`
+convenience column and is **not** authoritative; `AmountRaw` is. Any consumer
+doing arithmetic reads `AmountRaw`.
+
+**Rule: identifiers are rendered, not inferred.** `contract_creations`
+records `executable_type` explicitly because deducing "SAC" from a NULL
+`wasm_hash` broke silently when Protocol 28 added a third kind. The general
+form: when a discriminant exists in the protocol, store it rather than
+reconstructing it from the absence of something else.
+
+## 4. `created_at` — the one name with two meanings
+
+This is the contract's largest unresolved item, and it is not a difference
+between the two ingesters: both do it.
+
+Measured by extracting each fixture twice and comparing
+(`internal/parity`'s non-determinism probe):
+
+| Meaning | Tables |
+|---|---|
+| **Ledger close time** — reproducible from the ledger | `transactions`, `operations`, `trades`, `effects` |
+| **Ingestion wall clock** — not reproducible | `accounts`, `account_signers`, `trustlines`, `offers`, `liquidity_pools`, `ttl`, `contract_data`, `contract_events`, `token_transfers` |
+
+`accounts` also stamps `updated_at`; `ledgers` stamps `ingestion_timestamp`.
+
+So nine tables contain a column that cannot be reproduced from the ledger,
+under a name that on four other tables means event time. A consumer treating
+`created_at` uniformly as event time is wrong on nine tables.
+
+**Proposed rule, needs ratification:** `closed_at` is the ledger close time
+and is the only event-time column; `ingested_at` is the wall clock and is
+explicitly provenance, not data; `created_at` is retired. Until then the
+nine wall-clock columns are excluded from every parity comparison, which the
+harness does by observation rather than by a hand-written list — the names do
+not predict which is which.
+
+This also decides **F15**: `claimable_balances` has no `created_at` column in
+Parquet where every sibling snapshot table does. Adding one would add a field
+this section proposes to retire, so it stays absent pending the decision.
+
+## 5. Provenance
+
+Provenance describes the run, not the ledger. It must be separable, because
+a row's content should be reproducible from its input and these fields are
+not.
+
+| Column | Meaning |
+|---|---|
+| `era_id` | operator-supplied ingestion era |
+| `version_label` | build version of the producer |
+| `ingestion_timestamp`, `updated_at` | wall clocks |
+| `observation_source` | `ledger_close_meta` or an RPC observation |
+| `resolved_at_ledger` | ledger an RPC observation was aligned to |
+
+**Rule: a row derived from authoritative XDR and a row observed from RPC must
+be distinguishable.** `config_settings` is the only table where this arises
+today: the live ingester may append rows observed from RPC that are absent
+from the ledger. `observation_source` carries it.
+
+**Rule: provenance columns are excluded from content comparison.** Enforced by
+`DeclaredRunDependentColumns`.
+
+## 6. Raw XDR fidelity
+
+**Rule: where a row carries raw XDR, it is the unmodified base64 of the
+protocol structure.** `tx_envelope`, `tx_result`, `tx_meta`, `tx_fee_meta`,
+`contract_event_xdr`, `config_setting_xdr` and the rest are reproducible from
+the ledger and are the fallback when a decoded column is wrong.
+
+**Unresolved: memo encoding (F6).** The cold store base64-encodes every
+`text` memo and retypes it `text_base64`; the hot store keeps raw text with
+UTF-8 sanitization. Both are defensible — memo bytes need not be valid UTF-8,
+and a Parquet text column rejects them — but a consumer reading `memo` gets
+different content depending on the store, with `memo_type` as the only signal.
+
+The cold side applies the transformation unconditionally, so a plain ASCII
+memo is also base64'd. A candidate rule is: store the raw bytes, and let
+`memo_type` distinguish `text` from `binary`, rather than making the encoding
+depend on the store. **Decision owner: data platform.**
+
+## 7. Column-set scope — may a store be narrower?
+
+**Unresolved (F4).** `stellar-extract` populates 36 classic operation detail
+columns — asset triples, thresholds, offer fields, flags — that the hot
+buffer's `OperationData` has no columns for, by a declared "core fields only"
+design. The cold store carries all of them.
+
+So `operations` means something different in the two stores. That is a
+legitimate choice, but it is currently implicit, and a Silver consumer
+pointed at the hot buffer will find columns missing with nothing to say they
+were intended to be.
+
+Whatever is decided, the contract needs it stated: either Bronze is one shape
+everywhere, or a store declares its subset and consumers can read that
+declaration. **Decision owner: live ingester + data platform.**
+
+A narrower related case (**F11**): `operations.soroban_contract_id` is
+populated by the cold store on an `InvokeHostFunction` that *creates* a
+contract, and NULL in the library. Arguably the created contract; arguably
+nothing, since `contract_creations` records it. One row in 2,913.
+
+## 8. Protocol eras and missing data
+
+**Rule: a field a protocol version does not have is NULL, not zero or a
+default.** Early-protocol ledgers have no Soroban fields; a protocol-23
+ledger has no CAP-0085 external reference.
+
+**Rule: a new protocol arm must not fall through silently.** Every extractor
+switches on XDR union discriminants, and Go does not warn about an unhandled
+arm. `stellar-extract`'s `protocol_coverage_test.go` guards the discriminants
+it switches on, and `docs/SDK_UPGRADES.md` carries the upgrade procedure. An
+unknown arm is recorded, not dropped — `extractAuthCredentials` emits
+`UNKNOWN_<n>` rather than skipping the entry.
+
+## 9. Ordering
+
+**Rule: row order is not part of the contract. Element order within a row
+is.**
+
+Rows are compared as multisets: the two ingesters extract in different orders
+by construction, one fanning out to 21 goroutines. But ordered arrays inside
+a row — call-graph hops, auth credential pairs, claimants — carry meaning,
+and reordering them is a real difference.
+
+**Rule: output must nonetheless be byte-reproducible.** Thirteen extractors
+ranged over a dedup map to build their output slice, so the same ledger
+produced the same rows in a different sequence every run. No test saw it —
+golden suites sort before hashing, and the parity harness compares multisets
+— but it defeated content addressing and any byte-level reproducibility claim
+about a backfill. Rows are now ordered by the dedup key, guarded by
+`TestNoExtractorRangesOverItsDedupMap` in the library.
+
+## 10. Versioning
+
+This document is **candidate v1**. The canonical encoding it relies on is
+versioned separately as `parity.CanonicalFormVersion`, stamped into every
+comparison artifact so a change to the encoding cannot be misread as a change
+to the data.
+
+**Rule: a logical key change is a contract version bump.** Keys are the
+identity downstream consumers build on, and the one time a key changed by
+accident it cost most of a table.
+
+## Open decisions
+
+| # | Decision | Finding | Owner |
+|---|---|---|---|
+| 1 | `created_at` split into `closed_at` / `ingested_at` | F7, F15 | Data platform |
+| 2 | Memo encoding: raw bytes with a type discriminant, or per-store | F6 | Data platform |
+| 3 | May a store carry a declared subset of Bronze? | F4, F11 | Live ingester + data platform |
+| 4 | `contract_events` identity — unique index or richer `event_id` | F13 | `stellar-extract` |
+| 5 | `token_transfers` event index | F16 | `stellar-extract` |
+
+Items 4 and 5 are implementation with a clear shape. Items 1 to 3 are
+genuine product decisions, and nothing in the harness can make them.
+
+## What is already enforced
+
+Not aspirations — these fail a build today.
+
+| Rule | Test | Repository |
+|---|---|---|
+| Logical keys identify one row | `TestLogicalKeysAreUnique` | stellar-ingest |
+| Every table has a key or a recorded reason | `TestEveryTableHasAKeyDecision` | stellar-ingest |
+| Null vs empty vs absent stay distinct | `TestEncodeKeepsDistinctionsThatMatter` | stellar-ingest |
+| Every library field reaches the adapter | `TestConvertFunctionsReadEveryLibraryField` | live ingester |
+| Every row field reaches Parquet | `TestParquetLayerWritesEveryRowField` | stellar-ingest |
+| Stored values match extracted values | `TestParquetStorageTierPreservesValues` | stellar-ingest |
+| Stored rows match extracted rows | `TestStorageTierRoundTrip` | live ingester |
+| No field is declared and never assigned | `TestEveryRowFieldIsPopulatedSomewhere` | stellar-extract |
+| Extraction is reproducible | `TestNoExtractorRangesOverItsDedupMap` | stellar-extract |
+| The two ingesters agree | `make parity-report` | stellar-ingest |
