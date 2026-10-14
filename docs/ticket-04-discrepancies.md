@@ -158,6 +158,13 @@ which `WriteBatch` never calls. Production takes
 three fields nil. `convertOperation` copies them faithfully; there is nothing
 to copy.
 
+The library side is worse than "not implemented". `ContractCallsJSON`,
+`ContractsInvolved` and `MaxCallDepth` are *declared* on
+`extract.OperationData` (`types_core.go:150-152`) and assigned **nowhere in
+the module** — they are dead fields that always read nil. A consumer has no
+way to tell that from a ledger that genuinely has no cross-contract calls.
+See **L1**.
+
 **Impact:** cross-contract call analysis is unavailable from the hot store
 despite the code to produce it being present and tested.
 
@@ -171,10 +178,17 @@ weight fields, `HomeDomain`, `SetFlags`/`ClearFlags`, `DataName`/`DataValue`,
 `DestinationMin`, `SourceAmount`, `SponsoredID`, `SourceAccountMuxed`,
 `SorobanAuthRequired`.
 
-Cause: `source difference` — the live `OperationData` type is a deliberately
-narrower "core fields only" row. Needs a decision rather than a fix: either
-the hot store is intentionally thinner, or Silver consumers that depend on
-these will break when pointed at it.
+Cause: `adapter conversion`, **not** a source limitation. `stellar-extract`
+populates every one of these fields on its own `OperationData` — they are
+assigned across `operations.go:79-309`, one branch per classic operation type —
+and `convertOperation` simply does not copy them, because the live
+`OperationData` is declared "simplified - core fields only" and has no
+columns for them.
+
+So the data reaches the live adapter and is discarded there. The decision is
+still live's to make, but it is a decision to drop populated fields, not an
+absence to be filled: widening the live row type and its insert is a
+mechanical change, with the hot-buffer schema the only open question.
 
 ### F5 — `accounts`: `sequence_ledger` and `sequence_time` zeroed on live
 
@@ -270,6 +284,113 @@ this, so a harness fault can never masquerade as "the live side emitted no
 rows". Confirming the production behaviour's blast radius needs a fault-
 injection test against a migrated database; it is not changed here.
 
+## Root causes in `stellar-extract`
+
+Four findings are not defects in either ingester. They are library-side, and
+fixing them in one app would only move the divergence.
+
+Checked against `github.com/withObsrvr/stellar-extract` at `v0.1.6`
+(`5e8c77e`, clean tree).
+
+### L1 — call-graph fields declared and never assigned
+
+`OperationData.ContractCallsJSON`, `.ContractsInvolved` and `.MaxCallDepth`
+exist in `types_core.go:150-152`. A module-wide search for an assignment to
+any of them returns nothing. They always read nil.
+
+This is the worst shape for an API gap: a consumer that copies them — which
+is exactly what the live `convertOperation` does — gets a silent nil with no
+way to distinguish "the library does not populate this" from "this ledger had
+no cross-contract calls". Either populate them or remove them. Root cause of
+**F3**.
+
+### L2 — liquidity-pool trades are dropped
+
+`trades.go:145` skips them outright:
+
+```go
+if claim.Type == xdr.ClaimAtomTypeClaimAtomTypeLiquidityPool {
+    continue
+}
+```
+
+and `TradeType` is hardcoded `"orderbook"` in `tradeFromClaim`, so the schema
+cannot express a pool trade even if one were emitted. Both sides of this
+ticket therefore report zero pool trades on every fixture, and agree — which
+is why the comparison could not have caught it on its own. The handoff's
+investigation matrix lists "pool trades" as a trades check; this is the
+answer to it.
+
+Note the ordering trap before fixing this. `appendTradesFromClaims`
+increments `tradeIndex` only for *emitted* trades, so adding pool trades
+renumbers every existing index on any operation that mixes them with
+orderbook claims. Anything keyed on `(transaction_hash, operation_index,
+trade_index)` breaks silently. Decide whether the index is positional over
+claims or dense over emitted rows **before** closing L2.
+
+### L3 — `AccountData` has no `SequenceLedger` / `SequenceTime`
+
+Root cause of **F5**. The protocol carries both in
+`AccountEntryExtensionV3`, and the SDK exposes them as
+`entry.SeqLedger()` / `entry.SeqTime()` — which is exactly how this
+repository's own `extractors_accounts.go:88-89` gets them. `accounts.go` in
+the library never calls either accessor, so the live ingester has nothing to
+map and writes `0` into two columns that exist in its schema.
+
+A small, well-defined addition: two fields and two accessor calls.
+
+### L4 — SDK pin lags both consumers
+
+`stellar-extract` requires `go-stellar-sdk v0.7.1`; both ingesters require
+`v0.7.3`.
+
+**This is not a production correctness gap.** Go's minimal version selection
+takes the maximum, so both apps already build the library against `v0.7.3` —
+confirmed with `go list -m` in each. What lags is the version the library's
+*own* tests run against, including `protocol_coverage_test.go`, the guard
+that exists specifically to catch unhandled union arms. That guard is
+currently proving something about a version neither application uses.
+
+The bump itself is low risk, and the library's own
+[`docs/SDK_UPGRADES.md`](../../stellar-extract/docs/SDK_UPGRADES.md)
+checklist is the reason to be confident rather than hopeful:
+
+- **No new XDR union arms.** Diffing the generated enum constants between
+  `v0.7.1` and `v0.7.3` returns nothing, so the failure mode that doc is
+  built around — a new arm silently falling through an existing `switch` —
+  does not apply to this bump.
+- **Builds and tests clean** against `v0.7.3` (verified on a scratch copy).
+- Two `processors/token_transfer` fixes land with it, both relevant to the
+  `token_transfers` table: a `to_muxed_id` bound to `Void` previously failed
+  to parse and the event was **dropped from the stream silently**, and an
+  `ScvBytes` muxed id was padded or truncated to 32 bytes, reporting an id
+  that was never emitted. Production already has these via MVS; the library's
+  tests do not cover them.
+- `v0.7.2` carries breaking `strkey` length validation and an
+  `Asset.LessThan` ordering change affecting `xdr.NewPoolId`. Neither breaks
+  the build, but both deserve a read before the bump lands — the pool-id
+  ordering change is adjacent to L2.
+
+The `go` directive also lags: `1.25.4` against `1.26.1` in both consumers.
+
+### What is *not* a library problem
+
+Worth stating, because the first reading of the evidence suggested otherwise:
+
+- **F1 and F2 are already fixed upstream.** `v0.1.2` rendered trade amounts
+  as raw stroops (`fmt.Sprintf("%d", ...)`); `v0.1.5` uses `amount.String()`,
+  which is the Stellar convention. `v0.1.2` handled only the three offer
+  operation types; `v0.1.5` added both path-payment types, which is the 62
+  missing trades. `v0.1.5` also skips zero-amount claims, which is the 3
+  spurious historical rows. The library is right and `stellar-ingest` is
+  three versions behind.
+- **F4 is not a source limitation.** The library populates all 36 classic
+  operation fields; the live adapter discards them.
+- **The `SorobanFeeWrite1kb` / `1KB` casing (F8)** is between the two apps'
+  local ledger types. The library uses `SorobanFeeWrite1kb` and neither app
+  calls its `ExtractLedgers`, so its spelling is only a tiebreaker if the two
+  ever converge.
+
 ## Coverage gaps
 
 Honest limits of this pass, so nothing above reads as broader than it is.
@@ -295,11 +416,23 @@ Honest limits of this pass, so nothing above reads as broader than it is.
 | 1 | Resolve the `trades` unit and coverage divergence | F1 | Silent 10⁷ numerical error plus missing rows; affects any cross-store join |
 | 2 | Populate `accounts.sequence_ledger` / `sequence_time` on live | F5 | Zeros in real columns read as data, not absence |
 | 3 | Decide the `stellar-extract` upgrade path | F1, F2, F5 | One root cause behind three findings; needs a reviewed bump, not a trial |
-| 4 | Restore the live operation call graph, or delete the dead code | F3 | Working implementation unreachable from production; the dead code also misleads readers |
+| 4 | Restore the live operation call graph, or delete the dead code | F3 | Working implementation unreachable from production; the dead code also misleads readers. Blocked on `stellar-extract` — the library declares the three fields and never assigns them |
 | 5 | Verify the storage tier | F6, all | Until this runs, no table is more than extraction-equal |
 | 6 | Define the canonical Bronze row contract | F4, F6, F7, F8 | Blocks Ticket 03's public API; `created_at`'s two meanings need deciding before anything is shared |
 | 7 | Fixtures for `contract_code` and more `config_settings` | gap 2 | Two tables currently unverifiable |
 | 8 | Fault-injection test for live warn-and-skip | F9 | Real replay gap, but no evidence it has fired |
+
+Four of these are library work and belong in `stellar-extract`, not in either
+ingester — fixing them in one app would only move the divergence:
+
+| Rank | `stellar-extract` change | Finding | Why this rank |
+|---|---|---|---|
+| a | Populate or remove the call-graph fields | L1 / F3 | Declared and never assigned; nil is indistinguishable from "no calls" |
+| b | Emit liquidity-pool trades | L2 | Silently absent from both stores, so the comparison agreed and could not catch it |
+| c | Add `AccountData.SequenceLedger` / `.SequenceTime` | L3 / F5 | Two fields and two SDK accessor calls; unblocks rank 2 above |
+| d | Bump the SDK pin to `v0.7.3` and the `go` directive | L4 | No production change (MVS already resolves it); aligns the library's own test matrix with what ships |
+
+Rank (b) must settle the `trade_index` numbering question first — see L2.
 
 ## What this report does not authorize
 
