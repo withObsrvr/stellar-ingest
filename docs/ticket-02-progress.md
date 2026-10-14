@@ -275,9 +275,10 @@ All pass. Nothing in Bronze output depends on how the extraction was executed:
 ## Remaining work
 
 1. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
-2. Process crash before/after destination commit, partial-file cleanup, and
-   manifest publication. Worker-level write/finalization fault tests exist,
-   but they do not prove storage transaction recovery.
+2. True process crash before/after destination commit and remote-sink recovery.
+   Worker-level write/finalization fault tests and a real-Parquet disk-state
+   restart test now cover partial-file cleanup and manifest publication; they
+   do not prove storage transaction recovery.
 4. Idempotent repair — re-running `--enrich-contract-balances` over the same
    range with the same run ID. Needs DuckLake credentials, so it cannot be
    hermetic.

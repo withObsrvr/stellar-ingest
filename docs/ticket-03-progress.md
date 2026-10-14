@@ -14,6 +14,17 @@ then processes the full range and checkpoints only after successful Close.
 This is a **Parquet footer** boundary, not proof of a DuckLake or PostgreSQL
 commit, and the test simulates failures rather than killing a process.
 
+## Recovery slice: real Parquet restart
+
+`TestOrchestratorResumesIncompleteParquetShard` stages two real Parquet
+shards and a saved checkpoint: shard 0 is complete; shard 1 is incomplete.
+It simulates both a truncated file and a finalized file left before its
+checkpoint, then runs the real orchestrator. It verifies that the complete
+shard's bytes stay unchanged, all stale incomplete files are removed, the
+resumed attempt matches a clean Bronze digest, and a manifest is published
+only after recovery. This is a deterministic disk-state simulation, **not**
+a process-kill or remote DuckLake/PostgreSQL commit test. Those remain open.
+
 ## Second slice: mapping separated from worker state
 
 `extractBronzeLedger` now accepts decoded ledger metadata, network passphrase,
@@ -51,8 +62,8 @@ which implementation each table actually uses and test its row-level contract.
 - TICKET 02's real `restored_keys` fixture and 21-table coverage are now in
   place. Investigate the `stellar-extract@v0.1.6` trades, config-settings,
   and contract-creation differences before switching the other mappings.
-- Add an orchestrator-level failure/restart test using real Parquet files;
-  a writer mock alone does not prove cleanup or manifest publication.
+- Add true process-kill tests and destination transaction fault tests;
+  simulated disk-state recovery does not prove remote sink idempotence.
 - Move the now-isolated extraction logic into a cohesive package one table
   group at a time, leaving storage transactions destination-specific.
 - Add externally importable Bronze APIs only after the live ingester's second
