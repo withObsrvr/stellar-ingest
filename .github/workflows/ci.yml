@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      # duckdb-go v2 requires CGO. GOWORK=off keeps builds identical to the
+      # documented local invocation.
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Build both executables
+        run: make build-all
+
+      - name: Test
+        run: go test ./...
+
+      # Phase 1 exit gate: the CLI contract must not drift silently. An
+      # intentional flag change has to update docs/baseline/cli-help.txt in the
+      # same commit.
+      - name: CLI surface parity
+        run: make parity-baseline
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build --build-arg VERSION=ci -t stellar-ingest:ci .
+      - name: Smoke-test both executable names
+        run: |
+          docker run --rm stellar-ingest:ci --help > /dev/null
+          docker run --rm --entrypoint stellar-history-loader stellar-ingest:ci --help > /dev/null

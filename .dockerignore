@@ -1,0 +1,7 @@
+bin/
+vendor/
+.git/
+.github/
+docs/
+coverage.out
+*.test

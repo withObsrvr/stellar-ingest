@@ -1,0 +1,77 @@
+Usage of stellar-ingest:
+  -b2-endpoint string
+    	B2/S3 endpoint (default "s3.us-west-004.backblazeb2.com")
+  -b2-key-id string
+    	B2/S3 access key ID
+  -b2-key-secret string
+    	B2/S3 secret access key
+  -b2-region string
+    	B2/S3 region (default "us-west-004")
+  -batch-size int
+    	Ledgers per extraction batch (default 1000)
+  -bucket string
+    	Storage bucket/path for ledger data (required)
+  -chunk-size uint
+    	Maximum ledgers per sequential extract/validate/publish chunk; 0 processes the range as one chunk
+  -ducklake
+    	Push bronze Parquet to DuckLake (B2 + catalog)
+  -ducklake-catalog string
+    	PostgreSQL catalog DSN for DuckLake
+  -ducklake-data-path string
+    	S3/B2 bucket path (e.g., s3://obsrvr-lake-testnet/)
+  -ducklake-metadata-schema string
+    	DuckLake metadata schema (default "bronze_meta")
+  -ducklake-only-tables string
+    	Comma-separated source or DuckLake table names to push; defaults to --only-tables when set
+  -ducklake-schema-sql string
+    	Path to v3_bronze_schema.sql (optional)
+  -ducklake-skip-tables string
+    	Comma-separated source or DuckLake table names to skip during push
+  -end uint
+    	End ledger sequence (required)
+  -enrich-contract-balances
+    	Repair missing Bronze contract balance_holder and balance fields in place
+  -enrichment-chunk-size uint
+    	Ledgers per contract-balance enrichment transaction (default 100000)
+  -enrichment-dry-run
+    	Decode and count contract-balance candidates without mutating DuckLake
+  -enrichment-manifest-schema string
+    	DuckLake schema for the enrichment audit manifest (default "bronze_operations")
+  -enrichment-resume
+    	Skip chunks already completed under the enrichment run ID (default true)
+  -enrichment-run-id string
+    	Durable manifest run ID (required for mutating enrichment)
+  -era-id string
+    	Era identifier for DuckLake partitioning (optional)
+  -files-per-partition uint
+    	Files per archive partition (GCS/S3) (default 64000)
+  -ledgers-per-file uint
+    	Ledgers per archive file (GCS/S3) (default 1)
+  -network-passphrase string
+    	Stellar network passphrase (default "Test SDF Network ; September 2015")
+  -only-tables string
+    	Comma-separated extractor/source/DuckLake table names to extract; empty extracts all
+  -output string
+    	Output directory for Parquet files (required)
+  -pg-database string
+    	PostgreSQL database (default "stellar_hot")
+  -pg-host string
+    	PostgreSQL host for hot buffer (enables hot buffer loading)
+  -pg-password string
+    	PostgreSQL password
+  -pg-port int
+    	PostgreSQL port (default 25060)
+  -pg-sslmode string
+    	PostgreSQL SSL mode (default "require")
+  -pg-user string
+    	PostgreSQL user
+  -start uint
+    	Start ledger sequence (required)
+  -storage-type string
+    	Backend storage type: GCS, S3, RPC, CAPTIVE_CORE, XDR, FS (default "FS")
+  -tail-ledgers uint
+    	Number of recent ledgers to load into hot buffer (default 100000)
+  -validate
+    	Run quality validation checks after extraction
+  -workers int
+    	Number of parallel workers (default 16)
