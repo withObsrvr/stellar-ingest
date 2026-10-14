@@ -16,28 +16,32 @@ commit, and the test simulates failures rather than killing a process.
 
 ## Extraction ownership discovered during inspection
 
-`Worker.extractLedger` calls `github.com/withObsrvr/stellar-extract@v0.1.2`
-for 17 tables, including `restored_keys`. The local `extractRestoredKeys`
-function in `extractors_soroban.go` is **not called by the worker**. The fix
-in commit `9d77335` is tested for that local function's footprint selector but
-**does not fix production extraction**. The pinned library still searches for a
-`RestoreFootprint` operation and misses fee bumps and automatic restoration.
-A newer `stellar-extract@v0.1.6` implements restored-key extraction from
-`LEDGER_ENTRY_RESTORED` changes, which is a different and more comprehensive
-contract. Its documentation points to mainnet ledger **61,500,126** as an
-example with 22 automatic restorations. That ledger was fetched successfully
-from the pubnet GCS archive; pin an XDR fixture and verify parity before
-upgrading the dependency. See TICKET 02 for the fixture gate.
+At the beginning of this ticket, `Worker.extractLedger` called
+`stellar-extract@v0.1.2` for 17 tables, including `restored_keys`. The local
+function fixed in commit `9d77335` was unused by the worker; the production
+path still missed automatic restorations. This is now corrected deliberately:
+`restored_keys` uses local authoritative `LEDGER_ENTRY_RESTORED` changes,
+with a real pubnet fixture; the other 16 library mappings remain pinned.
 
-The four local paths still invoked for `transactions`, `operations`,
+A trial upgrade to `stellar-extract@v0.1.6` yielded the same 22 restored keys
+for mainnet ledger **61,500,126**, but **also changed trades row counts in six
+existing fixtures and 13 config-settings columns in the protocol-boundary
+fixture**. The trial upgrade was reverted rather than silently approving
+unrelated Bronze contract changes. The newer library adds executable-type
+fields not present in the v3 contract-creations schema. Record these as parity
+questions before any full dependency upgrade; the local restored mapping is a
+scoped interim fix, not a second canonical implementation to keep forever.
+
+The four other local paths still invoked for `transactions`, `operations`,
 `ledgers`, and `accounts` have additional mapping/normalization logic.
 Do not move the 21 extractors blindly into new packages: first inventory
 which implementation each table actually uses and test its row-level contract.
 
 ## Next slices
 
-- Close TICKET 02's real `restored_keys` fixture using the discovered ledger;
-  compare old and proposed extractor output deliberately.
+- TICKET 02's real `restored_keys` fixture and 21-table coverage are now in
+  place. Investigate the `stellar-extract@v0.1.6` trades, config-settings,
+  and contract-creation differences before switching the other mappings.
 - Add an orchestrator-level failure/restart test using real Parquet files;
   a writer mock alone does not prove cleanup or manifest publication.
 - Isolate extraction independently of scheduling after output parity; migrate

@@ -14,13 +14,14 @@ Phase 0 inventory actually found.
 | Inventory public flags and environment variables | Done — `docs/phase0-inventory.md` §2, §3 |
 | Behaviour matrix for all source and output modes | Done — §4, §5 |
 | Identify workflows requiring flowctl registration | Partly — code-level answer in §7; the deployment-manifest half needs information outside this repository |
-| Baseline metrics and golden fixtures | Seven fixtures committed; 20/21 tables covered. See `docs/ticket-02-progress.md`. `restored_keys` remains open. |
+| Baseline metrics and golden fixtures | Eight fixtures committed; all 21 tables covered. See `docs/ticket-02-progress.md`. Recovery/large-range tests remain open. |
 
 The compatibility inventory and hermetic baseline suite are committed. Full
-21-table baseline coverage remains open under TICKET 02. Since bootstrap,
-two reproducibility fixes and XDR EOF handling have changed behavior; the
-fee-bump `restored_keys` footprint fix is unit-tested but still needs a
-real-ledger golden. The original "no functional changes yet" Phase 0 condition
+21-table baseline coverage now passes; TICKET 02 still has recovery and large-range work. Since bootstrap,
+two reproducibility fixes, XDR EOF handling, and restored-entry extraction
+have changed behavior. The restored-entry change is pinned by real-ledger
+goldens; see `docs/ticket-03-progress.md` for the call-path correction.
+The original "no functional changes yet" Phase 0 condition
 no longer describes the current tree.
 
 ## Phase 1 — Move and stabilize
@@ -40,8 +41,8 @@ binary/image runs independently; operational rollbacks documented":
 - Equivalent return codes: verified on the three reachable
   validation-failure paths.
 - Equivalent output: verified for `--help`, and now over real ledger data for
-  20 of the 21 Bronze tables across 7 committed pubnet fixtures via
-  `make golden`. `restored_keys` remains uncovered.
+  all 21 Bronze tables across 8 committed pubnet fixtures via
+  `make golden`.
 - Packaged binary runs independently: yes — standalone with `ENABLE_FLOWCTL`
   unset. **The Docker image has not been built or run.** No Docker daemon was
   available on the bootstrap host, so the `Dockerfile` is unverified; the CI
@@ -55,7 +56,7 @@ binary/image runs independently; operational rollbacks documented":
 A private Parquet worker boundary and failure-injection checkpoint tests are in
 place; see `docs/ticket-03-progress.md`. The full package extraction and
 cross-repository Bronze parity are still outstanding. Existing goldens guard
-20 tables; `restored_keys` requires its real-ledger fixture.
+all 21 tables, including a real automatic-restoration ledger.
 
 ## Phase 3 — Source integration and replacement evaluation
 
@@ -88,7 +89,7 @@ architecture is changed on the strength of those numbers.
 | Ticket | Description | Status |
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
-| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **Harness complete, coverage incomplete** — 7 fixtures, 20 of 21 tables covered; `restored_keys` still needs a real-ledger fixture. Fee-bump footprint handling now has a unit regression test. See `docs/ticket-02-progress.md`. |
+| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **21-table fixture coverage complete** — 8 fixtures, including a 22-row automatic-restoration ledger. Crash injection and opt-in large ranges remain. See `docs/ticket-02-progress.md`. |
 | 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **In progress** — private worker writer seam and fault tests; no package extraction yet. See `docs/ticket-03-progress.md`. |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
@@ -122,8 +123,8 @@ Recorded so they are not mistaken for things the bootstrap introduced:
 | | Item |
 |---|---|
 | ◐ | Standalone build, CLI, CI, and documentation work from the new repository — verified locally. Docker package written but **unbuilt**; pending the CI `docker` job. |
-| ☐ | Existing historical workflows reproduce baseline results without flowctl — standalone operation confirmed; *baseline results* unverified pending TICKET 02 |
-| ☐ | 21-table parity suite green or discrepancies catalogued |
+| ◐ | Historical Parquet extraction goldens pass without flowctl; DuckLake and PostgreSQL result parity still need integration verification. |
+| ◐ | 21-table **historical golden coverage** green; live PostgreSQL ingester parity not yet compared (TICKET 04). |
 | ☐ | Source contract verified with `stellar-raw-ledger-origin` without merging repositories |
 | ☑ | No production live source or hot/cold transition changed — the bootstrap is a copy; nothing was removed or rerouted |
 | ☐ | Operator docs include recovery, config migration, credentials, and data-integrity validation — config and credentials documented; recovery and integrity validation pending |

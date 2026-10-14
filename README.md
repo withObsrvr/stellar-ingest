@@ -26,9 +26,10 @@ It is **behaviour-identical** to that application — same flags, same defaults,
 same output, same exit codes. See [`PROVENANCE.md`](PROVENANCE.md) for exactly
 what changed and what parity was verified.
 
-The incremental refactor toward reusable packages has not started. The
-destination is recorded in
-[`docs/target-architecture.md`](docs/target-architecture.md).
+Incremental refactoring has begun with a private worker/Parquet boundary;
+package extraction remains outstanding. See
+[`docs/target-architecture.md`](docs/target-architecture.md) and
+[`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).
 
 ## Build with Nix
 
@@ -116,12 +117,12 @@ duckdb -c "SELECT count(*) FROM read_parquet('/data/output/bronze/**/*.parquet')
 
 ```sh
 make test     # unit suite
-make golden   # hermetic Bronze snapshot suite over 7 committed pubnet fixtures
+make golden   # hermetic Bronze snapshot suite over 8 committed pubnet fixtures
 ```
 
 The golden suite needs no network and no credentials — fixtures are committed
-raw pubnet XDR. It covers 20 of the 21 Bronze tables; `restored_keys` is a
-recorded gap.
+raw pubnet XDR. It covers all 21 Bronze tables, including 22 automatic
+restorations in ledger 61,500,126.
 
 ## Two things that will bite you
 

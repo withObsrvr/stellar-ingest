@@ -803,75 +803,60 @@ func decodeLEB128(data []byte) (int64, int) {
 // Restored Keys
 // ===========================================================================
 
-// extractRestoredKeys extracts restored storage keys from a ledger.
+// extractRestoredKeys reads authoritative restored-entry changes. A restored
+// entry may be revived automatically by InvokeHostFunction without any
+// RestoreFootprint operation, so scanning transaction footprints misses rows.
 func extractRestoredKeys(lcm xdr.LedgerCloseMeta, networkPassphrase string, ledgerSeq uint32, closedAt time.Time, ledgerRange uint32) ([]RestoredKeyData, error) {
-	var restoredKeysList []RestoredKeyData
-
-	reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(networkPassphrase, lcm)
+	reader, err := ingest.NewLedgerChangeReaderFromLedgerCloseMeta(networkPassphrase, lcm)
 	if err != nil {
-		log.Printf("Failed to create transaction reader for restored keys: %v", err)
-		return restoredKeysList, nil
+		return nil, fmt.Errorf("create restored-key change reader: %w", err)
 	}
 	defer reader.Close()
 
-	restoredKeysMap := make(map[string]*RestoredKeyData)
-
+	byHash := make(map[string]RestoredKeyData)
 	for {
-		tx, err := reader.Read()
+		change, err := reader.Read()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			log.Printf("Error reading transaction for restored keys: %v", err)
+			return nil, fmt.Errorf("read restored-key change: %w", err)
+		}
+		if change.ChangeType != xdr.LedgerEntryChangeTypeLedgerEntryRestored || change.Post == nil {
 			continue
 		}
-
-		if !tx.Result.Successful() {
-			continue
+		key, err := change.Post.LedgerKey()
+		if err != nil {
+			return nil, fmt.Errorf("derive restored ledger key: %w", err)
 		}
-
-		for _, key := range restoredFootprintKeys(tx.Envelope) {
-			data := extractRestoredKeyData(key, ledgerSeq, ledgerRange, "unknown", 0, closedAt)
-			if data != nil {
-				restoredKeysMap[data.KeyHash] = data
-			}
+		data := extractRestoredKeyData(key, ledgerSeq, ledgerRange, restoredKeyDurability(key), uint32(change.Post.LastModifiedLedgerSeq), closedAt)
+		if data == nil {
+			return nil, fmt.Errorf("encode restored ledger key in ledger %d", ledgerSeq)
 		}
+		byHash[data.KeyHash] = *data
 	}
-
-	for _, data := range restoredKeysMap {
-		restoredKeysList = append(restoredKeysList, *data)
+	rows := make([]RestoredKeyData, 0, len(byHash))
+	for _, data := range byHash {
+		rows = append(rows, data)
 	}
-
-	return restoredKeysList, nil
+	return rows, nil
 }
 
-// restoredFootprintKeys resolves the transaction actually executing the operation.
-// A fee-bump envelope carries the Soroban footprint on its inner transaction,
-// not on the outer fee-bump transaction.
-func restoredFootprintKeys(envelope xdr.TransactionEnvelope) []xdr.LedgerKey {
-	var tx *xdr.Transaction
-	switch envelope.Type {
-	case xdr.EnvelopeTypeEnvelopeTypeTx:
-		if envelope.V1 != nil {
-			tx = &envelope.V1.Tx
-		}
-	case xdr.EnvelopeTypeEnvelopeTypeTxFeeBump:
-		if envelope.FeeBump != nil {
-			inner := envelope.FeeBump.Tx.InnerTx
-			if inner.Type == xdr.EnvelopeTypeEnvelopeTypeTx && inner.V1 != nil {
-				tx = &inner.V1.Tx
+func restoredKeyDurability(key xdr.LedgerKey) string {
+	switch key.Type {
+	case xdr.LedgerEntryTypeContractData:
+		if key.ContractData != nil {
+			switch key.ContractData.Durability {
+			case xdr.ContractDataDurabilityPersistent:
+				return "persistent"
+			case xdr.ContractDataDurabilityTemporary:
+				return "temporary"
 			}
 		}
+	case xdr.LedgerEntryTypeContractCode, xdr.LedgerEntryTypeTtl:
+		return "persistent"
 	}
-	if tx == nil || tx.Ext.V != 1 || tx.Ext.SorobanData == nil {
-		return nil
-	}
-	for _, op := range tx.Operations {
-		if op.Body.Type == xdr.OperationTypeRestoreFootprint {
-			return tx.Ext.SorobanData.Resources.Footprint.ReadWrite
-		}
-	}
-	return nil
+	return "unknown"
 }
 
 // extractRestoredKeyData extracts data from a single restored ledger key.

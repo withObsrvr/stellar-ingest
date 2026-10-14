@@ -132,6 +132,24 @@ func runFixture(t *testing.T, meta fixtureMeta, ledgerPath, outputDir string) st
 	return bronze
 }
 
+// TestAllFixtureIntegrity checks decompressed authoritative XDR, not the
+// compressor's output bytes, so fixture recompression cannot hide corruption.
+func TestAllFixtureIntegrity(t *testing.T) {
+	for _, name := range fixtureNames(t) {
+		t.Run(name, func(t *testing.T) {
+			meta, _ := loadFixtureMeta(t, name)
+			path := materializeLedgers(t, filepath.Join("testdata", "fixtures", name), t.TempDir())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := sha256Hex(data); got != meta.SHA256 {
+				t.Fatalf("XDR SHA-256 = %s, want %s", got, meta.SHA256)
+			}
+		})
+	}
+}
+
 func goldenPath(name string) string {
 	return filepath.Join("testdata", "golden", name+".json")
 }
@@ -362,13 +380,7 @@ func TestFixturesCoverAllBronzeTables(t *testing.T) {
 // This is a visible debt list, not an exemption. TestFixturesCoverAllBronzeTables
 // fails both when an unrecorded table is missing and when a recorded one
 // becomes covered, so the list has to stay accurate.
-var knownUncoveredTables = map[string]string{
-	"restored_keys": "requires a successful RestoreFootprint operation, and none was found in 8,000 ledgers: " +
-		"59,000,625 / 59,002,000 / 59,010,000 / 59,100,000 around the protocol 23 archival event, " +
-		"then 59.5M, 61M, 63M and 64.9M. Restores are far rarer on pubnet than evictions. " +
-		"Fee-bump footprint resolution is covered by an envelope-level unit test, but " +
-		"an authoritative end-to-end restore fixture is still needed.",
-}
+var knownUncoveredTables = map[string]string{}
 
 func uniqueOutputDirs() []string {
 	seen := map[string]bool{}

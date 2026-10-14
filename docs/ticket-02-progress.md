@@ -1,8 +1,13 @@
 # TICKET 02 — progress
 
 Golden ledger fixtures and baseline snapshot tests for all Bronze outputs.
-**Harness complete; one coverage gap remains.** This records the decisions made, what was measured, and what
-is left, so the work can be picked up without re-deriving any of it.
+**Eight fixtures now cover all 21 Bronze tables.** Earlier scans and the
+first "Remaining work" list below are historical notes, not current tasks.
+Outstanding: opt-in large ranges, process-crash/partial-file recovery, and
+storage-level repair idempotence. Ledger 61,500,126 provides 22 automatic
+restorations; the existing P29 fixture adds 2 more. The active worker now
+extracts restored-entry changes rather than looking for RestoreFootprint
+operations. See `ticket-03-progress.md` for the dependency upgrade decision.
 
 ## Decisions
 
@@ -69,17 +74,16 @@ ledger — a bulk state-archival event rather than routine background eviction.
 That is why sparse sampling kept missing it, and it is the reason the fixture
 is pinned to an exact range rather than "somewhere in protocol 23".
 
-**Still uncovered: `restored_keys`.** It needs a successful `RestoreFootprint`
-operation. None appeared in 8,000 ledgers — four windows around the archival
+**Historical search (resolved):** The original search assumed a successful
+`RestoreFootprint` operation was required. None appeared in 8,000 ledgers — four windows around the archival
 event (59,000,625 / 59,002,000 / 59,010,000 / 59,100,000) and four later ones
 at 59.5M, 61M, 63M and 64.9M. Restores are far rarer on pubnet than evictions.
 
-The fee-bump extraction gap is now fixed: `extractRestoredKeys` resolves the
-operation and footprint from the same inner V1 transaction. A focused unit
-test covers both ordinary and fee-bump envelopes. This does **not** yet prove
-end-to-end extraction on an authoritative fee-bumped restore ledger; a real
-`restored_keys` fixture and golden remain necessary. Existing seven fixture
-goldens were unchanged by the fix.
+**Correction:** The footprint fix in `9d77335` affected an unused local
+function; the active worker used `stellar-extract@v0.1.2`. Automatic restores
+do not require a RestoreFootprint operation at all. The worker now reads
+`LEDGER_ENTRY_RESTORED` changes locally with a real-ledger golden; the pinned
+library's other mappings are unchanged.
 
 ## Table coverage gap
 
@@ -226,7 +230,7 @@ stamps belong in Bronze at all is worth deciding separately.
 |---|---|
 | `TestGoldenBronzeOutputs` | Every fixture's every table against a committed digest. `-update` regenerates. |
 | `TestExtractionIsDeterministic` | The same fixture extracted twice must produce identical digests. |
-| `TestFixturesCoverAllBronzeTables` | The fixture set collectively covers all 21 tables, minus recorded gaps. |
+| `TestFixturesCoverAllBronzeTables` | The fixture set collectively covers all 21 tables. |
 | `TestXDRStreamSourceReadsCompleteFile` | A complete XDR stream reads without error. |
 | `TestFixtureIntegrity` | Fixture bytes match their manifest SHA-256. |
 | `TestWorkerCountInvariance` | Workers 1, 2, 3 and 8 produce identical Bronze content. |
@@ -270,14 +274,10 @@ All pass. Nothing in Bronze output depends on how the extraction was executed:
 
 ## Remaining work
 
-1. `restored_keys` coverage from a real successful restore (preferably including
-   a fee-bump envelope), with a committed golden. The envelope-level fee-bump
-   gap has a regression test and is fixed; real-ledger parity remains unverified.
-2. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
-3. Crash-injection scenarios — crash before and after sink commit, partial
-   writer failure. These need a way to inject a failing sink, which the
-   current flat `package main` does not allow; they are naturally TICKET 03
-   work, once `BronzeSink` is an interface that a test can substitute.
+1. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
+2. Process crash before/after destination commit, partial-file cleanup, and
+   manifest publication. Worker-level write/finalization fault tests exist,
+   but they do not prove storage transaction recovery.
 4. Idempotent repair — re-running `--enrich-contract-balances` over the same
    range with the same run ID. Needs DuckLake credentials, so it cannot be
    hermetic.

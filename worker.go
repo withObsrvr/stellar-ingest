@@ -683,13 +683,12 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{NativeBalances: rows}, nil
 	})
 	launch("restored_keys", func() (*LedgerData, error) {
-		libRows, err := extract.ExtractRestoredKeys(libInput)
+		// The pinned library v0.1.2 scans operations and misses automatic
+		// restorations. Keep this mapping local until a full library upgrade
+		// can be reconciled against the other 20 tables' goldens.
+		rows, err := extractRestoredKeys(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, lr)
 		if err != nil {
 			return nil, err
-		}
-		rows := make([]RestoredKeyData, len(libRows))
-		for i, r := range libRows {
-			rows[i] = RestoredKeyData(r)
 		}
 		return &LedgerData{RestoredKeys: rows}, nil
 	})

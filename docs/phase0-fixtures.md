@@ -1,8 +1,8 @@
 # Phase 0 — Golden fixture and baseline test plan
 
 Historical Phase 0 plan for TICKET 02. The plan has since been partially
-executed: seven real-ledger fixtures and their goldens are committed, covering
-20 of 21 Bronze tables. `restored_keys` and crash-injection scenarios remain.
+executed: eight real-ledger fixtures and their goldens are committed, covering
+all 21 Bronze tables. Process-crash and storage-recovery scenarios remain.
 For the current status and revised fixture sizes, see `ticket-02-progress.md`.
 
 ## Original motivation
