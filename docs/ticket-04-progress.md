@@ -5,15 +5,18 @@ Companion to [`ticket-04-developer-handoff.md`](ticket-04-developer-handoff.md)
 (the findings). This file covers the harness: how it works, how to run it,
 and what is left.
 
-**State:** deliverables 1 and 2 are done for the extraction tier.
-Deliverable 3 (canonical row contract) and the storage tier are open.
+**State:** deliverables 1 and 2 are done, extraction tier and live storage
+tier. Deliverable 3 (canonical row contract) and the historical Parquet
+storage tier are open.
 
 ## Why two processes
 
-Historical pins `stellar-extract@v0.1.2`, live pins `@v0.1.5`. Two versions
-of one module cannot be linked into a single binary, so there is no way to
-call both mappers from one test. Each side canonicalizes in its own process
-and the comparison runs over the artifacts.
+Both sides now pin `stellar-extract@v0.2.1`, but the harness is built for
+them not to: they pinned `v0.1.2` and `v0.1.5` when it was written, and two
+versions of one module cannot be linked into a single binary. Each side
+canonicalizes in its own process and the comparison runs over the artifacts,
+which keeps the harness usable the next time the pins diverge — and they
+will, since the two bump independently.
 
 That makes the canonical form the load-bearing part: if the two sides encode
 values even slightly differently, every digest shifts and the difference
@@ -162,12 +165,20 @@ revision.
 
 ## Open work
 
-1. **Storage tier.** The largest gap. Needs the historical Parquet columns
-   read back through DuckDB (as `golden_harness.go` does) and the live
-   `insert*` path run against an ephemeral migrated hot-buffer database.
-   F6 already shows the extraction tier can be overturned there:
-   `envelope_size_bytes` is zero at extraction and recomputed at insert.
-   Credential-gated, separate from the tier above.
+1. **Storage tier — live: done.** `go/storage_tier_test.go` in the live
+   repository builds a hot buffer, drives the real `insert*` path over a
+   fixture and reads the rows back. Gated on `PARITY_PG_DSN`. It found F12
+   immediately: `contract_events` stored 2,035 of 14,515 rows, a defect no
+   cross-ingester comparison could see because both sides extract the same
+   rows and agree. Each insert runs in its own savepoint so one failure
+   does not mask the rest — the six missing columns surfaced in one run
+   rather than six.
+
+   **Storage tier — historical: still open.** The Parquet path has a
+   hand-written mapping layer of its own (`parquet_writer.go`'s `Parquet*`
+   structs) that no audit covers, so a field can reach `types.go` and never
+   reach a file. Read the columns back through DuckDB as
+   `golden_harness.go` does.
 2. **Canonical row contract** (deliverable 3). Per-table logical keys, null
    semantics, units, and `created_at`'s two meanings. The harness pairs
    sample rows by sorted rank precisely because the keys are undecided, and

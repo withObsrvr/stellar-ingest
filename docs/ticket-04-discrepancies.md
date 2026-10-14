@@ -1,8 +1,13 @@
 # Ticket 04 — historical/live Bronze discrepancy report
 
-**Status: third pass, with both ingesters on `stellar-extract` v0.2.1.
-18 of 21 tables are equal on every compared column. The storage tier remains
-`unverified` for all 21.**
+**Status: fourth pass. Both ingesters on `stellar-extract` v0.2.1, 18 of 21
+tables equal at the extraction tier, and the live storage tier is now
+verified against a real migrated hot buffer.**
+
+The storage tier was worth running: it found that **86% of contract events
+were being discarded on insert** — invisible to every extraction-tier
+comparison, because both ingesters extract the same rows and agree exactly.
+See **F12**.
 
 F1, F2, F3 and F5 are closed, along with the three findings the adapter
 audit produced. Three tables still differ, and two of the three differences
@@ -106,7 +111,9 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | F7 `created_at` | open — decision | canonical row contract |
 | F8 ledgers | open — provenance-only | — |
 | **F10 ScVal rendering** | **closed** | local converter deleted; both sides use the library's |
-| **F11 `soroban_contract_id`** | **new, minor** | 1 row of 2,913; see below |
+| **F11 `soroban_contract_id`** | open, minor | 1 row of 2,913 |
+| **F12 contract events discarded** | **fixed** | 86% of rows lost on insert; migration 018 |
+| **F13 event identity** | **new** | `event_id` is not unique; 4% of rows unstorable |
 | L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
 
 Three tables still differ:
@@ -379,6 +386,92 @@ an operation that creates a contract is arguably the created contract, and
 arguably nothing, given `contract_creations` already records the creation.
 Left for the canonical row contract. It is the last remaining value
 difference in `operations`.
+
+## Storage tier — live
+
+Verified by building a hot buffer from `v3_postgres_schema.sql`, the
+root-level constraint files and all numbered migrations, then driving the
+real `insert*` path over `pubnet-tiny-dump` and reading the rows back.
+`go/storage_tier_test.go`, gated on `PARITY_PG_DSN`.
+
+Fifteen of the tables the fixture exercises round-trip exactly: every row
+extracted is a row stored. One did not.
+
+### F12 — `contract_events` discarded 86% of its rows on insert
+
+The primary key was `(ledger_sequence, transaction_hash, event_index)`, but
+`event_index` restarts at 0 for each operation in a transaction. Events from
+the second operation onward collided with rows already inserted, and
+`insertContractEvents`' `SELECT DISTINCT ON` over the same triple discarded
+most of them before PostgreSQL saw them.
+
+| | rows |
+|---|---:|
+| extracted | 14,515 |
+| stored, old key | **2,035** |
+| stored, with `operation_index` added | 13,894 |
+| worst single collision | 148 events into one row |
+
+Three ledgers. The cold store, writing Parquet with no unique constraint,
+kept all 14,515 — so the two stores have diverged by this margin for as long
+as the key has been wrong, while the extraction-tier comparison reported
+`contract_events` as **equal** on every fixture.
+
+Fixed in migration 018 plus the matching `DISTINCT ON`/`ON CONFLICT` change.
+Rows already lost are not recovered by the migration; affected ranges must be
+re-ingested, and the migration carries the operational notes.
+
+### F13 — `contract_events` has no unique identity
+
+What F12's fix does not reach. 621 of 14,515 extracted rows still share an
+identity with another row: the contract and diagnostic event streams index
+separately, so a `transfer` contract event and a `fee` diagnostic event from
+different contracts can occupy the same `operation_index` and `event_index`.
+
+Every one of those pairs **also shares an `event_id`**, so the library cannot
+distinguish them either. Adding `event_type` to the key recovers 391 and
+still leaves 230. There is no complete key among the stored columns.
+
+The key therefore stops at the identity `event_id` already claims — one
+stored row per distinct `event_id` — rather than growing wider while still
+not being unique. The real fix is upstream: either `event_index` is made
+unique across streams within an operation, or `event_id` is derived from
+something that distinguishes them.
+
+### Schema reproducibility
+
+Three gaps between the committed DDL and what the ingester requires, each
+found by the build failing:
+
+1. **`contract_creations_v1` has no `CREATE TABLE`** in the hot-buffer DDL or
+   any numbered migration — only the cold-side Bronze schemas define it.
+   Migration 007 alters it, so a deployment built from the documented chain
+   fails there, and because 007 aborts at that point, every later `ALTER` in
+   it — including `token_transfers_stream_v1.era_id` — never runs. Migration
+   016 now creates the table so it is at least self-sufficient; 007 remains
+   unguarded.
+2. **Six columns are written but never created**:
+   `ledgers_row_v2.soroban_op_count`, `.total_fee_charged`,
+   `.contract_events_count`; `transactions_row_v2.rent_fee_charged`;
+   `effects_row_v1.operation_id` and `.details_json`. The last is where the
+   content of all 50+ effect types lives. Added in migration 017, all
+   `IF NOT EXISTS`.
+3. **`postgres-hot-buffer/schema/migrations/` is not the deployed schema.**
+   Its `trades_row_v1` uses Horizon's base/counter model; the ingester writes
+   a seller/buyer model. The real DDL is `v3_postgres_schema.sql` at the
+   monorepo root, plus the root-level `add_*_constraints` files. The handoff
+   anticipated this; it is now confirmed.
+
+Together these mean the committed chain could not reproduce the deployed
+database. Production must have been patched out-of-band, so a rebuilt
+environment or a new region silently differed until the first batch failed.
+
+### Storage tier — historical
+
+Still unverified. The Parquet path has its own hand-written mapping layer
+(`parquet_writer.go`'s `Parquet*` structs), which the adapter audit does not
+cover, and which is where a field can reach `types.go` and still never reach
+a file.
 
 ## Root causes in `stellar-extract`
 
