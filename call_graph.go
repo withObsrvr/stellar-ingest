@@ -10,6 +10,8 @@ import (
 	"github.com/stellar/go-stellar-sdk/ingest"
 	"github.com/stellar/go-stellar-sdk/strkey"
 	"github.com/stellar/go-stellar-sdk/xdr"
+
+	extract "github.com/withObsrvr/stellar-extract"
 )
 
 // extractCallGraph extracts the cross-contract call graph from a transaction's operation
@@ -410,7 +412,7 @@ func extractFirstTopic(event xdr.ContractEvent) string {
 	}
 
 	// Convert first topic to string
-	decoded, err := ConvertScValToJSON(topics[0])
+	decoded, err := extract.ConvertScValToJSON(topics[0])
 	if err != nil {
 		return ""
 	}
@@ -436,7 +438,7 @@ func extractFunctionNameFromDiagnosticEvent(event xdr.ContractEvent) string {
 	}
 
 	// Use the dedicated function that handles symbols, strings, and bytes
-	name := GetFunctionNameFromScVal(topics[1])
+	name := extract.GetFunctionNameFromScVal(topics[1])
 	if name == "" {
 		return "unknown"
 	}
@@ -451,7 +453,7 @@ func extractArgumentsFromDiagnosticEvent(event xdr.ContractEvent) interface{} {
 	}
 
 	// Arguments are in the Data field
-	decoded, err := ConvertScValToJSON(event.Body.V0.Data)
+	decoded, err := extract.ConvertScValToJSON(event.Body.V0.Data)
 	if err != nil {
 		return nil
 	}

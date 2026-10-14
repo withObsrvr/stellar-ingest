@@ -15,6 +15,8 @@ import (
 	"github.com/stellar/go-stellar-sdk/ingest/sac"
 	"github.com/stellar/go-stellar-sdk/strkey"
 	"github.com/stellar/go-stellar-sdk/xdr"
+
+	extract "github.com/withObsrvr/stellar-extract"
 	"github.com/withObsrvr/stellar-ingest/internal/bronze/restored"
 )
 
@@ -218,7 +220,7 @@ func extractEventBody(body xdr.ContractEventBody) (string, string, int32, string
 		}
 		topicsXDR = append(topicsXDR, base64.StdEncoding.EncodeToString(topicBytes))
 
-		decodedTopic, err := ConvertScValToJSON(topic)
+		decodedTopic, err := extract.ConvertScValToJSON(topic)
 		if err != nil {
 			log.Printf("Failed to decode topic: %v", err)
 			topicsDecodedArray = append(topicsDecodedArray, map[string]interface{}{
@@ -255,7 +257,7 @@ func extractEventBody(body xdr.ContractEventBody) (string, string, int32, string
 
 	dataXDR := base64.StdEncoding.EncodeToString(dataBytes)
 
-	decodedData, err := ConvertScValToJSON(v0.Data)
+	decodedData, err := extract.ConvertScValToJSON(v0.Data)
 	if err != nil {
 		log.Printf("Failed to decode data: %v", err)
 		decodedData = map[string]interface{}{

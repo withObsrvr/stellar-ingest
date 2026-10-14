@@ -493,7 +493,7 @@
     },
     "operations": {
       "row_count": 2913,
-      "content_hash": "bb6794adec6a604c8d41012aa866016e",
+      "content_hash": "34cb70b5c67c015bfbecccabd722cc0a",
       "columns": [
         "transaction_hash",
         "transaction_index",
@@ -569,7 +569,7 @@
         "buying_asset_issuer": "730c1c6f26e6b7abccada872bbeb71a3",
         "buying_asset_type": "74c38d74d180e4300891c049458227db",
         "clear_flags": "7877cafa46b4a7aed2a830ae43b153dd",
-        "contract_calls_json": "b0ee54d561857b6b9e64d8bd0a927bac",
+        "contract_calls_json": "728e9c17eeb4451c2ab1b15b51336fb0",
         "contracts_involved": "d35045b9770c9c81ae0dbee440643f4a",
         "data_name": "0da5d99d94e7d47dc0277c7f5a2c9950",
         "data_value": "88be644e1cf428d0bf4f841a6305ce44",
