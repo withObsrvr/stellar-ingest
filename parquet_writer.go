@@ -1086,6 +1086,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				TxMaxReadBytes:                  uint32ToInt64Ptr(c.TxMaxReadBytes),
 				TxMaxWriteLedgerEntries:         uint32ToInt64Ptr(c.TxMaxWriteLedgerEntries),
 				TxMaxWriteBytes:                 uint32ToInt64Ptr(c.TxMaxWriteBytes),
+				TxMaxFootprintEntries:           uint32ToInt64Ptr(c.TxMaxFootprintEntries),
 				ContractMaxSizeBytes:            uint32ToInt64Ptr(c.ContractMaxSizeBytes),
 				ConfigSettingXDR:                c.ConfigSettingXDR,
 				CreatedAt:                       c.CreatedAt.UnixMicro(),
