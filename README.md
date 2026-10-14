@@ -26,9 +26,11 @@ It is **behaviour-identical** to that application — same flags, same defaults,
 same output, same exit codes. See [`PROVENANCE.md`](PROVENANCE.md) for exactly
 what changed and what parity was verified.
 
-Incremental refactoring has begun with a private worker/Parquet boundary;
-package extraction remains outstanding. See
-[`docs/target-architecture.md`](docs/target-architecture.md) and
+Incremental refactoring now includes a private worker/Parquet boundary and
+the `internal/bronze/restored` mapper. Most code remains in `package main`;
+no public 21-table Bronze API is claimed. See
+[`docs/module-boundaries.md`](docs/module-boundaries.md),
+[`docs/target-architecture.md`](docs/target-architecture.md), and
 [`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).
 
 ## Build with Nix

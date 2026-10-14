@@ -55,10 +55,11 @@ binary/image runs independently; operational rollbacks documented":
 **Status: incremental work underway.** Target layout in `docs/target-architecture.md`.
 A private Parquet worker boundary, failure-injection checkpoint tests, a
 real-Parquet restart simulation, and a worker-independent Bronze mapping
-entry point are in place; see
-`docs/ticket-03-progress.md`. The full package extraction and
-cross-repository Bronze parity are still outstanding. Existing goldens guard
-all 21 tables, including a real automatic-restoration ledger.
+entry point are in place, and restored-key mapping lives in a private Bronze
+package; see `docs/module-boundaries.md`. Ticket 03's bounded boundary gate is
+complete, but the other local mappings and cross-repository Bronze parity
+remain outstanding under Ticket 04 and later integration work. Existing
+goldens guard all 21 historical outputs.
 
 ## Phase 3 — Source integration and replacement evaluation
 
@@ -92,7 +93,7 @@ architecture is changed on the strength of those numbers.
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
 | 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **21-table fixture coverage complete** — 8 fixtures, including a 22-row automatic-restoration ledger. Crash injection and opt-in large ranges remain. See `docs/ticket-02-progress.md`. |
-| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **In progress** — writer fault and real-Parquet restart tests; mapping callable without a worker, no package extraction yet. See `docs/ticket-03-progress.md`. |
+| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Done (bounded scope)** — module ownership inventory, worker-independent mapping, private `internal/bronze/restored` package with direct/fixture/golden tests, Parquet fault/restart tests. The remaining four local mappings and public canonical API depend on Ticket 04 parity; see `docs/module-boundaries.md`. |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |

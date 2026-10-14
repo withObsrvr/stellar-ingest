@@ -1,8 +1,11 @@
 # TICKET 03 — incremental processing boundaries
 
-Status: in progress. The application still builds from flat `package main`; no
-importable Bronze package is claimed yet. Keep the CLI and output unchanged
-while carving out tested boundaries.
+Status: **Ticket 03's bounded module-boundary gate complete.** The CLI and
+most application code still build from flat `package main`; a private
+`internal/bronze/restored` mapper and worker-independent orchestration are
+now separated and tested. See `module-boundaries.md` for the 21-table ownership
+inventory and the explicitly deferred public API / live-parity work. This is
+not a claim that the target architecture or Ticket 04 is complete.
 
 ## First slice: Parquet worker boundary
 
@@ -34,6 +37,16 @@ checkpoint, CLI, or destination. The function is still private and remains in
 the flat package until the row contracts and second consumer are specified.
 All eight full-output goldens and the worker fault tests guard the change.
 
+## Third slice: private Bronze mapping package
+
+`internal/bronze/restored` owns XDR-change-to-restored-row mapping. Its
+`Row` has only ledger-derived fields; the legacy ingestion timestamp is added
+at the application's row adapter. A package-local fixture test verifies 22
+rows with **zero RestoreFootprint operations**, key durability, and raw XDR
+round-trip; the full-output goldens verify the adapter and Parquet fields.
+No CLI, worker, checkpoint, or sink is needed to invoke the package. We kept
+it `internal` rather than publishing a premature 21-table external API.
+
 ## Extraction ownership discovered during inspection
 
 At the beginning of this ticket, `Worker.extractLedger` called
@@ -64,7 +77,10 @@ which implementation each table actually uses and test its row-level contract.
   and contract-creation differences before switching the other mappings.
 - Add true process-kill tests and destination transaction fault tests;
   simulated disk-state recovery does not prove remote sink idempotence.
-- Move the now-isolated extraction logic into a cohesive package one table
-  group at a time, leaving storage transactions destination-specific.
+- The 16 library mappings already live in the separate `stellar-extract`
+  module. The four historical local mappings (transactions, operations,
+  accounts, ledgers), their adapter transformations, and versioned public row
+  contracts still need comparison with the live ingester in Ticket 04. Do not
+  promote a partial API as canonical 21-table Bronze.
 - Add externally importable Bronze APIs only after the live ingester's second
   consumer requirements and all-table parity are characterized.

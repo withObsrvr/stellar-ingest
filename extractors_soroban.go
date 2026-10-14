@@ -15,6 +15,7 @@ import (
 	"github.com/stellar/go-stellar-sdk/ingest/sac"
 	"github.com/stellar/go-stellar-sdk/strkey"
 	"github.com/stellar/go-stellar-sdk/xdr"
+	"github.com/withObsrvr/stellar-ingest/internal/bronze/restored"
 )
 
 // extractCreatedContractIDFromMeta resolves the contract created by one
@@ -803,124 +804,24 @@ func decodeLEB128(data []byte) (int64, int) {
 // Restored Keys
 // ===========================================================================
 
-// extractRestoredKeys reads authoritative restored-entry changes. A restored
-// entry may be revived automatically by InvokeHostFunction without any
-// RestoreFootprint operation, so scanning transaction footprints misses rows.
+// extractRestoredKeys adapts the private ledger-derived Bronze mapping to the
+// existing v3 row type. Keep run timestamps outside the deterministic mapper.
 func extractRestoredKeys(lcm xdr.LedgerCloseMeta, networkPassphrase string, ledgerSeq uint32, closedAt time.Time, ledgerRange uint32) ([]RestoredKeyData, error) {
-	reader, err := ingest.NewLedgerChangeReaderFromLedgerCloseMeta(networkPassphrase, lcm)
+	values, err := restored.Extract(lcm, networkPassphrase, ledgerSeq, closedAt, ledgerRange)
 	if err != nil {
-		return nil, fmt.Errorf("create restored-key change reader: %w", err)
+		return nil, err
 	}
-	defer reader.Close()
-
-	byHash := make(map[string]RestoredKeyData)
-	for {
-		change, err := reader.Read()
-		if err == io.EOF {
-			break
+	rows := make([]RestoredKeyData, len(values))
+	for i, value := range values {
+		rows[i] = RestoredKeyData{
+			KeyHash: value.KeyHash, LedgerSequence: value.LedgerSequence,
+			ContractID: value.ContractID, KeyType: value.KeyType,
+			Durability: value.Durability, RestoredFromLedger: value.RestoredFromLedger,
+			ClosedAt: value.ClosedAt, LedgerRange: value.LedgerRange,
+			CreatedAt: time.Now().UTC(),
 		}
-		if err != nil {
-			return nil, fmt.Errorf("read restored-key change: %w", err)
-		}
-		if change.ChangeType != xdr.LedgerEntryChangeTypeLedgerEntryRestored || change.Post == nil {
-			continue
-		}
-		key, err := change.Post.LedgerKey()
-		if err != nil {
-			return nil, fmt.Errorf("derive restored ledger key: %w", err)
-		}
-		data := extractRestoredKeyData(key, ledgerSeq, ledgerRange, restoredKeyDurability(key), uint32(change.Post.LastModifiedLedgerSeq), closedAt)
-		if data == nil {
-			return nil, fmt.Errorf("encode restored ledger key in ledger %d", ledgerSeq)
-		}
-		byHash[data.KeyHash] = *data
-	}
-	rows := make([]RestoredKeyData, 0, len(byHash))
-	for _, data := range byHash {
-		rows = append(rows, data)
 	}
 	return rows, nil
-}
-
-func restoredKeyDurability(key xdr.LedgerKey) string {
-	switch key.Type {
-	case xdr.LedgerEntryTypeContractData:
-		if key.ContractData != nil {
-			switch key.ContractData.Durability {
-			case xdr.ContractDataDurabilityPersistent:
-				return "persistent"
-			case xdr.ContractDataDurabilityTemporary:
-				return "temporary"
-			}
-		}
-	case xdr.LedgerEntryTypeContractCode, xdr.LedgerEntryTypeTtl:
-		return "persistent"
-	}
-	return "unknown"
-}
-
-// extractRestoredKeyData extracts data from a single restored ledger key.
-func extractRestoredKeyData(ledgerKey xdr.LedgerKey, ledgerSeq uint32, ledgerRange uint32, durability string, restoredFromLedger uint32, closedAt time.Time) *RestoredKeyData {
-	keyHashBytes, err := ledgerKey.MarshalBinary()
-	if err != nil {
-		log.Printf("Failed to marshal restored ledger key: %v", err)
-		return nil
-	}
-
-	hash := sha256.Sum256(keyHashBytes)
-	keyHash := hex.EncodeToString(hash[:])
-
-	var contractID string
-	var keyType string
-
-	switch ledgerKey.Type {
-	case xdr.LedgerEntryTypeContractData:
-		if ledgerKey.ContractData == nil {
-			log.Printf("Warning: ContractData is nil for ledger %d, key type %v", ledgerSeq, ledgerKey.Type)
-			keyType = "ContractData"
-		} else {
-			if ledgerKey.ContractData.Contract.ContractId != nil {
-				contractIDBytes, err := ledgerKey.ContractData.Contract.ContractId.MarshalBinary()
-				if err == nil {
-					contractID = hex.EncodeToString(contractIDBytes)
-				}
-			}
-			keyType = ledgerKey.ContractData.Key.Type.String()
-		}
-
-	case xdr.LedgerEntryTypeContractCode:
-		if ledgerKey.ContractCode == nil {
-			log.Printf("Warning: ContractCode is nil for ledger %d, key type %v", ledgerSeq, ledgerKey.Type)
-			keyType = "ContractCode"
-		} else {
-			codeHashBytes, err := ledgerKey.ContractCode.Hash.MarshalBinary()
-			if err == nil {
-				contractID = hex.EncodeToString(codeHashBytes)
-			}
-			keyType = "ContractCode"
-		}
-
-	default:
-		keyType = ledgerKey.Type.String()
-	}
-
-	now := time.Now().UTC()
-
-	data := RestoredKeyData{
-		KeyHash:        keyHash,
-		LedgerSequence: ledgerSeq,
-
-		ContractID:         contractID,
-		KeyType:            keyType,
-		Durability:         durability,
-		RestoredFromLedger: restoredFromLedger,
-
-		ClosedAt:    closedAt,
-		LedgerRange: ledgerRange,
-		CreatedAt:   now,
-	}
-
-	return &data
 }
 
 // ===========================================================================
