@@ -1,0 +1,15 @@
+{
+  "name": "pubnet-soroban-p29",
+  "description": "Ten dense modern pubnet ledgers. Protocol 29. Covers contract events, contract data, TTL and Soroban operations at realistic mainnet volume.",
+  "network_passphrase": "Public Global Stellar Network ; September 2015",
+  "start_ledger": 64938240,
+  "end_ledger": 64938249,
+  "ledger_count": 10,
+  "source": "gs://obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet",
+  "fetched_with": "nebu fetch --mode archive --bucket-path obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet 64938240 64938249",
+  "format": "bare concatenated LedgerCloseMeta XDR, zstd -19 (--storage-type XDR after decompression)",
+  "bytes": 23226592,
+  "compressed_bytes": 1883737,
+  "sha256": "413bae2455c73fc2bfa1efdb2f3667b938856ba8cae516fb4ab23534477b0619",
+  "protocol_version": 29
+}

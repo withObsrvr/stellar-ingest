@@ -1,0 +1,15 @@
+{
+  "name": "pubnet-tiny-dump",
+  "description": "Three modern pubnet ledgers. Protocol 29. Deliberately small so it can carry full normalised row dumps alongside hashes, giving a hash mismatch something diffable to explain it.",
+  "network_passphrase": "Public Global Stellar Network ; September 2015",
+  "start_ledger": 64938234,
+  "end_ledger": 64938236,
+  "ledger_count": 3,
+  "source": "gs://obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet",
+  "fetched_with": "nebu fetch --mode archive --bucket-path obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet 64938234 64938236",
+  "format": "bare concatenated LedgerCloseMeta XDR, zstd -19 (--storage-type XDR after decompression)",
+  "bytes": 6640220,
+  "compressed_bytes": 509004,
+  "sha256": "d5e90cfb621bd9b9bfae708bde95064a20ac50cd022912ebb289110e849dbf6d",
+  "protocol_version": 29
+}

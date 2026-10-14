@@ -1,5 +1,5 @@
 .PHONY: all build build-compat build-all build-offline run clean test test-race test-coverage \
-        deps vendor fmt vet lint install parity-baseline \
+        deps vendor fmt vet lint install parity-baseline golden golden-update \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
         ci-build release help
 
@@ -90,6 +90,17 @@ parity-baseline: build
 	  && echo "✓ CLI surface matches committed baseline" \
 	  || { echo "✗ CLI surface drifted from docs/baseline/cli-help.txt"; exit 1; }
 
+# Golden Bronze snapshot suite. Hermetic: fixtures are committed, no network
+# or credentials required.
+golden:
+	$(GOTEST) -run 'TestGolden|TestFixtures|TestExtractionIsDeterministic|TestXDRStreamSource' -v ./...
+
+# Regenerate goldens. Review the diff — never regenerate to make a failing
+# test pass.
+golden-update:
+	$(GOTEST) -run TestGoldenBronzeOutputs -update ./...
+	@echo "✓ goldens regenerated — review the diff before committing"
+
 fmt:
 	$(GOCMD) fmt ./...
 
@@ -158,7 +169,7 @@ docker-clean:
 
 # ---- CI / Release -----------------------------------------------------------
 
-ci-build: deps vet build-all test parity-baseline
+ci-build: deps vet build-all test parity-baseline golden
 
 release: docker-build docker-push
 	@echo "✓ released $(DOCKER_IMAGE):$(VERSION_TAG)"
@@ -183,6 +194,7 @@ help:
 	@echo "Quality:"
 	@echo "  test / test-race / test-coverage / fmt / vet / lint"
 	@echo "  parity-baseline                        Diff CLI surface vs committed baseline"
+	@echo "  golden / golden-update                 Bronze snapshot suite (hermetic)"
 	@echo "  deps / vendor / install / clean"
 	@echo ""
 	@echo "Docker (image = $(DOCKER_IMAGE)):"

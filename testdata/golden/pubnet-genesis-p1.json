@@ -1,0 +1,37 @@
+{
+  "fixture": "pubnet-genesis-p1",
+  "tables": {
+    "ledgers": {
+      "row_count": 5,
+      "content_hash": "ef6bdbb8db5a4a49d68243d5c9fd8380",
+      "columns": [
+        "sequence",
+        "ledger_hash",
+        "previous_ledger_hash",
+        "closed_at",
+        "protocol_version",
+        "total_coins",
+        "fee_pool",
+        "base_fee",
+        "base_reserve",
+        "max_tx_set_size",
+        "transaction_count",
+        "operation_count",
+        "successful_tx_count",
+        "failed_tx_count",
+        "tx_set_operation_count",
+        "soroban_fee_write1kb",
+        "node_id",
+        "signature",
+        "ledger_header",
+        "bucket_list_size",
+        "live_soroban_state_size",
+        "evicted_keys_count",
+        "soroban_op_count",
+        "total_fee_charged",
+        "contract_events_count",
+        "ledger_range"
+      ]
+    }
+  }
+}

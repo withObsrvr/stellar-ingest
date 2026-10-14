@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"sync/atomic"
 
 	"github.com/stellar/go-stellar-sdk/ingest"
@@ -68,11 +69,16 @@ func extractCallGraph(
 		}
 	}
 
-	// Convert set to slice
-	var contractsInvolved []string
+	// Convert set to slice. Sorted because Go randomises map iteration order,
+	// and this slice is serialised into the operations.contracts_involved JSON
+	// array. Without the sort the same ledger produces a different value on
+	// every run, which makes Bronze output irreproducible and breaks any
+	// downstream comparison or deduplication on the column.
+	contractsInvolved := make([]string, 0, len(contractsSet))
 	for contract := range contractsSet {
 		contractsInvolved = append(contractsInvolved, contract)
 	}
+	sort.Strings(contractsInvolved)
 
 	// If no cross-contract calls, return nil (no call graph to store)
 	if len(allCalls) == 0 {

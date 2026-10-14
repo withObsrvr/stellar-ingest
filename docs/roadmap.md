@@ -37,8 +37,9 @@ binary/image runs independently; operational rollbacks documented":
 
 - Equivalent return codes: verified on the three reachable
   validation-failure paths.
-- Equivalent output: verified for `--help` only. **Not** verified over real
-  ledger data, because no fixtures exist. This half of the gate is open.
+- Equivalent output: verified for `--help`, and now over real ledger data for
+  19 of the 21 Bronze tables across 6 committed pubnet fixtures via
+  `make golden`. `evicted_keys` and `restored_keys` remain uncovered.
 - Packaged binary runs independently: yes — standalone with `ENABLE_FLOWCTL`
   unset. **The Docker image has not been built or run.** No Docker daemon was
   available on the bootstrap host, so the `Dockerfile` is unverified; the CI
@@ -84,8 +85,8 @@ architecture is changed on the strength of those numbers.
 | Ticket | Description | Status |
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
-| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **In progress** — see `docs/ticket-02-progress.md`. Protocol map derived, first fixture committed, one blocking bug fixed. |
-| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | Blocked on 02 |
+| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **Harness complete** — 6 fixtures, 19 of 21 tables covered, 2 recorded gaps. Two reproducibility bugs found and fixed. See `docs/ticket-02-progress.md`. |
+| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Unblocked** — the golden suite can now prove a refactor preserved behaviour |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |

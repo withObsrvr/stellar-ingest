@@ -1,0 +1,15 @@
+{
+  "name": "pubnet-contract-creation",
+  "description": "Five modern pubnet ledgers containing a Soroban contract deployment at ledger 64936733. Protocol 29. The only committed fixture that produces contract_creations rows \u2014 deployments are rare, 3 in a 1000-ledger scan.",
+  "network_passphrase": "Public Global Stellar Network ; September 2015",
+  "protocol_version": 29,
+  "start_ledger": 64936731,
+  "end_ledger": 64936735,
+  "ledger_count": 5,
+  "source": "gs://obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet",
+  "fetched_with": "nebu fetch --mode archive --bucket-path obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet 64936731 64936735",
+  "format": "bare concatenated LedgerCloseMeta XDR, zstd -19 (--storage-type XDR after decompression)",
+  "bytes": 5382872,
+  "compressed_bytes": 412416,
+  "sha256": "ae919f86b63db8b92f3578e43c477b6505179d21153a3913ac0711ea3319b389"
+}

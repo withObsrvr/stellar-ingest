@@ -4,3 +4,7 @@ coverage.out
 *.test
 *.out
 .DS_Store
+
+# binary built by `go build .` without -o
+/stellar-ingest
+/stellar-history-loader

@@ -33,6 +33,11 @@ jobs:
       - name: Test
         run: go test ./...
 
+      # Golden Bronze snapshot suite. Fixtures are committed raw pubnet XDR,
+      # so this needs no network access and no cloud credentials.
+      - name: Golden Bronze snapshots
+        run: make golden
+
       # Phase 1 exit gate: the CLI contract must not drift silently. An
       # intentional flag change has to update docs/baseline/cli-help.txt in the
       # same commit.

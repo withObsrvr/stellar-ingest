@@ -1,7 +1,7 @@
 # TICKET 02 — progress
 
 Golden ledger fixtures and baseline snapshot tests for all Bronze outputs.
-**In progress.** This records the decisions made, what was measured, and what
+**Harness complete; two coverage gaps remain.** This records the decisions made, what was measured, and what
 is left, so the work can be picked up without re-deriving any of it.
 
 ## Decisions
@@ -47,14 +47,24 @@ first P20 ledger is 50,457,424.**
 
 ## Planned fixtures
 
-| Fixture | Range | Covers | Status |
-|---|---|---|---|
-| `pubnet-genesis-p1` | 100–104 | Protocol 1, zero transactions, empty-table path | **Committed** (2,060 bytes) |
-| `pubnet-classic-p19` | around 50,000,000 | Busy pre-Soroban classic | Not fetched |
-| `pubnet-protocol-boundary` | 50,457,419–50,457,428 | P19→P20 transition | Not fetched |
-| `pubnet-soroban-p29` | 64,938,234–64,938,243 | Dense contract events and Soroban ops | Not fetched |
-| `pubnet-tiny-dump` | 64,938,234–64,938,236 | The fixture that gets full row dumps | Not fetched |
-| eviction | unlocated | `evicted_keys`, state archival | **Not found** — a 401-ledger scan at the chain tip returned zero ledgers with `evicted_keys_count > 0`. Needs a wider search; no fixture will be fabricated for it. |
+| Fixture | Range | Ledgers | Size | Covers |
+|---|---|---|---|---|
+| `pubnet-genesis-p1` | 100–104 | 5 | 2 KB | Protocol 1, zero transactions, empty-table path |
+| `pubnet-classic-p19` | 50,000,000–50,000,009 | 10 | 1.16 MB | Busy pre-Soroban classic |
+| `pubnet-protocol-boundary` | 50,457,419–50,457,428 | 10 | 1.59 MB | P19→P20 transition; emits the most tables (18) |
+| `pubnet-soroban-p29` | 64,938,240–64,938,249 | 10 | 1.80 MB | Dense contract events and Soroban ops |
+| `pubnet-tiny-dump` | 64,938,234–64,938,236 | 3 | 0.49 MB | Small enough for full row dumps; drives the determinism test |
+| `pubnet-contract-creation` | 64,936,731–64,936,735 | 5 | 0.40 MB | The only fixture producing `contract_creations` — deployments are rare, 3 per 1,000 ledgers |
+
+All committed, 5.5 MB total. Stored as `zstd -19` framed XDR except the
+genesis fixture, which is small enough to commit raw.
+
+**Still uncovered: `evicted_keys` and `restored_keys`.** State archival is
+rare; neither a 401-ledger scan at the chain tip nor a 1,000-ledger scan found
+a single ledger with `evicted_keys_count > 0`. These are recorded in
+`knownUncoveredTables` in `golden_test.go`, which fails both if an unrecorded
+table goes missing and if a recorded gap closes without the list being updated.
+Finding an archival window needs a targeted search.
 
 ## Table coverage gap
 
@@ -134,3 +144,83 @@ checking for elsewhere.
 8. Recovery and integrity scenarios from `docs/phase0-fixtures.md`, especially
    resume with a different `--workers` count and `--chunk-size 0` versus
    non-zero producing identical output.
+
+## The harness
+
+`golden_harness.go` and `golden_test.go`. Hermetic — fixtures are committed, so
+no network access and no cloud credentials are needed. Runs in ~9 seconds and
+is wired into `make golden` and the CI workflow.
+
+### How a digest is computed
+
+Per table: the row count, the surviving column list, and an order-independent
+content hash. The hash is an MD5 per row of the row rendered as JSON,
+aggregated over the row hashes in sorted order.
+
+Sorting the hashes rather than the rows makes the result independent of Parquet
+row ordering, which is not a contract and varies with worker count and shard
+boundaries. Rendering as JSON rather than concatenating values means a column
+rename or type change also moves the hash, so schema drift is caught alongside
+value drift.
+
+DuckDB does the reading, which avoids writing a bespoke Parquet reader for 21
+different schemas.
+
+### Absent versus empty
+
+Digests are keyed by table. A table missing from the map was not emitted at
+all, which is deliberately distinct from one present with `row_count` 0 —
+the writer creates no directory for a table with no rows, so without this
+distinction a regression that silently stopped emitting a table would read as
+a pass. `compareDigests` reports set differences separately from content
+differences for the same reason.
+
+### What is excluded, and why that is a workaround
+
+`nonDeterministicColumns` drops `ingestion_timestamp`, `created_at`,
+`updated_at`, `version_label`, and `era_id`. The `_meta_lineage` output is
+excluded wholesale as pure provenance.
+
+Excluding these is a workaround, not an endorsement. A Bronze row that cannot
+be reproduced from the same ledger is a data-model problem. Whether wall-clock
+stamps belong in Bronze at all is worth deciding separately.
+
+### Tests
+
+| Test | What it pins |
+|---|---|
+| `TestGoldenBronzeOutputs` | Every fixture's every table against a committed digest. `-update` regenerates. |
+| `TestExtractionIsDeterministic` | The same fixture extracted twice must produce identical digests. |
+| `TestFixturesCoverAllBronzeTables` | The fixture set collectively covers all 21 tables, minus recorded gaps. |
+| `TestXDRStreamSourceReadsCompleteFile` | A complete XDR stream reads without error. |
+| `TestFixtureIntegrity` | Fixture bytes match their manifest SHA-256. |
+
+## Second bug found: `operations.contracts_involved` was not reproducible
+
+`TestExtractionIsDeterministic` caught it immediately. `call_graph.go` built
+the `contracts_involved` slice by ranging over a Go map, whose iteration order
+is randomised. That slice is serialised into the `contracts_involved` JSON
+array, so **the same ledger produced a different value on every run**.
+
+Row counts matched, so nothing short of a content comparison would have caught
+it — and it only affects Soroban-era data, so the classic fixtures were clean.
+Fixed by sorting the slice before returning it.
+
+This one matters beyond the test suite: any downstream consumer comparing or
+deduplicating on `contracts_involved` was getting inconsistent results, and the
+historical and live ingestion paths could disagree on identical input. It is
+exactly the class of divergence TICKET 04 is meant to detect between the two
+extractors.
+
+## Remaining work
+
+1. Locate an archival window covering `evicted_keys` and `restored_keys`.
+2. Full normalised row dumps for `pubnet-tiny-dump` — the hybrid golden format
+   calls for them and only hashes exist so far.
+3. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
+4. Recovery and integrity scenarios from `docs/phase0-fixtures.md`: crash
+   before and after sink commit, resume with a different `--workers` count,
+   partial writer failure, corrupted XDR, re-running a complete range,
+   idempotent repair.
+5. `--chunk-size 0` versus non-zero producing identical Bronze output.
+6. Decide whether the wall-clock columns belong in Bronze at all.

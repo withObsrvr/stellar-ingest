@@ -10,5 +10,6 @@
   "fetched_with": "nebu fetch --mode archive --bucket-path obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet 100 104",
   "format": "bare concatenated LedgerCloseMeta XDR (--storage-type XDR)",
   "bytes": 2060,
-  "sha256": "bda6d3473f690e3e14b7d2d6d74a6d6241ea94c2e30b9fa55d4ed3364bb71c1c"
+  "sha256": "bda6d3473f690e3e14b7d2d6d74a6d6241ea94c2e30b9fa55d4ed3364bb71c1c",
+  "compressed_bytes": null
 }

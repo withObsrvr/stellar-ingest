@@ -1,0 +1,15 @@
+{
+  "name": "pubnet-classic-p19",
+  "description": "Ten busy pre-Soroban pubnet ledgers. Protocol 19. Covers classic operations, effects, trades, trustlines and offers without any Soroban paths.",
+  "network_passphrase": "Public Global Stellar Network ; September 2015",
+  "start_ledger": 50000000,
+  "end_ledger": 50000009,
+  "ledger_count": 10,
+  "source": "gs://obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet",
+  "fetched_with": "nebu fetch --mode archive --bucket-path obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet 50000000 50000009",
+  "format": "bare concatenated LedgerCloseMeta XDR, zstd -19 (--storage-type XDR after decompression)",
+  "bytes": 10654156,
+  "compressed_bytes": 1211697,
+  "sha256": "772a15c8d3c5139dc134ba157e6af2f60c7115705b0cb577f7f570863a44d074",
+  "protocol_version": 19
+}
