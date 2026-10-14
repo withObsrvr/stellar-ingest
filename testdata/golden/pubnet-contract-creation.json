@@ -157,7 +157,7 @@
     },
     "contract_creations": {
       "row_count": 1,
-      "content_hash": "0d08143e246b7e176a2329e0fea732ec",
+      "content_hash": "a4630c7406044641589e103e6462ef03",
       "columns": [
         "contract_id",
         "creator_address",
@@ -166,9 +166,11 @@
         "external_ref_owner",
         "external_ref_tag",
         "created_ledger",
+        "closed_at",
         "ledger_range"
       ],
       "column_hashes": {
+        "closed_at": "6d1cee809670e6cb8267a3cf78818724",
         "contract_id": "2458f92629fbdae714e8661faee3d28b",
         "created_ledger": "78c1384ea4d3aa7fff19f1c5787ff6ce",
         "creator_address": "e282aa1068f36a026382013eef984660",
@@ -277,7 +279,7 @@
     },
     "effects": {
       "row_count": 2234,
-      "content_hash": "0741b4ec9ec710331139cbbfdebea884",
+      "content_hash": "abad7f7f31450ebec184dac504e002d2",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -299,6 +301,7 @@
         "seller_account",
         "operation_id",
         "details_json",
+        "closed_at",
         "ledger_range"
       ],
       "column_hashes": {
@@ -309,6 +312,7 @@
         "asset_type": "e3da6eeef5f2c53130eb849bd2e4c697",
         "authorize_flag": "702cea94374c51f5fa2cb4b374a67713",
         "clawback_flag": "702cea94374c51f5fa2cb4b374a67713",
+        "closed_at": "6cf1ba38d56bc7047b184a45233f1d6b",
         "details_json": "1e4afc64a172442f59342a7330429660",
         "effect_index": "711ea6ca79b89188d33e8ef3a8a309ca",
         "effect_type": "e1857290734f6a27a9e4328efafc014e",
@@ -493,7 +497,7 @@
     },
     "operations": {
       "row_count": 2913,
-      "content_hash": "34cb70b5c67c015bfbecccabd722cc0a",
+      "content_hash": "d1a19209b805ae5a0dce3fb31676e23d",
       "columns": [
         "transaction_hash",
         "transaction_index",
@@ -503,6 +507,7 @@
         "source_account_muxed",
         "type",
         "type_string",
+        "closed_at",
         "transaction_successful",
         "operation_result_code",
         "ledger_range",
@@ -569,6 +574,7 @@
         "buying_asset_issuer": "730c1c6f26e6b7abccada872bbeb71a3",
         "buying_asset_type": "74c38d74d180e4300891c049458227db",
         "clear_flags": "7877cafa46b4a7aed2a830ae43b153dd",
+        "closed_at": "8553815d802f4a9d4b8fb2bcb9ea7438",
         "contract_calls_json": "728e9c17eeb4451c2ab1b15b51336fb0",
         "contracts_involved": "d35045b9770c9c81ae0dbee440643f4a",
         "data_name": "0da5d99d94e7d47dc0277c7f5a2c9950",
@@ -663,7 +669,7 @@
     },
     "trades": {
       "row_count": 382,
-      "content_hash": "97b51224ca079d192280e0c76b4e9dd5",
+      "content_hash": "8e294b01245c5c9c960bd5ee3dfb741e",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -681,6 +687,7 @@
         "buying_amount",
         "price",
         "liquidity_pool_id",
+        "closed_at",
         "ledger_range"
       ],
       "column_hashes": {
@@ -688,6 +695,7 @@
         "buying_amount": "bce6d3ea98f486544f3e9e2a5c2371b1",
         "buying_asset_code": "5529feb53d06396fea88cb3cda39f38f",
         "buying_asset_issuer": "ce92e2fc89585b5285223469ccccf6a0",
+        "closed_at": "ff3c957533cc83a02263c1a6ff4a0e8b",
         "ledger_range": "4ec328865115ee3c5ea8e61bc521a09e",
         "ledger_sequence": "da2a3a9fb304dd2962174c13db6d350f",
         "liquidity_pool_id": "6bbfec44beba8a8d1721a422c26a8408",
@@ -705,7 +713,7 @@
     },
     "transactions": {
       "row_count": 1106,
-      "content_hash": "01eef7ec1315f9a3a04f6fdf0d8c344c",
+      "content_hash": "90263260b23fa366b6afc851d8db8e83",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -718,6 +726,7 @@
         "operation_count",
         "memo_type",
         "memo",
+        "closed_at",
         "account_sequence",
         "ledger_range",
         "signatures_count",
@@ -740,6 +749,7 @@
       ],
       "column_hashes": {
         "account_sequence": "a3bf9f3722d7c3c2899bf6af7eee2d94",
+        "closed_at": "9f783887be0547cf2993994799143991",
         "envelope_size_bytes": "2441ec5c500ab462f51856122bdb8040",
         "fee_charged": "b93ddb0db8ef29c77d38a762011adf03",
         "ledger_range": "b4c37f42194a8b839fa4e35ec0b495d1",

@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -26,12 +27,69 @@ import (
 	"github.com/withObsrvr/stellar-ingest/internal/parity"
 )
 
-// parquetColumnFor maps a row field to its Parquet column, for the handful
-// of places the names differ.
-var parquetColumnFor = map[string]string{
-	"PipelineVersion": "version_label",
-	// The column predates the Go field name; `type` is what consumers read.
-	"OpType": "type",
+// parquetRowType maps each Bronze table to the struct that defines its
+// stored columns.
+//
+// Written out so the column names can be read off the parquet tags rather
+// than guessed from the Go field names. Guessing was its own source of
+// false findings: OpType stores as `type`, PipelineVersion as
+// `version_label`, and CreatedAt became `closed_at` on some tables and
+// `ingested_at` on others. The tag is the only authority on what a column
+// is called.
+var parquetRowType = map[string]reflect.Type{
+	"transactions":       reflect.TypeOf(ParquetTransaction{}),
+	"operations":         reflect.TypeOf(ParquetOperation{}),
+	"effects":            reflect.TypeOf(ParquetEffect{}),
+	"trades":             reflect.TypeOf(ParquetTrade{}),
+	"accounts":           reflect.TypeOf(ParquetAccount{}),
+	"offers":             reflect.TypeOf(ParquetOffer{}),
+	"trustlines":         reflect.TypeOf(ParquetTrustline{}),
+	"account_signers":    reflect.TypeOf(ParquetAccountSigner{}),
+	"claimable_balances": reflect.TypeOf(ParquetClaimableBalance{}),
+	"liquidity_pools":    reflect.TypeOf(ParquetLiquidityPool{}),
+	"config_settings":    reflect.TypeOf(ParquetConfigSetting{}),
+	"ttl":                reflect.TypeOf(ParquetTTL{}),
+	"evicted_keys":       reflect.TypeOf(ParquetEvictedKey{}),
+	"contract_events":    reflect.TypeOf(ParquetContractEvent{}),
+	"contract_data":      reflect.TypeOf(ParquetContractData{}),
+	"contract_code":      reflect.TypeOf(ParquetContractCode{}),
+	"native_balances":    reflect.TypeOf(ParquetNativeBalance{}),
+	"restored_keys":      reflect.TypeOf(ParquetRestoredKey{}),
+	"contract_creations": reflect.TypeOf(ParquetContractCreation{}),
+	"ledgers":            reflect.TypeOf(ParquetLedger{}),
+	"token_transfers":    reflect.TypeOf(ParquetTokenTransfer{}),
+}
+
+func TestParquetRowTypeRegistryIsComplete(t *testing.T) {
+	if len(parquetRowType) != len(parity.AllTables) {
+		t.Fatalf("registry covers %d tables, Ticket 04 names %d", len(parquetRowType), len(parity.AllTables))
+	}
+	for _, name := range parity.AllTables {
+		if _, ok := parquetRowType[name]; !ok {
+			t.Errorf("table %q has no Parquet row type registered", name)
+		}
+	}
+}
+
+// parquetColumn returns the stored column name for a row field, read from
+// the Parquet struct tag. Returns false when the struct has no such field,
+// which means the Parquet layer does not carry it — the coverage audit's
+// business, not this test's.
+func parquetColumn(table, field string) (string, bool) {
+	rt, ok := parquetRowType[table]
+	if !ok {
+		return "", false
+	}
+	f, ok := rt.FieldByName(field)
+	if !ok {
+		return "", false
+	}
+	tag := f.Tag.Get("parquet")
+	if tag == "" {
+		return "", false
+	}
+	name, _, _ := strings.Cut(tag, ",")
+	return name, name != ""
 }
 
 // TestParquetStorageTierPreservesValues extracts a fixture, writes Parquet
@@ -125,12 +183,16 @@ func TestParquetStorageTierPreservesValues(t *testing.T) {
 		}
 
 		for _, field := range snap.Columns {
-			col := parquetColumnName(field)
+			col, mapped := parquetColumn(table, field)
+			if !mapped {
+				// The Parquet struct does not carry this field at all.
+				// That is TestParquetLayerWritesEveryRowField's business,
+				// and it is allowlisted there when deliberate.
+				continue
+			}
 			if !have[col] {
-				// Absence is the coverage audit's job; report it here only
-				// so a reader is not left wondering why a field has no
-				// null-rate line.
-				t.Errorf("%s: field %s has no Parquet column %q", table, field, col)
+				t.Errorf("%s: field %s maps to column %q, which the written files do not have",
+					table, field, col)
 				continue
 			}
 			wantNulls := nullCount(rows.Tables[table], field)
@@ -176,37 +238,6 @@ func TestParquetStorageTierPreservesValues(t *testing.T) {
 			}
 		}
 	}
-}
-
-func parquetColumnName(field string) string {
-	if c, ok := parquetColumnFor[field]; ok {
-		return c
-	}
-	return toSnakeCase(field)
-}
-
-// toSnakeCase mirrors the parquet tags, which are the Go field names in
-// snake case with acronyms kept together (TTL -> ttl, XDR -> xdr, ID -> id).
-func toSnakeCase(s string) string {
-	var b strings.Builder
-	runes := []rune(s)
-	for i, r := range runes {
-		isUpper := r >= 'A' && r <= 'Z'
-		if isUpper && i > 0 {
-			prevLower := runes[i-1] >= 'a' && runes[i-1] <= 'z'
-			prevDigit := runes[i-1] >= '0' && runes[i-1] <= '9'
-			nextLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
-			if prevLower || prevDigit || nextLower {
-				b.WriteByte('_')
-			}
-		}
-		if isUpper {
-			b.WriteRune(r - 'A' + 'a')
-		} else {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
 
 func nullCount(rows []parity.Row, field string) int {

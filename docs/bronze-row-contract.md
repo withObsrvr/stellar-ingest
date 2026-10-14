@@ -175,16 +175,44 @@ So nine tables contain a column that cannot be reproduced from the ledger,
 under a name that on four other tables means event time. A consumer treating
 `created_at` uniformly as event time is wrong on nine tables.
 
-**Proposed rule, needs ratification:** `closed_at` is the ledger close time
-and is the only event-time column; `ingested_at` is the wall clock and is
-explicitly provenance, not data; `created_at` is retired. Until then the
-nine wall-clock columns are excluded from every parity comparison, which the
-harness does by observation rather than by a hand-written list — the names do
-not predict which is which.
+**Rule — ratified and implemented.** `closed_at` is the ledger close time and
+is the only event-time column. `ingested_at` is the wall clock and is
+explicitly provenance, not data. `created_at` is retired.
 
-This also decides **F15**: `claimable_balances` has no `created_at` column in
-Parquet where every sibling snapshot table does. Adding one would add a field
-this section proposes to retire, so it stays absent pending the decision.
+| Column | Meaning | Tables |
+|---|---|---|
+| `closed_at` | ledger close time, reproducible | 19 |
+| `ingested_at` | wall clock at extraction, provenance | 15 |
+| `created_at` | — | none |
+
+Applied as a column rename in both stores: Parquet tags and
+`v3_bronze_schema.sql` on the cold side, migration 019 on the hot side.
+Verified with zero `created_at` columns remaining in a database built from
+the full migration chain.
+
+The rename had a side effect worth recording. The golden suite excluded
+`created_at` globally as non-deterministic, which was right for the wall
+clocks and wrong for the four stream tables where it was the close time — so
+a deterministic event-time column on `transactions`, `operations`, `trades`
+and `effects` was never being compared. With the split, `closed_at` is
+compared and only `ingested_at` is excluded. That is the whole diff the
+rename produced in the goldens.
+
+Two redundancies this exposes, both left alone deliberately:
+`accounts.updated_at` holds the same wall clock as `ingested_at` on every
+row, and `trades.closed_at` now duplicates `trade_timestamp`. Dropping
+either is a consumer-visible break and neither is wrong.
+
+One gap it makes visible rather than introduces: `trustlines` had only the
+wall clock, so after the rename it carries `ingested_at` and no event time
+at all. Giving it `closed_at` needs the extractor to carry one.
+
+This also settles **F15** the other way than expected. `claimable_balances`
+declares `created_at` in `v3_bronze_schema.sql` and the Parquet writer never
+produces it — the column was declared on the cold side and unwritten, which
+is the same defect class as F14. Under the ratified rule it becomes
+`ingested_at`, still unwritten, and the honest fix is to drop the column
+declaration rather than start stamping a wall clock. Recorded as open.
 
 ## 5. Provenance
 
@@ -293,7 +321,7 @@ accident it cost most of a table.
 
 | # | Decision | Finding | Owner |
 |---|---|---|---|
-| 1 | `created_at` split into `closed_at` / `ingested_at` | F7, F15 | Data platform |
+| ~~1~~ | ~~`created_at` split~~ — **ratified and implemented**; see §4 | F7 | — |
 | 2 | Memo encoding: raw bytes with a type discriminant, or per-store | F6 | Data platform |
 | 3 | May a store carry a declared subset of Bronze? | F4, F11 | Live ingester + data platform |
 | 4 | `contract_events` identity — unique index or richer `event_id` | F13 | `stellar-extract` |

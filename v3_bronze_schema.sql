@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS bronze.ledgers_row_v2 (
     max_tx_set_size INTEGER,
     successful_tx_count INTEGER,
     failed_tx_count INTEGER,
-    ingestion_timestamp TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     transaction_count INTEGER,
     operation_count INTEGER,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS bronze.transactions_row_v2 (
     operation_count INTEGER,
     memo_type TEXT,
     memo TEXT,
-    created_at TIMESTAMP,
+    closed_at TIMESTAMP,
     account_sequence BIGINT,
     ledger_range BIGINT,
     source_account_muxed TEXT,
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS bronze.operations_row_v2 (
     source_account TEXT,
     type INTEGER,
     type_string TEXT,
-    created_at TIMESTAMP,
+    closed_at TIMESTAMP,
     transaction_successful BOOLEAN,
     operation_result_code TEXT,
     operation_trace_code TEXT,
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS bronze.effects_row_v1 (
     signer_weight INTEGER,
     offer_id BIGINT,
     seller_account TEXT,
-    created_at TIMESTAMP,
+    closed_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT,
@@ -217,7 +217,7 @@ CREATE TABLE IF NOT EXISTS bronze.trades_row_v1 (
     -- offer and seller_account is empty. Added with stellar-extract v0.2.1,
     -- which started emitting AMM matches at all.
     liquidity_pool_id TEXT,
-    created_at TIMESTAMP,
+    closed_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -247,7 +247,7 @@ CREATE TABLE IF NOT EXISTS bronze.accounts_snapshot_v1 (
     auth_clawback_enabled BOOLEAN,
     signers TEXT,
     sponsor_account TEXT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     updated_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
@@ -267,7 +267,7 @@ CREATE TABLE IF NOT EXISTS bronze.trustlines_snapshot_v1 (
     authorized_to_maintain_liabilities BOOLEAN,
     clawback_enabled BOOLEAN,
     ledger_sequence BIGINT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -282,7 +282,7 @@ CREATE TABLE IF NOT EXISTS bronze.account_signers_snapshot_v1 (
     deleted BOOLEAN,
     closed_at TIMESTAMP,
     ledger_range BIGINT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     era_id TEXT,
     version_label TEXT
 );
@@ -317,7 +317,7 @@ CREATE TABLE IF NOT EXISTS bronze.offers_snapshot_v1 (
     amount TEXT,
     price TEXT,
     flags INTEGER,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -339,7 +339,7 @@ CREATE TABLE IF NOT EXISTS bronze.liquidity_pools_snapshot_v1 (
     asset_b_code TEXT,
     asset_b_issuer TEXT,
     asset_b_amount BIGINT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -356,7 +356,7 @@ CREATE TABLE IF NOT EXISTS bronze.claimable_balances_snapshot_v1 (
     amount BIGINT,
     claimants_count INTEGER,
     flags INTEGER,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -383,7 +383,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_events_stream_v1 (
     topic1_decoded TEXT,
     topic2_decoded TEXT,
     topic3_decoded TEXT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -405,7 +405,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_data_snapshot_v1 (
     deleted BOOLEAN,
     closed_at TIMESTAMP,
     contract_data_xdr TEXT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     token_name TEXT,
     token_symbol TEXT,
@@ -433,7 +433,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_code_snapshot_v1 (
     n_imports BIGINT,
     n_exports BIGINT,
     n_data_segment_bytes BIGINT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS bronze.config_settings_snapshot_v1 (
     tx_max_footprint_entries BIGINT,
     contract_max_size_bytes BIGINT,
     config_setting_xdr TEXT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT,
@@ -479,7 +479,7 @@ CREATE TABLE IF NOT EXISTS bronze.ttl_snapshot_v1 (
     last_modified_ledger INTEGER,
     deleted BOOLEAN,
     closed_at TIMESTAMP,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -493,7 +493,7 @@ CREATE TABLE IF NOT EXISTS bronze.evicted_keys_state_v1 (
     durability TEXT,
     closed_at TIMESTAMP,
     ledger_range BIGINT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     era_id TEXT,
     version_label TEXT
 );
@@ -507,7 +507,7 @@ CREATE TABLE IF NOT EXISTS bronze.restored_keys_state_v1 (
     restored_from_ledger BIGINT,
     closed_at TIMESTAMP,
     ledger_range BIGINT,
-    created_at TIMESTAMP,
+    ingested_at TIMESTAMP,
     era_id TEXT,
     version_label TEXT
 );
@@ -523,7 +523,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_creations_v1 (
     external_ref_owner TEXT,
     external_ref_tag TEXT,
     created_ledger BIGINT,
-    created_at TIMESTAMP,
+    closed_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
     version_label TEXT
@@ -550,7 +550,7 @@ CREATE TABLE IF NOT EXISTS bronze.token_transfers_stream_v1 (
     amount_raw        TEXT,
     contract_id       TEXT,
     closed_at         TIMESTAMP,
-    created_at        TIMESTAMP,
+    ingested_at        TIMESTAMP,
     ledger_range      INTEGER,
     era_id            TEXT,
     version_label     TEXT

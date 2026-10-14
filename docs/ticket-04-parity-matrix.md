@@ -20,8 +20,8 @@ Two verdicts are easy to misread:
 
 ### pubnet-auto-restore-p25
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -50,8 +50,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-classic-p19
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -80,8 +80,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-contract-creation
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -110,8 +110,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-genesis-p1
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -140,8 +140,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-protocol-boundary
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -170,8 +170,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-soroban-p29
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -200,8 +200,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-state-eviction-p23
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |
@@ -230,8 +230,8 @@ Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 ### pubnet-tiny-dump
 
-Historical pins: `repo=stellar-ingest revision=afa8da7b6e49ba60617f98344100f3ca9b566cc7 stellar-extract=v0.2.1`  
-Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=83cbd2e40f18b8b9bd2412456e21556c62a5876b stellar-extract=v0.2.1`  
+Historical pins: `repo=stellar-ingest revision=41a49c4e1e67b7757d8b257fc96666ba541c4cab-dirty stellar-extract=v0.2.1`  
+Live pins: `repo=ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester revision=4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty stellar-extract=v0.2.1`  
 Columns excluded as run-dependent: `[EraID VersionLabel]`
 
 | Table | Verdict | Hist rows | Live rows | Hist-only columns | Live-only columns | Differing shared columns | Skipped (non-deterministic) |

@@ -4,7 +4,7 @@
   "fixture": "pubnet-genesis-p1",
   "pins": {
     "repo": "ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester",
-    "revision": "83cbd2e40f18b8b9bd2412456e21556c62a5876b",
+    "revision": "4789c48711c61d768ca7b5acf7639335d4acf6ec-dirty",
     "stellar-extract": "v0.2.1"
   },
   "excluded_columns": [
@@ -129,7 +129,7 @@
         "EvictedKeysCount": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
         "FailedTxCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
         "FeePool": "58878e1f411805f31ecadfdbc395e55033216e30a303f497722f9fe001066ab5",
-        "IngestionTimestamp": "4c62f1d4316cb0e6a4cbd1ec7c34900f4dd80798d34c0bd59ea317cb4764af94",
+        "IngestionTimestamp": "9225f99231b2a2a4b792be2e711624e7c41ada46c30053e0b792bdb4824c622e",
         "LedgerHash": "bdbfaf4b47513f59a00ed9f0a17173c90494b5c398ee7c60e8a2c115d7b5b61f",
         "LedgerHeader": "045b724aef19c006c9432a9a6a9dd4e62ee5ac709c951824ec44cec118be8149",
         "LedgerRange": "76e66392397f33d067585d1144c8c6e959b65bc70c53e73ac5b53ed13b470d59",

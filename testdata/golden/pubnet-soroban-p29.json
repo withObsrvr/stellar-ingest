@@ -207,7 +207,7 @@
     },
     "effects": {
       "row_count": 6329,
-      "content_hash": "2bcf6d20045f5677504d9d37c313e8b4",
+      "content_hash": "ebb91c8b3edc3911de17a75f6757c8ef",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -229,6 +229,7 @@
         "seller_account",
         "operation_id",
         "details_json",
+        "closed_at",
         "ledger_range"
       ],
       "column_hashes": {
@@ -239,6 +240,7 @@
         "asset_type": "4d594669e5f9f61e4b170ab0aaf6f863",
         "authorize_flag": "90af1fc625b001007b9e1a852e455f1f",
         "clawback_flag": "90af1fc625b001007b9e1a852e455f1f",
+        "closed_at": "4c979334630ce8bfda0d20ae39d24718",
         "details_json": "25727a373195465e0de3bd705e70a20e",
         "effect_index": "aa292692f4c088c6d868ef71d47e1070",
         "effect_type": "a501a9f40f2fa5c0e1c4c1b28d48922f",
@@ -423,7 +425,7 @@
     },
     "operations": {
       "row_count": 7027,
-      "content_hash": "0a676a63fde33e06bca0be84598118a0",
+      "content_hash": "b20f7c2f92234ad1a4d24e715ae65ad5",
       "columns": [
         "transaction_hash",
         "transaction_index",
@@ -433,6 +435,7 @@
         "source_account_muxed",
         "type",
         "type_string",
+        "closed_at",
         "transaction_successful",
         "operation_result_code",
         "ledger_range",
@@ -499,6 +502,7 @@
         "buying_asset_issuer": "ce6ea4e91cca9dfa2f0f3d6dac565e04",
         "buying_asset_type": "71cedb4dbf0340102708c24d42eb7dbb",
         "clear_flags": "454b431d05239aa8ab94f9d53d8c5351",
+        "closed_at": "a6b113e05a574840e460f1ba3be0f677",
         "contract_calls_json": "f66021b91f9680082dbbb2f12e426acd",
         "contracts_involved": "a23a270ba7adec0c58fbf404b9120ce8",
         "data_name": "ed49e9138c4e1faa6100bd4d34121f25",
@@ -617,7 +621,7 @@
     },
     "trades": {
       "row_count": 1330,
-      "content_hash": "e01a65a237fccf30c61516af6b9e9399",
+      "content_hash": "c7bab43a4898f0adeb64d97ead3d259d",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -635,6 +639,7 @@
         "buying_amount",
         "price",
         "liquidity_pool_id",
+        "closed_at",
         "ledger_range"
       ],
       "column_hashes": {
@@ -642,6 +647,7 @@
         "buying_amount": "5474cbdd5f15942bae23b9e09b42a30c",
         "buying_asset_code": "095a02a16f83c980877ff68d92eb67b9",
         "buying_asset_issuer": "ff4ff1722d8008aebd0537ac6163f105",
+        "closed_at": "ff6c0ea2dc567e9d28325b28dd455cba",
         "ledger_range": "c894cd3e951cfaa13811b60930f21270",
         "ledger_sequence": "9ed4d1be4ddd10d968294669a1235640",
         "liquidity_pool_id": "0295c126cb8f4af9f286133814b7d42a",
@@ -659,7 +665,7 @@
     },
     "transactions": {
       "row_count": 4181,
-      "content_hash": "9a9e6dde2b06abf4f4b0521f739d6db0",
+      "content_hash": "bd2569bc091477f7d282d4b2e72c1fc0",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -672,6 +678,7 @@
         "operation_count",
         "memo_type",
         "memo",
+        "closed_at",
         "account_sequence",
         "ledger_range",
         "signatures_count",
@@ -694,6 +701,7 @@
       ],
       "column_hashes": {
         "account_sequence": "dbb4bc6e6a430bd3ea65b3cce673f82b",
+        "closed_at": "f19ed88659a9dd2e5bbc6f1cf38b26dd",
         "envelope_size_bytes": "a5dbd987dfc6449768cb733a3c454f5c",
         "fee_charged": "d6633c15fa1647b6d27aaa1069315b34",
         "ledger_range": "148eb295147a616c85875d0c0a102c4c",

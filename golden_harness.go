@@ -15,19 +15,24 @@ import (
 // nonDeterministicColumns are Bronze columns whose values change between runs
 // over identical ledger input. They are excluded from golden hashes and dumps.
 //
-// ingestion_timestamp, created_at and updated_at are wall-clock values stamped
-// at extraction time. version_label carries the build's -ldflags version.
-// era_id is operator-supplied via --era-id.
+// ingested_at and updated_at are wall clocks stamped at extraction time.
+// version_label carries the build's -ldflags version. era_id is
+// operator-supplied via --era-id.
 //
-// Excluding them here is a workaround, not an endorsement: a Bronze row that
-// cannot be reproduced from the same ledger is a data-model problem worth
-// deciding on separately. See docs/ticket-02-progress.md.
+// closed_at is deliberately absent: it is the ledger close time and is
+// reproducible, so it belongs in the hashes. Until the canonical row
+// contract split the column, both meanings shared the name created_at and
+// the whole thing was excluded — which silently suppressed comparison of a
+// deterministic event-time column on transactions, operations, trades and
+// effects. See docs/bronze-row-contract.md §4.
+//
+// Excluding the rest here is a workaround, not an endorsement: a Bronze row
+// that cannot be reproduced from the same ledger is a data-model problem.
 var nonDeterministicColumns = map[string]bool{
-	"ingestion_timestamp": true,
-	"created_at":          true,
-	"updated_at":          true,
-	"version_label":       true,
-	"era_id":              true,
+	"ingested_at":   true,
+	"updated_at":    true,
+	"version_label": true,
+	"era_id":        true,
 }
 
 // provenanceTables are output directories that record how a run happened
