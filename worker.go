@@ -432,6 +432,22 @@ func streamSequentialRange(ctx context.Context, start, end uint32, read func(uin
 // decodeLedger unmarshals raw XDR bytes into a LedgerCloseMeta and extracts
 // header metadata. This is done ONCE per ledger (not per extractor).
 func (w *Worker) decodeLedger(sequence uint32, rawXDR []byte) (LedgerMeta, error) {
+	var eraID *string
+	if w.config.EraID != "" {
+		eraID = &w.config.EraID
+	}
+	return decodeLedgerMeta(sequence, rawXDR, eraID)
+}
+
+// decodeLedgerMeta is the worker-independent half of decodeLedger.
+//
+// It is separate so that the Ticket 04 parity harness enters the Bronze
+// mapping through exactly the decode the production worker uses. A harness
+// that reimplemented this — the close-time conversion and the 10,000-ledger
+// range bucket in particular — would be comparing its own derivation of
+// closed_at against the live ingester's, and a drift between the two would
+// surface as a data discrepancy in every table that carries a timestamp.
+func decodeLedgerMeta(sequence uint32, rawXDR []byte, eraID *string) (LedgerMeta, error) {
 	var lcm xdr.LedgerCloseMeta
 	if err := lcm.UnmarshalBinary(rawXDR); err != nil {
 		return LedgerMeta{}, fmt.Errorf("unmarshal XDR: %w", err)
@@ -445,11 +461,6 @@ func (w *Worker) decodeLedger(sequence uint32, rawXDR []byte) (LedgerMeta, error
 	// Sanity check
 	if ledgerSeq != sequence {
 		return LedgerMeta{}, fmt.Errorf("sequence mismatch: expected %d, got %d", sequence, ledgerSeq)
-	}
-
-	var eraID *string
-	if w.config.EraID != "" {
-		eraID = &w.config.EraID
 	}
 
 	return LedgerMeta{

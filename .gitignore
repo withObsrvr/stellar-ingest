@@ -8,3 +8,8 @@ coverage.out
 # binary built by `go build .` without -o
 /stellar-ingest
 /stellar-history-loader
+
+# Ticket 04 parity artifacts. The digest records under testdata/parity/ are
+# committed and reviewed; everything else — decompressed fixture XDR and the
+# canonical row sets, hundreds of megabytes uncompressed — is build output.
+build/

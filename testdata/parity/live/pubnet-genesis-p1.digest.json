@@ -1,0 +1,218 @@
+{
+  "canonical_form_version": "1",
+  "side": "live",
+  "fixture": "pubnet-genesis-p1",
+  "pins": {
+    "repo": "ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester",
+    "revision": "bd618bb4706e983eb305bc43bb5fc90c9f6c6fb5-dirty",
+    "stellar-extract": "v0.1.5"
+  },
+  "excluded_columns": [
+    "EraID",
+    "VersionLabel"
+  ],
+  "tables": {
+    "account_signers": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "accounts": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "claimable_balances": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "config_settings": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "contract_code": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "contract_creations": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "contract_data": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "contract_events": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "effects": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "evicted_keys": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "ledgers": {
+      "emitted": true,
+      "row_count": 5,
+      "columns": [
+        "BaseFee",
+        "BaseReserve",
+        "BucketListSize",
+        "ClosedAt",
+        "ContractEventsCount",
+        "EntryChangesByType",
+        "EntryChangesCreated",
+        "EntryChangesDeleted",
+        "EntryChangesRestored",
+        "EntryChangesTotal",
+        "EntryChangesUpdated",
+        "EraID",
+        "EvictedKeysByType",
+        "EvictedKeysCount",
+        "FailedTxCount",
+        "FeePool",
+        "IngestionTimestamp",
+        "LedgerHash",
+        "LedgerHeader",
+        "LedgerRange",
+        "LiveSorobanStateSize",
+        "MaxTxSetSize",
+        "NodeID",
+        "OperationCount",
+        "PreviousLedgerHash",
+        "ProtocolVersion",
+        "Sequence",
+        "Signature",
+        "SorobanFeeWrite1KB",
+        "SorobanOpCount",
+        "SuccessfulTxCount",
+        "TotalCoins",
+        "TotalFeeCharged",
+        "TransactionCount",
+        "TxSetOperationCount",
+        "VersionLabel"
+      ],
+      "column_digests": {
+        "BaseFee": "086e705793c66d84c30de83117c28a17590c22800ce416240270000bba8c7665",
+        "BaseReserve": "d792b97dc30e89ac2b6c50b958f6896f0196037d171e9e8c43be3534343a44db",
+        "BucketListSize": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "ClosedAt": "cd5296f27304bfbd41ba77e13c44a009453e34b97a12191af64afe0085f94908",
+        "ContractEventsCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "EntryChangesByType": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "EntryChangesCreated": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "EntryChangesDeleted": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "EntryChangesRestored": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "EntryChangesTotal": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "EntryChangesUpdated": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "EvictedKeysByType": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "EvictedKeysCount": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "FailedTxCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "FeePool": "58878e1f411805f31ecadfdbc395e55033216e30a303f497722f9fe001066ab5",
+        "IngestionTimestamp": "bd40fa4cb0bfa2090721b650e7264cbe6b99c1dc8db7c8c6cbb5268cdd3e55e5",
+        "LedgerHash": "bdbfaf4b47513f59a00ed9f0a17173c90494b5c398ee7c60e8a2c115d7b5b61f",
+        "LedgerHeader": "045b724aef19c006c9432a9a6a9dd4e62ee5ac709c951824ec44cec118be8149",
+        "LedgerRange": "76e66392397f33d067585d1144c8c6e959b65bc70c53e73ac5b53ed13b470d59",
+        "LiveSorobanStateSize": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "MaxTxSetSize": "f54f3c92ce58f60943602a494019c55680c40d3331226202c5180a1ab230f58e",
+        "NodeID": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "OperationCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "PreviousLedgerHash": "37d2701985d2875cc76bb9aeccf28442ac154d7d640279fa2eb56faf39ebbf22",
+        "ProtocolVersion": "7cc0827095cdf54717e65f0092d7d79bd8ca39b1dcececba960e044455217e72",
+        "Sequence": "ddd5ea26e085fdb380be63cdf0c3b4ea13c264e124bc8f78a8b49dcab0ca6ac6",
+        "Signature": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "SorobanFeeWrite1KB": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
+        "SorobanOpCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "SuccessfulTxCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "TotalCoins": "e1b0d76d53d8732a642beaab965cc657b345ee4640431cf0e9667d111e1b78a9",
+        "TotalFeeCharged": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "TransactionCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
+        "TxSetOperationCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674"
+      },
+      "non_deterministic_columns": [
+        "IngestionTimestamp"
+      ],
+      "table_digest": "bb8ec2eb210d743b4cdf5b7598a1d70b048d6cbb53fedb6f86d3da6563bfef4b"
+    },
+    "liquidity_pools": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native_balances": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "offers": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "operations": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "restored_keys": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "token_transfers": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "trades": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "transactions": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "trustlines": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "ttl": {
+      "emitted": true,
+      "row_count": 0,
+      "columns": [],
+      "table_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  }
+}

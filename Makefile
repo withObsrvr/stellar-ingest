@@ -1,5 +1,6 @@
 .PHONY: all build build-compat build-all build-offline run clean test test-race test-coverage \
         deps vendor fmt vet lint install parity-baseline golden golden-update \
+        parity-export parity-live parity-report parity-matrix parity-baseline-update \
         nix-build nix-run nix-shell nix-check nix-docker \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
         ci-build release help
@@ -101,6 +102,52 @@ golden:
 golden-update:
 	$(GOTEST) -run TestGoldenBronzeOutputs -update ./...
 	@echo "✓ goldens regenerated — review the diff before committing"
+
+# ---- Ticket 04 Bronze parity ------------------------------------------------
+#
+# Compares this repository's Bronze mapping against the live
+# stellar-postgres-ingester over identical authoritative XDR. The two pin
+# different stellar-extract versions and cannot be linked into one binary, so
+# each side exports canonical rows from its own process and the comparison
+# runs over the artifacts. See docs/ticket-04-progress.md.
+#
+# Full run:
+#   make parity-export && make parity-live && make parity-report
+#
+# PARITY_DIR holds the artifacts; the row sets are build output, not fixtures.
+PARITY_DIR  ?= build/parity
+LIVE_INGESTER ?= ../ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester/go
+
+# Historical side: decompress fixtures, extract twice (the second pass is the
+# non-determinism control), write digests and canonical rows.
+parity-export:
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityExportHistorical -timeout 30m -v .
+
+# Live side: runs in the sibling repository against the XDR just exported.
+parity-live:
+	@test -d $(LIVE_INGESTER) || { \
+	  echo "✗ live ingester not found at $(LIVE_INGESTER); set LIVE_INGESTER=<path>"; exit 1; }
+	cd $(LIVE_INGESTER) && PARITY_DIR=$(abspath $(PARITY_DIR)) go test -run TestParityExportLive -timeout 30m -v .
+
+# Comparison over both sides' artifacts, including the row-level drill-down.
+parity-report:
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityCompare -timeout 30m -v .
+	@echo "✓ report → $(PARITY_DIR)/report/summary.md"
+
+# Regenerate the reviewed matrix from the committed digests. Hermetic.
+parity-matrix:
+	$(GOTEST) -run TestParityMatrixUpdate -update .
+	@echo "✓ docs/ticket-04-parity-matrix.md regenerated — review the diff"
+
+# Promote a fresh export to the committed baselines. Never run this to make a
+# failing regression test pass: the baselines are the reviewed record of what
+# each side produced at a pinned revision.
+parity-baseline-update: parity-export
+	cp $(PARITY_DIR)/historical/*.digest.json testdata/parity/historical/
+	@test -d $(PARITY_DIR)/live && cp $(PARITY_DIR)/live/*.digest.json testdata/parity/live/ \
+	  || echo "note: no live digests in $(PARITY_DIR); run make parity-live first to refresh that side"
+	$(MAKE) parity-matrix
+	@echo "✓ baselines updated — review the diff before committing"
 
 fmt:
 	$(GOCMD) fmt ./...
@@ -219,6 +266,13 @@ help:
 	@echo "  test / test-race / test-coverage / fmt / vet / lint"
 	@echo "  parity-baseline                        Diff CLI surface vs committed baseline"
 	@echo "  golden / golden-update                 Bronze snapshot suite (hermetic)"
+	@echo ""
+	@echo "Ticket 04 Bronze parity (historical vs live ingester):"
+	@echo "  parity-export                          Extract fixtures through this repo's mapping"
+	@echo "  parity-live                            Extract the same XDR in the live ingester"
+	@echo "  parity-report                          Compare both sides; writes summary.md"
+	@echo "  parity-matrix                          Regenerate docs matrix from committed digests"
+	@echo "  parity-baseline-update                 Promote a fresh export to the baselines"
 	@echo "  deps / vendor / install / clean"
 	@echo ""
 	@echo "Docker (image = $(DOCKER_IMAGE)):"

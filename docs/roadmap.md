@@ -4,6 +4,10 @@ Phases and acceptance gates from *Stellar Ingest & Raw Ledger Origin —
 Developer implementation handoff* (14 October 2026), annotated with what the
 Phase 0 inventory actually found.
 
+Work is also measured against the *Obsrvr Quality CLI Engineering Standard*
+v1.0 (14 October 2026); the repository's conformance and the gaps it opens
+are tracked in [`engineering-standard.md`](engineering-standard.md).
+
 ## Phase 0 — Baseline and inventory
 
 **Status: complete.**
@@ -56,10 +60,17 @@ binary/image runs independently; operational rollbacks documented":
 A private Parquet worker boundary, failure-injection checkpoint tests, a
 real-Parquet restart simulation, and a worker-independent Bronze mapping
 entry point are in place, and restored-key mapping lives in a private Bronze
-package; see `docs/module-boundaries.md`. Ticket 03's bounded boundary gate is
-complete, but the other local mappings and cross-repository Bronze parity
-remain outstanding under Ticket 04 and later integration work. Existing
-goldens guard all 21 historical outputs.
+package; see `docs/module-boundaries.md`. Existing goldens guard all 21
+historical outputs.
+
+Cross-repository Bronze parity is now measured rather than assumed. Ticket 04
+compared all 21 tables against the live ingester over identical authoritative
+XDR and found four defects, one intended semantic difference and eleven
+tables equal; `docs/ticket-04-discrepancies.md` has the matrix. The quality
+standard's §8 condition — "compare all 21 table outputs before removing
+duplicate implementations" — is met for the extraction tier, so consolidation
+can be planned, but the four defects and the undecided canonical row contract
+are what a shared mapper would have to resolve first.
 
 ## Phase 3 — Source integration and replacement evaluation
 
@@ -94,7 +105,7 @@ architecture is changed on the strength of those numbers.
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
 | 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **21-table fixture coverage complete** — 8 fixtures, including a 22-row automatic-restoration ledger. Crash injection and opt-in large ranges remain. See `docs/ticket-02-progress.md`. |
 | 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Done (bounded scope)** — module ownership inventory, worker-independent mapping, private `internal/bronze/restored` package with direct/fixture/golden tests, Parquet fault/restart tests. The remaining four local mappings and public canonical API depend on Ticket 04 parity; see `docs/module-boundaries.md`. |
-| 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | **Ready for implementation** — local live repo inspected; scope, fixture procedure, risks and acceptance criteria in `docs/ticket-04-developer-handoff.md`. No parity report yet. |
+| 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | **Extraction tier complete** — reproducible two-process parity harness, committed digest baselines for both sides, and a reviewed 21-table status matrix: 11 equal, 4 bugs, 1 approved semantic difference, 1 provenance-only, `contract_code` unexercised. Storage tier and the canonical row contract remain. See `docs/ticket-04-discrepancies.md` and `docs/ticket-04-progress.md`. |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |
 | 07 | Benchmark identical batches through DuckLake and PostgreSQL sinks | Not started |
@@ -127,7 +138,7 @@ Recorded so they are not mistaken for things the bootstrap introduced:
 |---|---|
 | ◐ | Standalone build, CLI, CI, and documentation work from the new repository — verified locally. Docker package written but **unbuilt**; pending the CI `docker` job. |
 | ◐ | Historical Parquet extraction goldens pass without flowctl; DuckLake and PostgreSQL result parity still need integration verification. |
-| ◐ | 21-table **historical golden coverage** green; live PostgreSQL ingester parity not yet compared (TICKET 04). |
+| ◐ | 21-table **historical golden coverage** green. Live ingester parity compared at the extraction tier — 11 tables equal, 4 defects open, storage tier unverified (TICKET 04). |
 | ☐ | Source contract verified with `stellar-raw-ledger-origin` without merging repositories |
 | ☑ | No production live source or hot/cold transition changed — the bootstrap is a copy; nothing was removed or rerouted |
 | ☐ | Operator docs include recovery, config migration, credentials, and data-integrity validation — config and credentials documented; recovery and integrity validation pending |
