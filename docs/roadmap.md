@@ -51,10 +51,11 @@ binary/image runs independently; operational rollbacks documented":
 
 ## Phase 2 — Consolidate shared processing internals
 
-**Status: not started.** Target layout agreed in `docs/target-architecture.md`.
-
-Blocked on TICKET 02: without golden fixtures there is no way to show that
-decomposing a 13,427-line `package main` preserved behaviour.
+**Status: incremental work underway.** Target layout in `docs/target-architecture.md`.
+A private Parquet worker boundary and failure-injection checkpoint tests are in
+place; see `docs/ticket-03-progress.md`. The full package extraction and
+cross-repository Bronze parity are still outstanding. Existing goldens guard
+20 tables; `restored_keys` requires its real-ledger fixture.
 
 ## Phase 3 — Source integration and replacement evaluation
 
@@ -88,7 +89,7 @@ architecture is changed on the strength of those numbers.
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
 | 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **Harness complete, coverage incomplete** — 7 fixtures, 20 of 21 tables covered; `restored_keys` still needs a real-ledger fixture. Fee-bump footprint handling now has a unit regression test. See `docs/ticket-02-progress.md`. |
-| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Unblocked** — the golden suite can now prove a refactor preserved behaviour |
+| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **In progress** — private worker writer seam and fault tests; no package extraction yet. See `docs/ticket-03-progress.md`. |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |

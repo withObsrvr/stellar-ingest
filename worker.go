@@ -212,20 +212,28 @@ type prefetchedLedger struct {
 
 const defaultPrefetchBuffer = 200
 
+// shardWriter is the worker's Parquet boundary. Close finalizes file footers;
+// a shard must not be checkpointed as complete until it succeeds. This stays
+// private: it does not represent a DuckLake or PostgreSQL commit contract.
+type shardWriter interface {
+	WriteBatch(*BatchData) error
+	Close() error
+}
+
 // Worker processes a shard of ledgers through the extraction pipeline.
 type Worker struct {
 	id         int
 	shard      Shard
 	config     OrchestratorConfig
 	progress   *ProgressTracker
-	writer     *ParquetWriter
+	writer     shardWriter
 	source     LedgerSource       // shared across workers for XDR mode, per-worker for FS/GCS
 	checkpoint *CheckpointManager // optional, for resume support
 	lineage    *LineageWriter     // optional, for lineage tracking
 }
 
 // NewWorker creates a new Worker for the given shard.
-func NewWorker(id int, shard Shard, config OrchestratorConfig, progress *ProgressTracker, writer *ParquetWriter, source LedgerSource, checkpoint *CheckpointManager, lineage *LineageWriter) *Worker {
+func NewWorker(id int, shard Shard, config OrchestratorConfig, progress *ProgressTracker, writer shardWriter, source LedgerSource, checkpoint *CheckpointManager, lineage *LineageWriter) *Worker {
 	return &Worker{
 		id:         id,
 		shard:      shard,
