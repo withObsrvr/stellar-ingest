@@ -13,7 +13,17 @@
         "deleted",
         "closed_at",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "account_id": "86c208213ec1cd15e9de16c7145b71f4",
+        "closed_at": "947fc8b98ef2ae7c98f07a788cf0adb3",
+        "deleted": "318b270927b46b9d784d493ca1aec3f7",
+        "ledger_range": "44b13b974ba8216bf5fe9a5153ed279c",
+        "ledger_sequence": "fca1531e7d66bb64d6cf8be228bfa809",
+        "signer": "306eae79cfdf175f670cdd50a96e6149",
+        "sponsor": "ab078db35e36917c9348bf86b5f0697a",
+        "weight": "c8bb869d1f0a96f6fdb12a70aa16eb21"
+      }
     },
     "accounts_snapshot": {
       "row_count": 4426,
@@ -42,7 +52,32 @@
         "signers",
         "sponsor_account",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "account_id": "2e27a25826df186b56b5f36f927b410b",
+        "auth_clawback_enabled": "a91b9d5abaa3b51091f7a005408d5257",
+        "auth_immutable": "a61e5357ae238f76eba1eb9c8ead90fd",
+        "auth_required": "a61e5357ae238f76eba1eb9c8ead90fd",
+        "auth_revocable": "a91b9d5abaa3b51091f7a005408d5257",
+        "balance": "7507a12f1f2a121b148c384e658c111d",
+        "closed_at": "58d533e3b627fc50e46e3a9bbc9286f7",
+        "flags": "deddb7a25a8fc5c98e3def2ce7142b41",
+        "high_threshold": "8fd01e4603fcefdf84accbcc0abcebcc",
+        "home_domain": "c80bf67582572e8599b33b8fe5764bce",
+        "ledger_range": "4c11e43256e27036aa2f44bb9f0f379b",
+        "ledger_sequence": "2aeae40c2f7a70ceb830164f8bfb9ceb",
+        "low_threshold": "e225f9209a2e901b19b69c00a00e0449",
+        "master_weight": "60193a488c96dc6b5cc442d512872081",
+        "med_threshold": "0f45569532fdabdb007509e909d74d37",
+        "num_sponsored": "0fb8048f47efbacb326882074fdb7d34",
+        "num_sponsoring": "205166dcad7b543890e1f9326aa81d5b",
+        "num_subentries": "d76f3400af4f717869447f9e62a53692",
+        "sequence_ledger": "90c3c6862c766ff43722f7640cbe2466",
+        "sequence_number": "90dfb8e8d38d6ef064fb56d811798dcd",
+        "sequence_time": "ad1a43a736608e55606860f7da674d00",
+        "signers": "0364c00a605c8deb27b206980fea7e66",
+        "sponsor_account": "46304e4bf237d6f4043101365e4aebe6"
+      }
     },
     "claimable_balances_snapshot": {
       "row_count": 2,
@@ -59,7 +94,20 @@
         "claimants_count",
         "flags",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "amount": "ce7a1fe99810656946e7ddbb814571de",
+        "asset_code": "b0ce36ab5e70184396993686dba555c7",
+        "asset_issuer": "ccac77dbe235de735728e07062d454cf",
+        "asset_type": "9d0669c391156aee87b3719a1568d033",
+        "balance_id": "59c9d5b92221741c52f3796ac4352de6",
+        "claimants_count": "7653d8d62b9c35fbe41ffdf7985084d2",
+        "closed_at": "9d509c03684ff674b7de2ea1683b7928",
+        "flags": "60de623798082c910b03aa3d3e609bd0",
+        "ledger_range": "72ab98b747c5604c55193c34dfb8253a",
+        "ledger_sequence": "fb0a5a545098581134676ecf92e3b26d",
+        "sponsor": "518b30f184d72a12d57f6137f536d2b4"
+      }
     },
     "contract_data_snapshot": {
       "row_count": 3449,
@@ -84,7 +132,28 @@
         "token_symbol",
         "token_decimals",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "asset_code": "16a531c8265780df1fad497968cdbd6f",
+        "asset_issuer": "16a531c8265780df1fad497968cdbd6f",
+        "asset_type": "16a531c8265780df1fad497968cdbd6f",
+        "balance": "7354ccb72f403d04b79bef3a27366060",
+        "balance_holder": "ade64599de028bfb7ea0c6779b5cea24",
+        "closed_at": "94fdd901b6796366c8c112ba4765a114",
+        "contract_data_xdr": "db890ba5ac8554ed1c54e7d4a9570928",
+        "contract_durability": "4e6cb394b496777aa8147fda206b145b",
+        "contract_id": "519543c45282d56273f7247a5b17762d",
+        "contract_key_type": "9c3aa64f3ef1b0f7e50601a2ceffb77e",
+        "deleted": "54a7385beae9e1c7334dc21d1c83774f",
+        "last_modified_ledger": "a2431aba45244823c7f25ead10b95f3c",
+        "ledger_entry_change": "d56431f52d634e11f4f587fcea589660",
+        "ledger_key_hash": "5f0587fe30e28557ca1359522b0c57f1",
+        "ledger_range": "b66ee29623b3a43986bc01920a5601b9",
+        "ledger_sequence": "edfb013a31e53fdb2bef6abacc7875c8",
+        "token_decimals": "16a531c8265780df1fad497968cdbd6f",
+        "token_name": "16a531c8265780df1fad497968cdbd6f",
+        "token_symbol": "16a531c8265780df1fad497968cdbd6f"
+      }
     },
     "contract_events": {
       "row_count": 49719,
@@ -111,7 +180,30 @@
         "operation_index",
         "event_index",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "closed_at": "ba1e9db7c8c13cf233caf3b65ccfc6fe",
+        "contract_event_xdr": "65229be94ba7fd21686ceb0cd1708088",
+        "contract_id": "4ee835a5903c19f2c93110232fce79e5",
+        "data_decoded": "ecc0152b005c63cec493dfaccad7f839",
+        "data_xdr": "4eb7d773a7603607e5eaf8aa30b97f22",
+        "event_id": "37335d9472fb6a570a0a5cff2eb30588",
+        "event_index": "3aabcc11c8fb4521d958e405a979c201",
+        "event_type": "c92e7a7d466142445e28f03334d3678d",
+        "in_successful_contract_call": "14be44a0bc7fb685accb5c8d0e7e56b7",
+        "ledger_range": "b98bba5357afc1d1cdfd2088d950ad43",
+        "ledger_sequence": "1daf5af4069ac0fd5391631e10fabfd2",
+        "operation_index": "41795cf06505475384c68b6103ac749b",
+        "successful": "a619d078144fe10c1910294952c43543",
+        "topic0_decoded": "3cc2dbb6fe2bff4e9a791c63a5c51b06",
+        "topic1_decoded": "4468e40377ecdb49e33aab4fdf56f7a2",
+        "topic2_decoded": "4ba6072cb5a0a47b9b402f95d9a7f354",
+        "topic3_decoded": "db46451bb9891bc0fed9d14aa784009d",
+        "topic_count": "c1348a351ebb57c98d83b6e53602683a",
+        "topics_decoded": "82af324057a556cc824d320a3aa5efda",
+        "topics_json": "4612087ecc0148b9e7bf127d7c8d517c",
+        "transaction_hash": "fe4198791f090625332e4218cc0f1203"
+      }
     },
     "effects": {
       "row_count": 6329,
@@ -138,7 +230,30 @@
         "operation_id",
         "details_json",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "account_id": "f79f3c3de7ab0b7d106035406dc1a6b1",
+        "amount": "f9964b6639d9cc8c06aa293ea79f295e",
+        "asset_code": "5734c448770b7f0b01d6e7803b839327",
+        "asset_issuer": "b2acbe5bf139b27266c576fb64f72086",
+        "asset_type": "4d594669e5f9f61e4b170ab0aaf6f863",
+        "authorize_flag": "90af1fc625b001007b9e1a852e455f1f",
+        "clawback_flag": "90af1fc625b001007b9e1a852e455f1f",
+        "details_json": "25727a373195465e0de3bd705e70a20e",
+        "effect_index": "aa292692f4c088c6d868ef71d47e1070",
+        "effect_type": "a501a9f40f2fa5c0e1c4c1b28d48922f",
+        "effect_type_string": "58bb748ff3a3f1b51d9fcca52098cf16",
+        "ledger_range": "8c0dac67a6a240b5aa11ff94b7df69e3",
+        "ledger_sequence": "67545f353dae483f78ac12f9d5ea4c2f",
+        "offer_id": "90af1fc625b001007b9e1a852e455f1f",
+        "operation_id": "cc565758ee14ebe4a32f4a30a7123006",
+        "operation_index": "f0d76708f7cc02d199f465c5dc21b36b",
+        "seller_account": "90af1fc625b001007b9e1a852e455f1f",
+        "signer_account": "90af1fc625b001007b9e1a852e455f1f",
+        "signer_weight": "90af1fc625b001007b9e1a852e455f1f",
+        "transaction_hash": "691dbcbab7c23fb516ea82c4bcd15b7f",
+        "trustline_limit": "90af1fc625b001007b9e1a852e455f1f"
+      }
     },
     "ledgers": {
       "row_count": 10,
@@ -170,7 +285,35 @@
         "total_fee_charged",
         "contract_events_count",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "base_fee": "4b07d21ae8cad3ec308fe68f76108cbe",
+        "base_reserve": "117928133c3aa041bfcb14e6c768d3ae",
+        "bucket_list_size": "47ef327d7286a17eaf71d919e2eeeb5b",
+        "closed_at": "e0789b16709fb86156bd9efa501f0c29",
+        "contract_events_count": "1458b72326bfe180170f21890685b801",
+        "evicted_keys_count": "3de0006f311f8b054dbc0ce14e45af2b",
+        "failed_tx_count": "51e188cc855466024732869b4002a7b2",
+        "fee_pool": "5ceb2a6b2c60d361667be9794752edd3",
+        "ledger_hash": "c25b420160e312f52d59fd3ff21bffe6",
+        "ledger_header": "fb79696b4a350f56a77cbdeaf1fed3f6",
+        "ledger_range": "dc54da8623cea920fd719995b0ac06d0",
+        "live_soroban_state_size": "47ef327d7286a17eaf71d919e2eeeb5b",
+        "max_tx_set_size": "cb524d2d55618f30cd459eb75cb93980",
+        "node_id": "39f908b9bca7a28bffc669a1ef3826c0",
+        "operation_count": "1b1b0dc903263638edfd00a1e00d080c",
+        "previous_ledger_hash": "803a198fc35f889171771f8adfec0438",
+        "protocol_version": "8abbf7625cfdfb09c9a73cbfdd3c28f3",
+        "sequence": "d0ebddca2a018a185108074d43306b82",
+        "signature": "d7dc5e4d346f03301906d43cb627c139",
+        "soroban_fee_write1kb": "cb524d2d55618f30cd459eb75cb93980",
+        "soroban_op_count": "76b129c3b873590305f976e4fd1200ce",
+        "successful_tx_count": "875abd2ec248c3bcb75f97902d43916b",
+        "total_coins": "39b17d1d24c0034d65f790545dc060f3",
+        "total_fee_charged": "7117ff3db83b45c76a81104734115acc",
+        "transaction_count": "af198d8581ffbb5d7285bc25295e0b8f",
+        "tx_set_operation_count": "3d247473ef1c8b585994d43bcf324802"
+      }
     },
     "liquidity_pools_snapshot": {
       "row_count": 703,
@@ -192,7 +335,25 @@
         "asset_b_issuer",
         "asset_b_amount",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "asset_a_amount": "fbf023cc833b9288da35547a7a815b20",
+        "asset_a_code": "205708318456237c8c258a034c4e0675",
+        "asset_a_issuer": "593aaff3743812fdec05914be7513184",
+        "asset_a_type": "2500816c1bbf689fea3d21d0aa522c07",
+        "asset_b_amount": "2e833d4b4fa804da0abb7c4ef0bcc1ee",
+        "asset_b_code": "f4b81889d77fdb2b1185049f9d36522c",
+        "asset_b_issuer": "c7eb477026246f91094ceb1370d36fef",
+        "asset_b_type": "a9a932d223adb686fa50f67330b9c809",
+        "closed_at": "9e702ab26be364a12324a6ba7e498580",
+        "fee": "45d6a21acafe563843a178f4d4a0d86e",
+        "ledger_range": "8d7aab288b5d7c0bb8421f143c4b719c",
+        "ledger_sequence": "30fe3124a3669e6aa2ec7e266f5698cb",
+        "liquidity_pool_id": "48d87696379c2ca820dce035063d7e83",
+        "pool_type": "5c8cab3a177d1ace4bad81a57f41241f",
+        "total_pool_shares": "e43ce3a1712234367d555f7863213129",
+        "trustline_count": "89ee8707fda11879c390d992015aaf23"
+      }
     },
     "native_balances": {
       "row_count": 4426,
@@ -209,7 +370,20 @@
         "last_modified_ledger",
         "ledger_sequence",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "account_id": "2e27a25826df186b56b5f36f927b410b",
+        "balance": "b286fca5ca45b2ea32cea423275ebc25",
+        "buying_liabilities": "fb8da5f38cd011cc00f7a6f53b54d91f",
+        "last_modified_ledger": "2aeae40c2f7a70ceb830164f8bfb9ceb",
+        "ledger_range": "4c11e43256e27036aa2f44bb9f0f379b",
+        "ledger_sequence": "2aeae40c2f7a70ceb830164f8bfb9ceb",
+        "num_sponsored": "0fb8048f47efbacb326882074fdb7d34",
+        "num_sponsoring": "205166dcad7b543890e1f9326aa81d5b",
+        "num_subentries": "d76f3400af4f717869447f9e62a53692",
+        "selling_liabilities": "7bb8fd84a12a13e6a3f74cafebc9814e",
+        "sequence_number": "90dfb8e8d38d6ef064fb56d811798dcd"
+      }
     },
     "offers_snapshot": {
       "row_count": 1067,
@@ -229,7 +403,23 @@
         "price",
         "flags",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "amount": "4b84cc97531b32924bc7930106816330",
+        "buying_asset_code": "8642ad276645b0321aff567ccfcd483b",
+        "buying_asset_issuer": "90b6240ee9bbaac8244fd0bfdac74490",
+        "buying_asset_type": "c6c403de8df494682abe1ef5f2401ec7",
+        "closed_at": "9b5431dd096de0bc5d405f6c63aec3c3",
+        "flags": "2b46f90c4830e483b7ca62380f471137",
+        "ledger_range": "1e48546b7f0ca7d1319793715dc51220",
+        "ledger_sequence": "a7befa2d1edd28db9dd9bf3326e2344a",
+        "offer_id": "5c35677b2a6bda3f67ba7bb1b7eaa685",
+        "price": "6b948910623e3a6604e589845321f7e1",
+        "seller_account": "aa345c9a03aa0c4478d198bdf05b87da",
+        "selling_asset_code": "bd4d8924883a567718e588e3e8d99ab3",
+        "selling_asset_issuer": "46b057dbeef8a52cfca8c9f1ff0df905",
+        "selling_asset_type": "e795e48324e76da3a2d9fbf4248a76db"
+      }
     },
     "operations": {
       "row_count": 7027,
@@ -295,7 +485,69 @@
         "soroban_auth_addresses",
         "transaction_id",
         "operation_id"
-      ]
+      ],
+      "column_hashes": {
+        "amount": "9f7611a8afcf6930c683ab65b9529375",
+        "asset": "d7b64ef60f0064d51caca56b4e3f2d28",
+        "asset_code": "3a1c42f7cda999bd7fc371085c58f586",
+        "asset_issuer": "7a2f1698d7eeb2ea66b3063d548ddc8b",
+        "asset_type": "28781cc8f0660cdd084762df3743326d",
+        "balance_id": "64458f6e4386f389c455707951144ba6",
+        "bump_to": "454b431d05239aa8ab94f9d53d8c5351",
+        "buying_asset": "e2e8aa5b8c7dd49facbd2607a8865ae2",
+        "buying_asset_code": "676db37afc0c7049cbd987e96744e1a8",
+        "buying_asset_issuer": "ce6ea4e91cca9dfa2f0f3d6dac565e04",
+        "buying_asset_type": "71cedb4dbf0340102708c24d42eb7dbb",
+        "clear_flags": "454b431d05239aa8ab94f9d53d8c5351",
+        "contract_calls_json": "df212df0fa9922a17ca4f3cd997d8f55",
+        "contracts_involved": "a23a270ba7adec0c58fbf404b9120ce8",
+        "data_name": "ed49e9138c4e1faa6100bd4d34121f25",
+        "data_value": "f5f199282c3a993474af3af1548a5a37",
+        "destination": "69010f28acfb0ff8e0a74846d884d9c8",
+        "destination_min": "52c87da2192b0a28a29cf6919456d649",
+        "high_threshold": "454b431d05239aa8ab94f9d53d8c5351",
+        "home_domain": "454b431d05239aa8ab94f9d53d8c5351",
+        "ledger_range": "d7a31db118a55cb0c1d3e410bc827aa9",
+        "ledger_sequence": "f2cf647e1830fe6f159c03d04256494e",
+        "low_threshold": "454b431d05239aa8ab94f9d53d8c5351",
+        "master_weight": "454b431d05239aa8ab94f9d53d8c5351",
+        "max_call_depth": "01c181dad19743c8f194192ac9e348d6",
+        "medium_threshold": "454b431d05239aa8ab94f9d53d8c5351",
+        "offer_id": "c806acde370ac78c12bdc86a269ed083",
+        "operation_id": "32dbf88c14e75df370619896197712ee",
+        "operation_index": "1c61739535615db00fdb28cf31daac60",
+        "operation_result_code": "e1db6931ade767421429711ab83dd6e7",
+        "price": "381c3dbc0afa7eb52287ef6fe170b71c",
+        "price_r": "b1af0abc8f83eac876b12e40c4b80407",
+        "selling_asset": "565bf34cf495191015d775e3d254d916",
+        "selling_asset_code": "029b839ce91f8d3e5d2a327a196338a0",
+        "selling_asset_issuer": "7831bdf7dc09172ece2c37ec0b46ffbc",
+        "selling_asset_type": "86e69a432fa7ce13291992f18bcfcc31",
+        "set_flags": "454b431d05239aa8ab94f9d53d8c5351",
+        "soroban_arguments_json": "88bbffd9a267d31120cd49808230f6c9",
+        "soroban_auth_addresses": "1e3f406678b535fa0ee934690950b24f",
+        "soroban_auth_credentials_types": "16beab446270bfb1613903fc7bc8d25a",
+        "soroban_auth_required": "083089e50988534d9c7872e55a796cf5",
+        "soroban_contract_id": "fa18832cc03a7256b5502a4b3f07fb99",
+        "soroban_function": "a47e9c94cac11ee761f532eae2b5b38f",
+        "soroban_operation": "e030d660987789067ca8bbc12f04e9eb",
+        "source_account": "9237305e0c46bf5dae374da734226866",
+        "source_account_muxed": "454b431d05239aa8ab94f9d53d8c5351",
+        "source_amount": "e9b0e9909c655412c69722a9f90687e1",
+        "source_asset": "c2b028dbb97acbfebdeff54078e31de4",
+        "source_asset_code": "2b6de2f2bbbc6de90545b98347641171",
+        "source_asset_issuer": "94a62b6bd3e961c28e3863c2cb38020c",
+        "source_asset_type": "274fa697962dfc9740c1a24ab2123eea",
+        "sponsored_id": "b998f9c66448e1a4328bc9ac4bd12e21",
+        "starting_balance": "bebd9d308f108498abc3999e1d39eebd",
+        "transaction_hash": "06597b36c74199108617390b52d7c8be",
+        "transaction_id": "7ad2ca2d4044d440090be07e512078e9",
+        "transaction_index": "510190b5e47c4abb836cb43448c95ba7",
+        "transaction_successful": "e18cab086f40916ea25542a138251df4",
+        "trustline_limit": "3a22a58521c1fa7e2cadc6ec4d05880a",
+        "type": "d4141025153374bf94efe5203fdc33c1",
+        "type_string": "3b36f6751cdd95d593c94d1aaac43287"
+      }
     },
     "token_transfers": {
       "row_count": 11736,
@@ -318,7 +570,26 @@
         "contract_id",
         "closed_at",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "amount": "b790bde747de1bae32e0f8a41a785fef",
+        "amount_raw": "da0a8a57098e784ee16cc2bcbc94e722",
+        "asset": "2b3d73a3cd090981e442c4ab24b0aec3",
+        "asset_code": "25adefc9001e4ff4b91c0371e251b66e",
+        "asset_issuer": "9dee54d99013ec221a21520c37cd4d40",
+        "asset_type": "6e728648b4798eb278f08cb35e18e498",
+        "closed_at": "6c67df6a97b81c15a13f6f466e6f38c7",
+        "contract_id": "9dfed5510d2d648b7d13c4591ebf5d89",
+        "event_type": "1b152fe1c42bf26c43f5b6e10347a986",
+        "from": "213c549e7b65e598b371263ef113e317",
+        "ledger_range": "e9fa2af0b766466054469ae2e62905b9",
+        "ledger_sequence": "3f4888e4fa5a128652b10667e1fd05d1",
+        "operation_id": "fcc9febbba0402def2b97c384335d47b",
+        "operation_index": "538cc9875ac02083f98c41fd3d548051",
+        "to": "a4550f501a8ca54d300ba00cab1fd468",
+        "transaction_hash": "95d393295472e79a77f53b9374ea1ad3",
+        "transaction_id": "c922b33a07dc80a8b2e053a777bfee3a"
+      }
     },
     "trades": {
       "row_count": 14,
@@ -340,7 +611,25 @@
         "buying_amount",
         "price",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "buyer_account": "bf203fe81628246149f1de9126ff9f3f",
+        "buying_amount": "f4ab7c975912c73abe1437845c891527",
+        "buying_asset_code": "49298ed788dcc94f00b76e75afa1ff96",
+        "buying_asset_issuer": "a3b365c4562b231de7ca726a6f26f146",
+        "ledger_range": "9d1f5cb479cfbf9ebd48afda3d04f1b0",
+        "ledger_sequence": "3f95aa42aff792bca3d4918a5f9e5f61",
+        "operation_index": "7023bc5bb353015e6a8070f1179cf39e",
+        "price": "ed09fca5f7ad20bbf13981c0e9555738",
+        "seller_account": "d71559b953ce00905b784702b08447b6",
+        "selling_amount": "06f88ca331027c0296206c8a00773c83",
+        "selling_asset_code": "02acab0795c9b937ba5ed0f3967bff6a",
+        "selling_asset_issuer": "b89b3bf8441a7b292e4daee44cd49703",
+        "trade_index": "34759c62dd8801a4c0d14ed352bcde0e",
+        "trade_timestamp": "4226d87d19cc70b4296398c10cfa7e4a",
+        "trade_type": "68641e435b49270809db9a6a0338bbe5",
+        "transaction_hash": "41f615a1671dda3b1df7a21f633f9b88"
+      }
     },
     "transactions": {
       "row_count": 4181,
@@ -376,7 +665,39 @@
         "soroban_resources_read_bytes",
         "soroban_resources_write_bytes",
         "transaction_id"
-      ]
+      ],
+      "column_hashes": {
+        "account_sequence": "dbb4bc6e6a430bd3ea65b3cce673f82b",
+        "envelope_size_bytes": "a5dbd987dfc6449768cb733a3c454f5c",
+        "fee_charged": "d6633c15fa1647b6d27aaa1069315b34",
+        "ledger_range": "148eb295147a616c85875d0c0a102c4c",
+        "ledger_sequence": "75d9a7e583d93930e0f871cfc107e260",
+        "max_fee": "15120c6a67c3303421eccd7d17025afe",
+        "memo": "2c4302f3052ab0983b4bc48e9f51e114",
+        "memo_type": "f55406a04fbd43687643ae7c65028365",
+        "new_account": "cc56c6393168f6fe953a2e2344fbd616",
+        "operation_count": "bafa07c7253f25cf825e2aa907bb0f75",
+        "rent_fee_charged": "b8114b88ca3cbafaafe0e6a33326d8b9",
+        "signatures_count": "e5ecc06a9a639f891aa39622bd690c47",
+        "soroban_contract_id": "7ec9fe8b715a2f9291c99df19d772f98",
+        "soroban_host_function_type": "ed803d39a8bf187fab275ade65a43d34",
+        "soroban_resources_instructions": "0f7c87c5f7c6699b4fbfa9651de7768a",
+        "soroban_resources_read_bytes": "d8acf269a1a23f2f7382db8b3bacd4e3",
+        "soroban_resources_write_bytes": "f6e7040a9cc94868f75887c4a7a4b047",
+        "source_account": "68a52ce1122495011ce5b1b70883a70c",
+        "source_account_muxed": "a77a9ce4b099a49dbba4a1f131af3337",
+        "successful": "f10faa3f1bd1f162f2ef82fa26c8e3f0",
+        "timebounds_max_time": "d796219ae59d1629cb25972a52abced5",
+        "timebounds_min_time": "dad30f43d71814036018d04bf9743a17",
+        "transaction_hash": "4db11901df97098d67a6adbf4c2a6ffb",
+        "transaction_id": "803be30f17264f867fe8c27f6fc5136e",
+        "transaction_result_code": "56ba766ea7efe5a6feb5567b9917a0e8",
+        "tx_envelope": "e316a876f4d38141c9b71467139885f5",
+        "tx_fee_meta": "44ad7e86752a6566a5814838ad6b37f5",
+        "tx_meta": "d95c1ef289eae4c4e682404bdbf9fa47",
+        "tx_result": "e2a60afad45c6a5092b5f657c4cb2d61",
+        "tx_signers": "72bcf1c1ac08a2fa1df2bad028fd2bdf"
+      }
     },
     "trustlines_snapshot": {
       "row_count": 3272,
@@ -395,7 +716,22 @@
         "clawback_enabled",
         "ledger_sequence",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "account_id": "f6d748d945942a9bf4cabd0c7a1cdf1b",
+        "asset_code": "a6e96e9a65c92df3278318eb268f0db2",
+        "asset_issuer": "98d4464b01508f755b0586843c8570e5",
+        "asset_type": "9bd2124351b5a6366cc51803248298e5",
+        "authorized": "f8e17e7c612c0f704c2c82bdd0818acb",
+        "authorized_to_maintain_liabilities": "18b01774acc33b6354747e2351366b03",
+        "balance": "524780c616a17d357092429a917a08b8",
+        "buying_liabilities": "ddb4f3582c05894447188596f0eedee5",
+        "clawback_enabled": "75728ff2e70adfa60463698f7747de06",
+        "ledger_range": "6c60c79261f43c799c47fb16f6af6d1a",
+        "ledger_sequence": "00e2e8362bc53747aa6d1d4e7cf3c52e",
+        "selling_liabilities": "42e282b2521bb5a3f627896de4201f11",
+        "trust_limit": "70583fd19bfdea64bfe657bd87d53a33"
+      }
     },
     "ttl_snapshot": {
       "row_count": 4262,
@@ -410,7 +746,18 @@
         "deleted",
         "closed_at",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "closed_at": "02efe5f813a1689ec02250d412f84e1c",
+        "deleted": "6bc115242d8e20273f35925256e4d55d",
+        "expired": "2f60bae40815ff301a072d574b6a5363",
+        "key_hash": "6a7c4392f4b4905aa9bd1ab48bd1acb5",
+        "last_modified_ledger": "ab540fa3b9b75ca5db9c968d5a955b0b",
+        "ledger_range": "149445e01e02c90996cb280f9db8cf26",
+        "ledger_sequence": "d8303716200688fff175b5ca0109872a",
+        "live_until_ledger_seq": "d3a5f0b038645d2f8d582f9454d96549",
+        "ttl_remaining": "85918214bc87c4be150c25a2cd6f1196"
+      }
     }
   }
 }

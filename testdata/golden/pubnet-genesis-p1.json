@@ -31,7 +31,35 @@
         "total_fee_charged",
         "contract_events_count",
         "ledger_range"
-      ]
+      ],
+      "column_hashes": {
+        "base_fee": "d3a8834a9bc3ff86bc67ce416b4643e7",
+        "base_reserve": "74988dba6da10d0f489db218836cf24e",
+        "bucket_list_size": "5265f85619ad54867f5f55c52ff1be8b",
+        "closed_at": "ff0f04c9b1418735624f04293196bb28",
+        "contract_events_count": "d1d7196bbade351e4677798994c46460",
+        "evicted_keys_count": "5265f85619ad54867f5f55c52ff1be8b",
+        "failed_tx_count": "d1d7196bbade351e4677798994c46460",
+        "fee_pool": "f47a6e68fa8602f44bf30f35f951972e",
+        "ledger_hash": "c3b1848b22574e21b8259c1aec5bcf5f",
+        "ledger_header": "1d0f1818131e26d0d38d6c1134ad3177",
+        "ledger_range": "d1d7196bbade351e4677798994c46460",
+        "live_soroban_state_size": "5265f85619ad54867f5f55c52ff1be8b",
+        "max_tx_set_size": "fa37151ca33109e159454bda4cb79851",
+        "node_id": "5265f85619ad54867f5f55c52ff1be8b",
+        "operation_count": "d1d7196bbade351e4677798994c46460",
+        "previous_ledger_hash": "857b1611b6181e3aa720ea8e5e4cd75a",
+        "protocol_version": "90a5d904984740410ee92dba72febb8b",
+        "sequence": "a32e027cd64be348bd7073063ecb48f0",
+        "signature": "5265f85619ad54867f5f55c52ff1be8b",
+        "soroban_fee_write1kb": "5265f85619ad54867f5f55c52ff1be8b",
+        "soroban_op_count": "d1d7196bbade351e4677798994c46460",
+        "successful_tx_count": "d1d7196bbade351e4677798994c46460",
+        "total_coins": "fd035355a1862bbaef57588bf6f28e10",
+        "total_fee_charged": "d1d7196bbade351e4677798994c46460",
+        "transaction_count": "d1d7196bbade351e4677798994c46460",
+        "tx_set_operation_count": "d1d7196bbade351e4677798994c46460"
+      }
     }
   }
 }

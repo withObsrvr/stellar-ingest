@@ -192,6 +192,26 @@ distinction a regression that silently stopped emitting a table would read as
 a pass. `compareDigests` reports set differences separately from content
 differences for the same reason.
 
+### Per-column digests instead of row dumps
+
+The hybrid golden format called for full normalised row dumps on one small
+fixture. That turned out not to be viable: dumping even the 3-ledger
+`pubnet-tiny-dump` comes to **37 MB**, because Bronze rows are mostly base64
+XDR — `transactions` rows average about 11 KB each, and `contract_events`
+alone is 16 MB. A row sample would have been dominated by blobs and would say
+little that the hash does not.
+
+What was built instead is a per-column digest for every table of every
+fixture: each column's values hashed as an order-independent multiset. All
+seven fixtures together come to 192 KB.
+
+This is strictly more useful for the job dumps were meant to do. When a
+content hash moves, `compareDigests` now names the columns that drifted, which
+is precisely the manual bisection that identified
+`operations.contracts_involved`. It also distinguishes a case worth knowing
+about: if every column digest matches but the content hash does not, the
+values are unchanged and only their association into rows moved.
+
 ### What is excluded, and why that is a workaround
 
 `nonDeterministicColumns` drops `ingestion_timestamp`, `created_at`,
@@ -211,6 +231,10 @@ stamps belong in Bronze at all is worth deciding separately.
 | `TestFixturesCoverAllBronzeTables` | The fixture set collectively covers all 21 tables, minus recorded gaps. |
 | `TestXDRStreamSourceReadsCompleteFile` | A complete XDR stream reads without error. |
 | `TestFixtureIntegrity` | Fixture bytes match their manifest SHA-256. |
+| `TestWorkerCountInvariance` | Workers 1, 2, 3 and 8 produce identical Bronze content. |
+| `TestBatchSizeInvariance` | Batch sizes 1, 3 and 1000 produce identical Bronze content. |
+| `TestRerunCompleteRangeIsIdempotent` | Re-running a completed range is a safe operational act. |
+| `TestCorruptedXDRIsRejected` | Truncated, corrupt-discriminant and trailing-garbage streams all fail loudly. |
 
 ## Second bug found: `operations.contracts_involved` was not reproducible
 
@@ -229,18 +253,36 @@ historical and live ingestion paths could disagree on identical input. It is
 exactly the class of divergence TICKET 04 is meant to detect between the two
 extractors.
 
+## Invariance and recovery results
+
+All pass. Nothing in Bronze output depends on how the extraction was executed:
+
+- **Worker count.** 1, 2, 3 and 8 workers produce identical content. This is
+  the knob the handoff singles out, because worker count sets shard boundaries
+  and a resume with a different count must not duplicate or lose rows. Parquet
+  row *order* does vary here, which is why the digest sorts row hashes rather
+  than rows.
+- **Batch size.** 1, 3 and 1000 produce identical content, so the Parquet
+  writer carries no state across flushes.
+- **Re-running a completed range** is idempotent.
+- **Corrupted input** is rejected in all three modes tried — truncated
+  mid-record, corrupt union discriminant, and trailing garbage after a valid
+  stream. None produced a short-but-plausible extraction, which is the failure
+  that would matter: a damaged range quietly reading as a complete one.
+
 ## Remaining work
 
-1. Locate an archival window covering `evicted_keys` and `restored_keys`.
-2. Full normalised row dumps for `pubnet-tiny-dump` — the hybrid golden format
-   calls for them and only hashes exist so far.
-3. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
-4. Recovery and integrity scenarios from `docs/phase0-fixtures.md`: crash
-   before and after sink commit, resume with a different `--workers` count,
-   partial writer failure, corrupted XDR, re-running a complete range,
-   idempotent repair.
-5. `--chunk-size 0` versus non-zero producing identical Bronze output.
-6. Decide whether the wall-clock columns belong in Bronze at all.
+1. `restored_keys` coverage, and confirming the suspected fee-bump gap in
+   `extractRestoredKeys`.
+2. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
+3. Crash-injection scenarios — crash before and after sink commit, partial
+   writer failure. These need a way to inject a failing sink, which the
+   current flat `package main` does not allow; they are naturally TICKET 03
+   work, once `BronzeSink` is an interface that a test can substitute.
+4. Idempotent repair — re-running `--enrich-contract-balances` over the same
+   range with the same run ID. Needs DuckLake credentials, so it cannot be
+   hermetic.
+5. Decide whether the wall-clock columns belong in Bronze at all.
 
 ## Nix flake
 

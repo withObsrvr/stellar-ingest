@@ -39,10 +39,18 @@ var provenanceTables = map[string]bool{
 }
 
 // TableDigest is the golden record for a single Bronze table.
+//
+// ColumnHashes exists for diagnosis. ContentHash alone tells you a table
+// changed but not how, and a full row dump is not an option — dumping the
+// smallest fixture comes to 37 MB, because rows are mostly base64 XDR
+// (transactions average ~11 KB each). A per-column digest localises a change
+// to the column that moved for a few hundred bytes per table. This is exactly
+// the manual bisection that identified operations.contracts_involved.
 type TableDigest struct {
-	RowCount    int64    `json:"row_count"`
-	ContentHash string   `json:"content_hash"`
-	Columns     []string `json:"columns"`
+	RowCount     int64             `json:"row_count"`
+	ContentHash  string            `json:"content_hash"`
+	Columns      []string          `json:"columns"`
+	ColumnHashes map[string]string `json:"column_hashes,omitempty"`
 }
 
 // FixtureDigest is the golden record for one fixture: every table it emitted.
@@ -163,7 +171,54 @@ func digestTable(db *sql.DB, glob string) (TableDigest, error) {
 		return TableDigest{}, fmt.Errorf("digest %s: %w", glob, err)
 	}
 	d.Columns = kept
+
+	d.ColumnHashes, err = digestColumns(db, glob, kept)
+	if err != nil {
+		return TableDigest{}, err
+	}
 	return d, nil
+}
+
+// digestColumns hashes each column independently.
+//
+// Each column's hash covers the multiset of its values, ordered by value hash
+// so it does not depend on row order. That deliberately ignores which row a
+// value belonged to: it answers "did this column's values change", which is
+// the question worth asking when ContentHash has already said something moved.
+func digestColumns(db *sql.DB, glob string, columns []string) (map[string]string, error) {
+	if len(columns) == 0 {
+		return nil, nil
+	}
+
+	selects := make([]string, len(columns))
+	for i := range columns {
+		selects[i] = fmt.Sprintf(
+			"coalesce(md5(string_agg(h%d, '' ORDER BY h%d)), '') AS c%d", i, i, i)
+	}
+	inner := make([]string, len(columns))
+	for i, c := range columns {
+		inner[i] = fmt.Sprintf(
+			"md5(coalesce(CAST(%s AS VARCHAR), '<null>')) AS h%d", quoteIdent(c), i)
+	}
+
+	query := fmt.Sprintf("SELECT %s FROM (SELECT %s FROM read_parquet(%s))",
+		strings.Join(selects, ", "), strings.Join(inner, ", "), quoteLiteral(glob))
+
+	row := db.QueryRow(query)
+	scan := make([]any, len(columns))
+	vals := make([]string, len(columns))
+	for i := range scan {
+		scan[i] = &vals[i]
+	}
+	if err := row.Scan(scan...); err != nil {
+		return nil, fmt.Errorf("column digest %s: %w", glob, err)
+	}
+
+	out := make(map[string]string, len(columns))
+	for i, c := range columns {
+		out[c] = vals[i]
+	}
+	return out, nil
 }
 
 // digestFixtureOutput digests every table emitted under a bronze directory.

@@ -94,7 +94,7 @@ parity-baseline: build
 # Golden Bronze snapshot suite. Hermetic: fixtures are committed, no network
 # or credentials required.
 golden:
-	$(GOTEST) -run 'TestGolden|TestFixtures|TestExtractionIsDeterministic|TestXDRStreamSource' -v ./...
+	$(GOTEST) -run 'TestGolden|TestFixtures|TestExtractionIsDeterministic|TestXDRStreamSource|Invariance|TestRerunCompleteRange|TestCorruptedXDR' -v ./...
 
 # Regenerate goldens. Review the diff — never regenerate to make a failing
 # test pass.

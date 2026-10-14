@@ -238,10 +238,31 @@ func compareDigests(t *testing.T, want, got FixtureDigest) {
 			t.Errorf("table %q schema drift: %s", name, diff)
 		}
 		if w.ContentHash != g.ContentHash && w.RowCount == g.RowCount {
-			t.Errorf("table %q content hash = %s, want %s (row count matches, so values or ordering of fields changed)",
-				name, g.ContentHash, w.ContentHash)
+			// Name the columns that moved. Without this a mismatch says only
+			// that something in a 30-column table changed, and localising it
+			// means bisecting by hand.
+			if drifted := driftedColumns(w.ColumnHashes, g.ColumnHashes); len(drifted) > 0 {
+				t.Errorf("table %q changed in %d of %d columns: %s (row count unchanged at %d)",
+					name, len(drifted), len(w.Columns), strings.Join(drifted, ", "), w.RowCount)
+			} else {
+				t.Errorf("table %q content hash = %s, want %s, but every column digest matches — "+
+					"the values are the same and their association into rows changed",
+					name, g.ContentHash, w.ContentHash)
+			}
 		}
 	}
+}
+
+// driftedColumns lists columns whose value multiset differs, sorted.
+func driftedColumns(want, got map[string]string) []string {
+	var out []string
+	for col, wh := range want {
+		if gh, ok := got[col]; ok && gh != wh {
+			out = append(out, col)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func columnDiff(want, got []string) string {
