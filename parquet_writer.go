@@ -139,6 +139,7 @@ type ParquetTransaction struct {
 	OperationCount               int32   `parquet:"operation_count"`
 	MemoType                     *string `parquet:"memo_type,optional"`
 	Memo                         *string `parquet:"memo,optional"`
+	MemoRaw                      *string `parquet:"memo_raw,optional"`
 	CreatedAt                    int64   `parquet:"closed_at,timestamp(microsecond)"`
 	AccountSequence              int64   `parquet:"account_sequence"`
 	LedgerRange                  uint32  `parquet:"ledger_range"`
@@ -719,6 +720,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				OperationCount:               int32(t.OperationCount),
 				MemoType:                     t.MemoType,
 				Memo:                         t.Memo,
+				MemoRaw:                      t.MemoRaw,
 				CreatedAt:                    t.CreatedAt.UnixMicro(),
 				AccountSequence:              t.AccountSequence,
 				LedgerRange:                  t.LedgerRange,

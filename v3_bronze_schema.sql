@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS bronze.transactions_row_v2 (
     operation_count INTEGER,
     memo_type TEXT,
     memo TEXT,
+    -- Base64 of the raw memo bytes, text memos only. Authoritative:
+    -- memo is NULL when the bytes are not valid UTF-8.
+    memo_raw TEXT,
     closed_at TIMESTAMP,
     account_sequence BIGINT,
     ledger_range BIGINT,

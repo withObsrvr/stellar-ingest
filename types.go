@@ -54,19 +54,24 @@ type TransactionData struct {
 	OperationCount        int
 	MemoType              *string
 	Memo                  *string
-	CreatedAt             time.Time
-	AccountSequence       int64
-	LedgerRange           uint32
-	SignaturesCount       int
-	TxEnvelope            *string
-	EnvelopeSizeBytes     int
-	TxResult              *string
-	TxMeta                *string
-	TxFeeMeta             *string
-	TxSigners             *string
-	NewAccount            bool
-	TimeboundsMinTime     *int64
-	TimeboundsMaxTime     *int64
+	// MemoRaw is base64 of the raw memo bytes, set for text memos only.
+	// It is the authoritative value: MemoText need not be valid UTF-8, and
+	// Memo is NULL when it is not. id, hash and return memos are already
+	// lossless as decimal and hex, so MemoRaw stays NULL for them.
+	MemoRaw           *string
+	CreatedAt         time.Time
+	AccountSequence   int64
+	LedgerRange       uint32
+	SignaturesCount   int
+	TxEnvelope        *string
+	EnvelopeSizeBytes int
+	TxResult          *string
+	TxMeta            *string
+	TxFeeMeta         *string
+	TxSigners         *string
+	NewAccount        bool
+	TimeboundsMinTime *int64
+	TimeboundsMaxTime *int64
 	// Soroban fields
 	SorobanHostFunctionType *string
 	SorobanContractID       *string

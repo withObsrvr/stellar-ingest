@@ -1,6 +1,7 @@
 # Canonical Bronze row contract — candidate v1
 
-**Status: candidate. Not yet ratified.** Ticket 04 deliverable 3.
+**Status: candidate v1. Two decisions ratified and implemented; three open.**
+Ticket 04 deliverable 3.
 
 This is what a Bronze row *is*, independent of which ingester produced it or
 which store it landed in. It exists because two implementations wrote the
@@ -243,16 +244,40 @@ protocol structure.** `tx_envelope`, `tx_result`, `tx_meta`, `tx_fee_meta`,
 `contract_event_xdr`, `config_setting_xdr` and the rest are reproducible from
 the ledger and are the fallback when a decoded column is wrong.
 
-**Unresolved: memo encoding (F6).** The cold store base64-encodes every
-`text` memo and retypes it `text_base64`; the hot store keeps raw text with
-UTF-8 sanitization. Both are defensible — memo bytes need not be valid UTF-8,
-and a Parquet text column rejects them — but a consumer reading `memo` gets
-different content depending on the store, with `memo_type` as the only signal.
+### Memo — ratified and implemented
 
-The cold side applies the transformation unconditionally, so a plain ASCII
-memo is also base64'd. A candidate rule is: store the raw bytes, and let
-`memo_type` distinguish `text` from `binary`, rather than making the encoding
-depend on the store. **Decision owner: data platform.**
+**Rule: keep the raw bytes.**
+
+| Column | Content |
+|---|---|
+| `memo_type` | always the protocol value: `none`, `text`, `id`, `hash`, `return` |
+| `memo` | the readable rendering, **NULL** when the bytes are not valid text |
+| `memo_raw` | base64 of the raw bytes, text memos only, authoritative |
+
+`MemoText` is opaque bytes and need not be UTF-8, which a Parquet string
+column rejects. The two stores had each worked around that differently and
+neither kept the original: the cold store base64-encoded *every* text memo
+and reported `memo_type` as `text_base64`, so plain ASCII was encoded too;
+the hot store kept the text and sanitized invalid sequences on insert, which
+is lossy. A consumer reading `memo` got different content depending on which
+store it asked.
+
+`memo` is now NULL rather than mangled when the bytes are not text, which is
+§2's null rule: a value the producer cannot represent is absent, not
+approximated. `memo_raw` always carries the truth. `id`, `hash` and `return`
+memos are already lossless as decimal and hex, so `memo_raw` is NULL for
+them. `text_base64` is retired as a `memo_type` value.
+
+Implemented on the cold side in the extractor, the Parquet layer and
+`v3_bronze_schema.sql`; on the hot side in the transaction-XDR overlay and
+migration 020. Existing rows keep `memo_raw` NULL until their range is
+re-ingested.
+
+Two things this removed: `sanitizeTransactionMemo` was dead code — it only
+fired on `memo_type == "text"`, which the cold extractor never produced
+because it set `text_base64` directly — and with memo agreed, `transactions`
+now differs between the stores on `envelope_size_bytes` alone, which is the
+insert-time recomputation rather than an extraction difference.
 
 ## 7. Column-set scope — may a store be narrower?
 
@@ -322,13 +347,14 @@ accident it cost most of a table.
 | # | Decision | Finding | Owner |
 |---|---|---|---|
 | ~~1~~ | ~~`created_at` split~~ — **ratified and implemented**; see §4 | F7 | — |
-| 2 | Memo encoding: raw bytes with a type discriminant, or per-store | F6 | Data platform |
+| ~~2~~ | ~~Memo encoding~~ — **ratified and implemented**; see §6 | F6 | — |
 | 3 | May a store carry a declared subset of Bronze? | F4, F11 | Live ingester + data platform |
 | 4 | `contract_events` identity — unique index or richer `event_id` | F13 | `stellar-extract` |
 | 5 | `token_transfers` event index | F16 | `stellar-extract` |
 
-Items 4 and 5 are implementation with a clear shape. Items 1 to 3 are
-genuine product decisions, and nothing in the harness can make them.
+Decisions 1 and 2 are ratified and implemented. Decision 3 is the remaining
+product call; 4 and 5 are implementation with a clear shape, both upstream in
+`stellar-extract`.
 
 ## What is already enforced
 

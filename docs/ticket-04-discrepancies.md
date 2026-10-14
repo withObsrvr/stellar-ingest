@@ -107,16 +107,16 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | F3 call graph | **closed** | library populates it; live's `convertOperation` already copied the fields |
 | F4 36 op columns | open — decision | live stores "core fields only"; the library provides all 36 |
 | F5 account sequence | **closed** | `convertAccount` now maps them; the columns had existed since migration 009 and were receiving zeros |
-| F6 memo policy | open — decision | canonical row contract |
+| F6 memo policy | **closed** | raw bytes kept in `memo_raw`; `memo_type` is the protocol value |
 | F6 `envelope_size_bytes` | open — unverified | recomputed at insert; needs the storage tier |
-| F7 `created_at` | open — decision | canonical row contract |
+| F7 `created_at` | **closed** | split into `closed_at` and `ingested_at` |
 | F8 ledgers | open — provenance-only | — |
 | **F10 ScVal rendering** | **closed** | local converter deleted; both sides use the library's |
 | **F11 `soroban_contract_id`** | open, minor | 1 row of 2,913 |
 | **F12 contract events discarded** | **fixed** | 86% of rows lost on insert; migration 018 |
 | **F13 event identity** | open | `event_id` is not unique; 4% of rows unstorable |
 | **F14 Parquet all-NULL column** | **fixed** | `tx_max_footprint_entries` never populated |
-| **F15 `claimable_balances.created_at`** | open, minor | no column; wall clock, see F7 |
+| **F15 `claimable_balances`** | open, minor | declares `ingested_at` in SQL, Parquet never writes it |
 | **F16 `token_transfers` has no key** | **new** | no event index; 8-attribute key still collides |
 | L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -523,7 +522,6 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 		}
 		for i := range rows {
 			rows[i].EraID = meta.EraID
-			sanitizeTransactionMemo(&rows[i])
 		}
 		return &LedgerData{Transactions: rows}, nil
 	})
@@ -950,13 +948,3 @@ func NewParquetWriter(outputDir string, workerID int, pipelineVersion string) (*
 
 // extractRestoredKeys     — see extractors_soroban.go
 // extractContractCreations — see extractors_soroban.go
-
-func sanitizeTransactionMemo(tx *TransactionData) {
-	if tx == nil || tx.MemoType == nil || tx.Memo == nil || *tx.MemoType != "text" {
-		return
-	}
-	memoType := "text_base64"
-	memo := base64.StdEncoding.EncodeToString([]byte(*tx.Memo))
-	tx.MemoType = &memoType
-	tx.Memo = &memo
-}

@@ -9,6 +9,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stellar/go-stellar-sdk/ingest"
 	"github.com/stellar/go-stellar-sdk/toid"
@@ -96,14 +97,27 @@ func extractTransactions(lcm xdr.LedgerCloseMeta, networkPassphrase string, ledg
 			memoType := "none"
 			txData.MemoType = &memoType
 		case xdr.MemoTypeMemoText:
-			// Stellar MemoText is opaque bytes, not guaranteed UTF-8. DuckDB rejects
-			// invalid UTF8-annotated Parquet strings, so encode all text memos as
-			// base64 for Bronze history-loader output.
-			memoType := "text_base64"
+			// MemoText is opaque bytes and need not be valid UTF-8, which a
+			// Parquet string column rejects. The raw bytes go to MemoRaw and
+			// are authoritative; Memo carries the text only when it is
+			// genuinely text.
+			//
+			// This used to base64 every text memo and report the type as
+			// "text_base64", so a plain ASCII memo was encoded too and the
+			// hot store — which keeps the protocol type — disagreed with the
+			// cold store on both columns. Memo is now NULL rather than
+			// lossy when the bytes are not text, which is the null rule in
+			// docs/bronze-row-contract.md §2: a value the producer cannot
+			// represent is absent, not mangled.
+			memoType := "text"
 			txData.MemoType = &memoType
 			if text, ok := memo.GetText(); ok {
-				memoText := base64.StdEncoding.EncodeToString([]byte(text))
-				txData.Memo = &memoText
+				raw := base64.StdEncoding.EncodeToString([]byte(text))
+				txData.MemoRaw = &raw
+				if utf8.ValidString(text) {
+					memoText := text
+					txData.Memo = &memoText
+				}
 			}
 		case xdr.MemoTypeMemoId:
 			memoType := "id"

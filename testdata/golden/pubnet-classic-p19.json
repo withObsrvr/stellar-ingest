@@ -565,7 +565,7 @@
     },
     "transactions": {
       "row_count": 3820,
-      "content_hash": "485751020c888c2eb731e6b80463ef4d",
+      "content_hash": "44608d055cc1bd668d477ecd051d170d",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -578,6 +578,7 @@
         "operation_count",
         "memo_type",
         "memo",
+        "memo_raw",
         "closed_at",
         "account_sequence",
         "ledger_range",
@@ -607,8 +608,9 @@
         "ledger_range": "126fd93dd50941f4dffded5ba3843341",
         "ledger_sequence": "4c0668d2d1258daaae6e7af75e08c193",
         "max_fee": "a467a8ed9b15435b3538342b6841c6cb",
-        "memo": "ba5abd900b8485637f2a37c2651be8ca",
-        "memo_type": "3ab6fa6f1c6c5b8aa083f5414800ebf7",
+        "memo": "813eaf3cc8e60be5465148897bfd3550",
+        "memo_raw": "b8222e689b8949f94d512a60153547bf",
+        "memo_type": "43d6e6b1624965a6e6ba9d364163486b",
         "new_account": "eda30861bab78e241e9d42c79922ca27",
         "operation_count": "618743351b6a0a44201d7366cafd0a1d",
         "rent_fee_charged": "77492b942553d81151a834e79c5de2b7",
