@@ -830,49 +830,10 @@ func extractRestoredKeys(lcm xdr.LedgerCloseMeta, networkPassphrase string, ledg
 			continue
 		}
 
-		envelope := tx.Envelope
-		var operations []xdr.Operation
-
-		switch envelope.Type {
-		case xdr.EnvelopeTypeEnvelopeTypeTx:
-			operations = envelope.V1.Tx.Operations
-		case xdr.EnvelopeTypeEnvelopeTypeTxV0:
-			operations = envelope.V0.Tx.Operations
-		case xdr.EnvelopeTypeEnvelopeTypeTxFeeBump:
-			innerTx := envelope.FeeBump.Tx.InnerTx
-			if innerTx.Type == xdr.EnvelopeTypeEnvelopeTypeTx {
-				operations = innerTx.V1.Tx.Operations
-			}
-		default:
-			continue
-		}
-
-		for _, op := range operations {
-			if op.Body.Type != xdr.OperationTypeRestoreFootprint {
-				continue
-			}
-
-			var footprint *xdr.LedgerFootprint
-
-			switch envelope.Type {
-			case xdr.EnvelopeTypeEnvelopeTypeTx:
-				if envelope.V1.Tx.Ext.V == 1 && envelope.V1.Tx.Ext.SorobanData != nil {
-					footprint = &envelope.V1.Tx.Ext.SorobanData.Resources.Footprint
-				}
-			}
-
-			if footprint == nil {
-				continue
-			}
-
-			restoredFromLedger := uint32(0)
-
-			for _, key := range footprint.ReadWrite {
-				durability := "unknown"
-				data := extractRestoredKeyData(key, ledgerSeq, ledgerRange, durability, restoredFromLedger, closedAt)
-				if data != nil {
-					restoredKeysMap[data.KeyHash] = data
-				}
+		for _, key := range restoredFootprintKeys(tx.Envelope) {
+			data := extractRestoredKeyData(key, ledgerSeq, ledgerRange, "unknown", 0, closedAt)
+			if data != nil {
+				restoredKeysMap[data.KeyHash] = data
 			}
 		}
 	}
@@ -882,6 +843,35 @@ func extractRestoredKeys(lcm xdr.LedgerCloseMeta, networkPassphrase string, ledg
 	}
 
 	return restoredKeysList, nil
+}
+
+// restoredFootprintKeys resolves the transaction actually executing the operation.
+// A fee-bump envelope carries the Soroban footprint on its inner transaction,
+// not on the outer fee-bump transaction.
+func restoredFootprintKeys(envelope xdr.TransactionEnvelope) []xdr.LedgerKey {
+	var tx *xdr.Transaction
+	switch envelope.Type {
+	case xdr.EnvelopeTypeEnvelopeTypeTx:
+		if envelope.V1 != nil {
+			tx = &envelope.V1.Tx
+		}
+	case xdr.EnvelopeTypeEnvelopeTypeTxFeeBump:
+		if envelope.FeeBump != nil {
+			inner := envelope.FeeBump.Tx.InnerTx
+			if inner.Type == xdr.EnvelopeTypeEnvelopeTypeTx && inner.V1 != nil {
+				tx = &inner.V1.Tx
+			}
+		}
+	}
+	if tx == nil || tx.Ext.V != 1 || tx.Ext.SorobanData == nil {
+		return nil
+	}
+	for _, op := range tx.Operations {
+		if op.Body.Type == xdr.OperationTypeRestoreFootprint {
+			return tx.Ext.SorobanData.Resources.Footprint.ReadWrite
+		}
+	}
+	return nil
 }
 
 // extractRestoredKeyData extracts data from a single restored ledger key.

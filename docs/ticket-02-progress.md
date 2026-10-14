@@ -74,14 +74,12 @@ operation. None appeared in 8,000 ledgers — four windows around the archival
 event (59,000,625 / 59,002,000 / 59,010,000 / 59,100,000) and four later ones
 at 59.5M, 61M, 63M and 64.9M. Restores are far rarer on pubnet than evictions.
 
-There is also a **suspected extraction gap** that may be part of the reason.
-`extractRestoredKeys` unwraps fee-bump envelopes to find the operation list,
-but the `switch` that resolves the footprint handles only
-`EnvelopeTypeEnvelopeTypeTx`. A fee-bumped `RestoreFootprint` is therefore
-located and then silently skipped at `if footprint == nil { continue }`. Fee
-bumps are common, so this could be hiding real restores. It is left unfixed
-deliberately: confirming the fix needs a fee-bumped restore to test against,
-and changing Bronze output without one would be unverifiable.
+The fee-bump extraction gap is now fixed: `extractRestoredKeys` resolves the
+operation and footprint from the same inner V1 transaction. A focused unit
+test covers both ordinary and fee-bump envelopes. This does **not** yet prove
+end-to-end extraction on an authoritative fee-bumped restore ledger; a real
+`restored_keys` fixture and golden remain necessary. Existing seven fixture
+goldens were unchanged by the fix.
 
 ## Table coverage gap
 
@@ -272,8 +270,9 @@ All pass. Nothing in Bronze output depends on how the extraction was executed:
 
 ## Remaining work
 
-1. `restored_keys` coverage, and confirming the suspected fee-bump gap in
-   `extractRestoredKeys`.
+1. `restored_keys` coverage from a real successful restore (preferably including
+   a fee-bump envelope), with a committed golden. The envelope-level fee-bump
+   gap has a regression test and is fixed; real-ledger parity remains unverified.
 2. The opt-in large-range tier (1,000-ledger ranges fetched from GCS).
 3. Crash-injection scenarios — crash before and after sink commit, partial
    writer failure. These need a way to inject a failing sink, which the

@@ -1,17 +1,16 @@
 # Phase 0 — Golden fixture and baseline test plan
 
-Input to TICKET 02. This plan is written but **not yet executed** — no fixtures
-are committed in this bootstrap. It exists so the fixture work starts from a
-decided shape rather than an ad-hoc one.
+Historical Phase 0 plan for TICKET 02. The plan has since been partially
+executed: seven real-ledger fixtures and their goldens are committed, covering
+20 of 21 Bronze tables. `restored_keys` and crash-injection scenarios remain.
+For the current status and revised fixture sizes, see `ticket-02-progress.md`.
 
-## Why this is the next thing
+## Original motivation
 
-The committed test suite runs in 0.07 s because every integration test skips
-behind unset environment variables. Nothing in it processes a real ledger. That
-means the Phase 1 exit gate — "equivalent output and return codes on golden
-workloads" — currently rests on CLI-surface and exit-code parity alone, which
-is necessary but nowhere near sufficient. Until fixtures exist, no refactor in
-Phase 2 can be shown to be behaviour-preserving.
+At bootstrap, integration tests skipped behind unset environment variables,
+and nothing processed a real ledger. The hermetic golden suite now runs against
+committed XDR fixtures; the original planning assumptions below are retained
+as a historical record, not current instructions.
 
 ## Fixture selection
 

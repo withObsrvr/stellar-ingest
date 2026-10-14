@@ -14,12 +14,14 @@ Phase 0 inventory actually found.
 | Inventory public flags and environment variables | Done — `docs/phase0-inventory.md` §2, §3 |
 | Behaviour matrix for all source and output modes | Done — §4, §5 |
 | Identify workflows requiring flowctl registration | Partly — code-level answer in §7; the deployment-manifest half needs information outside this repository |
-| Baseline metrics and golden fixtures | **Plan only** — `docs/phase0-fixtures.md`. No fixtures committed. |
+| Baseline metrics and golden fixtures | Seven fixtures committed; 20/21 tables covered. See `docs/ticket-02-progress.md`. `restored_keys` remains open. |
 
-Exit gate — "baseline test suite and compatibility inventory are committed; no
-functional changes yet": the inventory is committed and there are no functional
-changes. The *baseline test suite* is specified but not built; that is TICKET 02
-and is the main thing standing between here and a defensible Phase 2.
+The compatibility inventory and hermetic baseline suite are committed. Full
+21-table baseline coverage remains open under TICKET 02. Since bootstrap,
+two reproducibility fixes and XDR EOF handling have changed behavior; the
+fee-bump `restored_keys` footprint fix is unit-tested but still needs a
+real-ledger golden. The original "no functional changes yet" Phase 0 condition
+no longer describes the current tree.
 
 ## Phase 1 — Move and stabilize
 
@@ -85,7 +87,7 @@ architecture is changed on the strength of those numbers.
 | Ticket | Description | Status |
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
-| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **Harness complete** — 7 fixtures, 20 of 21 tables covered, 1 recorded gap. Two reproducibility bugs found and fixed; nix flake added. See `docs/ticket-02-progress.md`. |
+| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **Harness complete, coverage incomplete** — 7 fixtures, 20 of 21 tables covered; `restored_keys` still needs a real-ledger fixture. Fee-bump footprint handling now has a unit regression test. See `docs/ticket-02-progress.md`. |
 | 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Unblocked** — the golden suite can now prove a refactor preserved behaviour |
 | 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |

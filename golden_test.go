@@ -366,10 +366,8 @@ var knownUncoveredTables = map[string]string{
 	"restored_keys": "requires a successful RestoreFootprint operation, and none was found in 8,000 ledgers: " +
 		"59,000,625 / 59,002,000 / 59,010,000 / 59,100,000 around the protocol 23 archival event, " +
 		"then 59.5M, 61M, 63M and 64.9M. Restores are far rarer on pubnet than evictions. " +
-		"Note also that extractRestoredKeys resolves a footprint only for EnvelopeTypeEnvelopeTypeTx " +
-		"even though it unwraps fee-bump envelopes to find the operations, so a fee-bumped " +
-		"RestoreFootprint is located and then silently skipped. That is a suspected extraction gap, " +
-		"not yet confirmed — confirming it needs a fee-bumped restore to test against.",
+		"Fee-bump footprint resolution is covered by an envelope-level unit test, but " +
+		"an authoritative end-to-end restore fixture is still needed.",
 }
 
 func uniqueOutputDirs() []string {
