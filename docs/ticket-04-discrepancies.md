@@ -1,7 +1,13 @@
 # Ticket 04 — historical/live Bronze discrepancy report
 
-**Status: first complete pass. 21 of 21 tables have an extraction-tier
-result; the storage tier is `unverified` for all of them.**
+**Status: second pass, after the historical `stellar-extract` bump to
+v0.2.1. 21 of 21 tables have an extraction-tier result; the storage tier is
+`unverified` for all of them.**
+
+**F2 is closed.** F1's unit mismatch is closed and its row-set mismatch has
+inverted: historical now emits liquidity-pool trades and live, still pinned
+at `v0.1.5`, does not. Four findings now wait on the live side rather than
+on either library or this repository — see *Where each finding stands*.
 
 This report compares the Bronze output of this repository's historical
 extractor against `stellar-postgres-ingester`'s live extractor over identical
@@ -18,7 +24,7 @@ precisely because the decisions have not been made.
 
 | Side | Revision | `stellar-extract` |
 |---|---|---|
-| Historical | `stellar-ingest` @ `1956dd3` | `v0.1.2` |
+| Historical | `stellar-ingest` @ `6fc0279` | `v0.2.1` |
 | Live | `ttp-processor-demo` @ `bd618bb`, `obsrvr-lake/stellar-postgres-ingester` | `v0.1.5` |
 
 Both trees were clean apart from this ticket's own additions. Fixtures:
@@ -81,6 +87,41 @@ Eleven tables match on every compared column across every fixture where they
 produce rows. Four carry a defect. One is an intended difference. One is
 provenance. Two — `contract_code`, and `config_settings` outside the
 protocol-boundary fixture — are not exercised by the fixture set.
+
+## Where each finding stands after the v0.2.1 bump
+
+| Finding | Before | Now | Waiting on |
+|---|---|---|---|
+| F1 units (10⁷) | historical stroops, live decimals | **closed** — both use `amount.String` | — |
+| F1 row set | live had 62 trades historical missed | **inverted** — historical now emits pool trades, live does not | live pin bump |
+| F2 config NULLs | 13 columns NULL on historical | **closed** — all 13 now match | — |
+| F3 call graph | live NULL, historical populated | unchanged | live pin bump (its `convertOperation` already copies the fields) |
+| F4 36 op columns | live drops them | unchanged | live schema decision |
+| F5 account sequence | live writes 0 | unchanged | live `convertAccount` + the columns already exist |
+| F6 memo policy | differs by design | unchanged | canonical row contract |
+| F7 `created_at` | two meanings | unchanged | canonical row contract |
+| F8 ledgers | provenance-only | unchanged | — |
+| **L-series** | library gaps | **closed in `stellar-extract` v0.2.1** | consumers |
+
+Three findings are new since the first pass, all of them fields that both
+stores were missing — so the comparison reported the tables as `equal` and
+could not have surfaced them. They were found by auditing each adapter
+against the library's field surface instead:
+
+- `contract_creations.executable_type` (plus `external_ref_owner` / `_tag`).
+  The library stopped making consumers infer SAC-vs-WASM from a NULL
+  `wasm_hash` because Protocol 28's CAP-0085 added a third kind and broke the
+  inference. Both stores still made it. **Now carried by historical.**
+- `config_settings.tx_max_footprint_entries`, the CAP-0062 denominator.
+  **Now carried by historical.**
+- `trades.liquidity_pool_id`, which did not exist because no AMM trade was
+  ever emitted. **Now carried by historical.**
+
+That `equal` can mean "both implementations are wrong the same way" is the
+central methodological limit of this comparison. Both repositories now carry
+an adapter-coverage audit that asks the other question — does this ingester
+read everything the library offers — and the historical one caught
+`tx_max_footprint_entries` the moment the pin moved.
 
 ## Findings
 
