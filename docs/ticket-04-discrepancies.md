@@ -112,7 +112,7 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | F7 `created_at` | **closed** | split into `closed_at` and `ingested_at` |
 | F8 ledgers | open — provenance-only | — |
 | **F10 ScVal rendering** | **closed** | local converter deleted; both sides use the library's |
-| **F11 `soroban_contract_id`** | open, minor | 1 row of 2,913 |
+| **F11 `soroban_contract_id`** | **closed** | decided as NULL; cold now matches hot |
 | **F12 contract events discarded** | **fixed** | 86% of rows lost on insert; migration 018 |
 | **F13 event identity** | **closed** | `stellar-extract` v0.3.0; one index across all three streams |
 | **F14 Parquet all-NULL column** | **fixed** | `tx_max_footprint_entries` never populated |
@@ -385,11 +385,17 @@ contract rather than invoking one. The library's
 invoke case; this repository's local extractor also derives one for the
 create case.
 
-Which is correct is a contract question, not a bug report: `contract_id` on
-an operation that creates a contract is arguably the created contract, and
-arguably nothing, given `contract_creations` already records the creation.
-Left for the canonical row contract. It is the last remaining value
-difference in `operations`.
+**Closed: decided as NULL.** This repository now extracts operations through
+the library, so it reports NULL too, and the one-shape rule is satisfied —
+the hot store has always reported NULL because it has always used the
+library.
+
+Nothing is lost, and that was verified rather than assumed: the contract ID
+for this row is present in `contract_creations`.
+`TestCreateContractOperationsAreCoveredByContractCreations` asserts the
+premise, failing if the library ever leaves the operation NULL while also
+not emitting the creation — the case where the ID would vanish from Bronze
+entirely and the column would look merely empty rather than wrong.
 
 ## Storage tier — live
 

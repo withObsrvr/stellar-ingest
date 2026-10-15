@@ -54,37 +54,54 @@ type TransactionData struct {
 	OperationCount        int
 	MemoType              *string
 	Memo                  *string
-	// MemoRaw is base64 of the raw memo bytes, set for text memos only.
-	// It is the authoritative value: MemoText need not be valid UTF-8, and
-	// Memo is NULL when it is not. id, hash and return memos are already
-	// lossless as decimal and hex, so MemoRaw stays NULL for them.
+	// MemoRaw is base64 of the raw memo bytes, set for text memos only and
+	// authoritative when set. A MEMO_TEXT payload is opaque bytes that need
+	// not be valid UTF-8, so Memo carries the text only when it genuinely is
+	// text and is NULL otherwise — a value the producer cannot represent is
+	// absent, not mangled. id, hash and return memos are already lossless as
+	// decimal and hex, so MemoRaw stays nil for them.
 	MemoRaw           *string
 	CreatedAt         time.Time
 	AccountSequence   int64
 	LedgerRange       uint32
 	SignaturesCount   int
-	TxEnvelope        *string
-	EnvelopeSizeBytes int
-	TxResult          *string
-	TxMeta            *string
-	TxFeeMeta         *string
-	TxSigners         *string
 	NewAccount        bool
 	TimeboundsMinTime *int64
 	TimeboundsMaxTime *int64
 	// Soroban fields
 	SorobanHostFunctionType *string
 	SorobanContractID       *string
-	// Soroban rent tracking (C13)
-	RentFeeCharged *int64
+	RentFeeCharged          *int64
 	// Soroban resource fields
 	SorobanResourcesInstructions *int64
 	SorobanResourcesReadBytes    *int64
 	SorobanResourcesWriteBytes   *int64
+	// Declared footprint entry counts. The protocol charges ledger capacity
+	// against what a transaction declares, not against the changes it turns
+	// out to make, so these are the numerators for a capacity meter. Counting
+	// observed changes instead undercounts badly.
+	SorobanFootprintReadEntries  *int32
+	SorobanFootprintWriteEntries *int32
+	// Contract failure cause, set only when the transaction emitted an
+	// ScError. Successful transactions and classic failures leave it nil.
+	ContractErrorType *string
+	ContractErrorCode *int32
+	// Raw XDR, base64-encoded, and the signature list. These are what makes
+	// a Bronze transaction row reprocessable without going back to the
+	// archive: every derived column above can be recomputed from TxEnvelope,
+	// TxResult and TxMeta. Horizon exposes the same five.
+	TxEnvelope *string
+	TxResult   *string
+	TxMeta     *string
+	TxFeeMeta  *string
+	// TxSigners is a JSON array of base64 signatures, in envelope order.
+	TxSigners *string
+	// EnvelopeSizeBytes is the length of the decoded envelope XDR, not of its
+	// base64 encoding — the size the protocol charges against.
+	EnvelopeSizeBytes int
 	// TOID
 	TransactionID int64
-	// Era tracking
-	EraID *string
+	EraID         *string
 }
 
 // OperationData represents a single operation
@@ -150,26 +167,29 @@ type OperationData struct {
 	// Bump sequence
 	BumpTo *int64
 	// Soroban
-	SorobanAuthRequired *bool
-	// Soroban contract invocation fields
-	SorobanOperation     *string // Host function type: InvokeContract, CreateContract, UploadWasm, etc.
+	SorobanAuthRequired  *bool
+	SorobanOperation     *string
 	SorobanContractID    *string
 	SorobanFunction      *string
 	SorobanArgumentsJSON *string
-	// Call graph fields (cross-contract call tracking)
-	ContractCallsJSON *string  // JSON array of {from, to, function, depth, order}
-	ContractsInvolved []string // All contracts in the call chain
-	MaxCallDepth      *int     // Maximum depth of nested calls
-	// Soroban authorization fields (SorobanAuthorizationEntry.Credentials).
-	// Parallel arrays; same length; one entry per auth entry on the op.
-	// nil on non-Soroban ops and InvokeHostFunction ops with zero auth entries.
-	SorobanAuthCredentialsTypes []string // "SOURCE_ACCOUNT" | "ADDRESS"
-	SorobanAuthAddresses        []string // strkey address; "" for SOURCE_ACCOUNT
+	// Call graph fields
+	ContractCallsJSON *string
+	ContractsInvolved []string
+	MaxCallDepth      *int
+
+	// Soroban authorization credentials, one entry per
+	// SorobanAuthorizationEntry on the operation. Parallel arrays of equal
+	// length: Types holds the credentials discriminant and Addresses the
+	// strkey authorizer, empty for SOURCE_ACCOUNT where the authorizer is
+	// the transaction source. Both nil on non-Soroban operations and on
+	// InvokeHostFunction operations with no auth entries, which keeps
+	// "no auth" distinct from "an empty authorizer".
+	SorobanAuthCredentialsTypes []string
+	SorobanAuthAddresses        []string
 	// TOID
 	TransactionID int64
 	OperationID   int64
-	// Era tracking
-	EraID *string
+	EraID         *string
 }
 
 // EffectData represents a single effect (state changes from operations)

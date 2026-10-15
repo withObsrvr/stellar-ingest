@@ -513,22 +513,26 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 	libInput.LedgerRange = lr
 	libInput.EraID = meta.EraID
 
-	// Fan out to all extractors. Transactions use the local extractor because it
-	// carries Horizon XDR/signature fields not yet exposed by stellar-extract.
+	// Fan out to all extractors.
 	launch("transactions", func() (*LedgerData, error) {
-		rows, err := extractTransactions(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		libRows, err := extract.ExtractTransactions(libInput)
 		if err != nil {
 			return nil, err
 		}
-		for i := range rows {
-			rows[i].EraID = meta.EraID
+		rows := make([]TransactionData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = TransactionData(r)
 		}
 		return &LedgerData{Transactions: rows}, nil
 	})
 	launch("operations", func() (*LedgerData, error) {
-		rows, err := extractOperations(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		libRows, err := extract.ExtractOperations(libInput)
 		if err != nil {
 			return nil, err
+		}
+		rows := make([]OperationData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = OperationData(r)
 		}
 		return &LedgerData{Operations: rows}, nil
 	})

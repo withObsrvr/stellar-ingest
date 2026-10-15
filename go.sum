@@ -285,6 +285,8 @@ github.com/valyala/fasthttp v1.34.0 h1:d3AAQJ2DRcxJYHm7OXNXtXt2as1vMDfxeIcFvhmGG
 github.com/valyala/fasthttp v1.34.0/go.mod h1:epZA5N+7pY6ZaEKRmstzOuYJx9HI8DI1oaCGZpdH4h0=
 github.com/withObsrvr/stellar-extract v0.3.2 h1:OhBpugr+c5XUFfkBOWYTKLmj6cf97ErIZIALMknlEpU=
 github.com/withObsrvr/stellar-extract v0.3.2/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
+github.com/withObsrvr/stellar-extract v0.3.3 h1:QG/nYtTqyU5eTtKtTeTVMvjgmkqavu3t70iUgd6lqdI=
+github.com/withObsrvr/stellar-extract v0.3.3/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5 h1:LGtNObgYA4a90VKx45CANiTotO4BP2QHmvJJBEcpwmE=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5/go.mod h1:b9tgM3xdNi0+Sm+QV9PE7DQUDCgwV5/DNW5HZdhogjM=
 github.com/withobsrvr/flowctl v0.0.10 h1:hz5Kv2ZetZ0s4lFeF+IZySTEX1E+jrk3rgRRwlkTR8Y=

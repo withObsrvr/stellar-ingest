@@ -499,7 +499,7 @@
     },
     "operations": {
       "row_count": 2913,
-      "content_hash": "d1a19209b805ae5a0dce3fb31676e23d",
+      "content_hash": "19f29f5dabf5ca1255d3f95f0287d7ca",
       "columns": [
         "transaction_hash",
         "transaction_index",
@@ -606,7 +606,7 @@
         "soroban_auth_addresses": "d5ceec6486d67fe11fdc93ca93ae5ff2",
         "soroban_auth_credentials_types": "835d55e180bb618e794e74cb0c9f412f",
         "soroban_auth_required": "90644149041e11bf7ce55047699720f0",
-        "soroban_contract_id": "30eba83a037ea302a63b5704baa4040d",
+        "soroban_contract_id": "e8353a334b187ad932ea4289a561af88",
         "soroban_function": "f2355919ecf397841768563f450fd992",
         "soroban_operation": "773acbfadf2a1ac35c7c2aeb14ae172c",
         "source_account": "9fa6c98162355e5550fce8158d6b10d1",
@@ -717,7 +717,7 @@
     },
     "transactions": {
       "row_count": 1106,
-      "content_hash": "62dfc17b4da207dd001af537926ac729",
+      "content_hash": "dbd0d4ba9125a96e246900dd32e2fa96",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -750,11 +750,17 @@
         "soroban_resources_instructions",
         "soroban_resources_read_bytes",
         "soroban_resources_write_bytes",
+        "soroban_footprint_read_entries",
+        "soroban_footprint_write_entries",
+        "contract_error_type",
+        "contract_error_code",
         "transaction_id"
       ],
       "column_hashes": {
         "account_sequence": "a3bf9f3722d7c3c2899bf6af7eee2d94",
         "closed_at": "9f783887be0547cf2993994799143991",
+        "contract_error_code": "532b8afba029e073f851f08fe0a988c3",
+        "contract_error_type": "532b8afba029e073f851f08fe0a988c3",
         "envelope_size_bytes": "2441ec5c500ab462f51856122bdb8040",
         "fee_charged": "b93ddb0db8ef29c77d38a762011adf03",
         "ledger_range": "b4c37f42194a8b839fa4e35ec0b495d1",
@@ -768,6 +774,8 @@
         "rent_fee_charged": "42695b6c79c71afce59b063b1392cb72",
         "signatures_count": "2ebb7c03679f7bf738e96552ec6f3a04",
         "soroban_contract_id": "3ef392f51c9788ae17515ef2a5472660",
+        "soroban_footprint_read_entries": "0289fa06ea8a77c6b99ed5b612dfb1a9",
+        "soroban_footprint_write_entries": "7d582e0ef204d31ea3b60b7acbb8b3dc",
         "soroban_host_function_type": "2508b1dfeebf5520b4d9f1463ae1c54f",
         "soroban_resources_instructions": "c4ce4027abf7bb95a0da119cdcd4811d",
         "soroban_resources_read_bytes": "82fdbba77a175126e4959a8d34a0f6eb",
