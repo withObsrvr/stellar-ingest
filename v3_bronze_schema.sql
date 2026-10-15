@@ -66,6 +66,14 @@ CREATE TABLE IF NOT EXISTS bronze.transactions_row_v2 (
     soroban_resources_instructions BIGINT,
     soroban_resources_read_bytes BIGINT,
     soroban_resources_write_bytes BIGINT,
+    -- Declared footprint entry counts. The protocol charges ledger capacity
+    -- against what a transaction declares, not what it turns out to change.
+    soroban_footprint_read_entries INTEGER,
+    soroban_footprint_write_entries INTEGER,
+    -- Contract failure cause, set only when the transaction emitted an
+    -- ScError. Successful transactions and classic failures leave it NULL.
+    contract_error_type TEXT,
+    contract_error_code INTEGER,
     soroban_data_size_bytes INTEGER,
     soroban_data_resources TEXT,
     soroban_fee_base BIGINT,

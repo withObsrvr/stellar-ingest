@@ -159,6 +159,10 @@ type ParquetTransaction struct {
 	SorobanResourcesInstructions *int64  `parquet:"soroban_resources_instructions,optional"`
 	SorobanResourcesReadBytes    *int64  `parquet:"soroban_resources_read_bytes,optional"`
 	SorobanResourcesWriteBytes   *int64  `parquet:"soroban_resources_write_bytes,optional"`
+	SorobanFootprintReadEntries  *int32  `parquet:"soroban_footprint_read_entries,optional"`
+	SorobanFootprintWriteEntries *int32  `parquet:"soroban_footprint_write_entries,optional"`
+	ContractErrorType            *string `parquet:"contract_error_type,optional"`
+	ContractErrorCode            *int32  `parquet:"contract_error_code,optional"`
 	TransactionID                int64   `parquet:"transaction_id"`
 	EraID                        *string `parquet:"era_id,optional"`
 	PipelineVersion              string  `parquet:"version_label"`
@@ -742,6 +746,10 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				SorobanResourcesInstructions: t.SorobanResourcesInstructions,
 				SorobanResourcesReadBytes:    t.SorobanResourcesReadBytes,
 				SorobanResourcesWriteBytes:   t.SorobanResourcesWriteBytes,
+				SorobanFootprintReadEntries:  t.SorobanFootprintReadEntries,
+				SorobanFootprintWriteEntries: t.SorobanFootprintWriteEntries,
+				ContractErrorType:            t.ContractErrorType,
+				ContractErrorCode:            t.ContractErrorCode,
 				TransactionID:                t.TransactionID,
 				EraID:                        t.EraID,
 				PipelineVersion:              pw.pipelineVersion,

@@ -324,16 +324,23 @@ work, not open questions:
   the same case. `soroban_fee_write1kb` versus `soroban_fee_write1KB` is just
   a casing mismatch, and the library spells it `1kb`.
 
-A narrower related case (**F11**): `operations.soroban_contract_id` is
+**F11 is now decided: nothing.** `operations.soroban_contract_id` was
 populated by the cold store on an `InvokeHostFunction` that *creates* a
-contract, and NULL in the library. Arguably the created contract; arguably
-nothing, since `contract_creations` records it. One row in 2,913, and the
-last value difference in `operations`.
+contract, and NULL in the library. Both readings were arguable — the
+created contract, or nothing, since `contract_creations` records it. Three
+things settled it for nothing:
 
-A narrower related case (**F11**): `operations.soroban_contract_id` is
-populated by the cold store on an `InvokeHostFunction` that *creates* a
-contract, and NULL in the library. Arguably the created contract; arguably
-nothing, since `contract_creations` records it. One row in 2,913.
+- The hot store has always reported NULL, because it has always used the
+  library. Under the one-shape rule the cold store was the outlier.
+- Nothing is lost. The premise that `contract_creations` carries the
+  contract was checked rather than assumed, and is now asserted by
+  `TestCreateContractOperationsAreCoveredByContractCreations`, which fails
+  if the library ever NULLs the operation while also not emitting the
+  creation.
+- `contract_id` on an operation that creates a contract reads as "the
+  contract this operation called", which is not what happened.
+
+One row in 2,913, and it was the last value difference in `operations`.
 
 ## 8. Protocol eras and missing data
 

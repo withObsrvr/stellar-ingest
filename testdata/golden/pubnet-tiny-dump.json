@@ -615,7 +615,7 @@
     },
     "transactions": {
       "row_count": 874,
-      "content_hash": "49a6c88d50275a050064856d89e54a3a",
+      "content_hash": "de5221c0cafe2807b6b2d921b618a891",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -648,11 +648,17 @@
         "soroban_resources_instructions",
         "soroban_resources_read_bytes",
         "soroban_resources_write_bytes",
+        "soroban_footprint_read_entries",
+        "soroban_footprint_write_entries",
+        "contract_error_type",
+        "contract_error_code",
         "transaction_id"
       ],
       "column_hashes": {
         "account_sequence": "23a9b397bad4488effeb1e2092f08917",
         "closed_at": "09d6cd58d5c3e3aa05df512135a666e8",
+        "contract_error_code": "e826a6c8afe8e276b86d6a99d5c5cafc",
+        "contract_error_type": "e826a6c8afe8e276b86d6a99d5c5cafc",
         "envelope_size_bytes": "1fcbcb89cf801601a530490c1e815a08",
         "fee_charged": "cfb429651f9685f2a282a2a8b8711e99",
         "ledger_range": "d0e4ad47a10b6c91fe6d04ac54b69ec5",
@@ -666,6 +672,8 @@
         "rent_fee_charged": "efa56fd9642f036b42cd083c9ef45ca1",
         "signatures_count": "5626a6c922495795fae59d5fee5e4396",
         "soroban_contract_id": "d8ad6f7b3366ac566d970347de61ab6b",
+        "soroban_footprint_read_entries": "8a19bc6030af27d8f103787d2b1c66ed",
+        "soroban_footprint_write_entries": "d8511407512273a1b6a1def6f50628d9",
         "soroban_host_function_type": "281fd9d69168b7ac646c7793d1d37669",
         "soroban_resources_instructions": "58126a2bfd55fdb0bda0e06c9c028837",
         "soroban_resources_read_bytes": "16a3e1969727ff8541724feea257bc2e",

@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
+	extract "github.com/withObsrvr/stellar-extract"
 )
 
 // This pubnet ledger restored entries automatically during contract invocation:
@@ -22,7 +22,9 @@ func TestRestoredKeysFromAuthoritativeLedgerChanges(t *testing.T) {
 	if err := lcm.UnmarshalBinary(raw); err != nil {
 		t.Fatal(err)
 	}
-	rows, err := extractRestoredKeys(lcm, meta.NetworkPassphrase, meta.StartLedger, time.Unix(0, 0), meta.StartLedger)
+	in := extract.NewLedgerInput(lcm, meta.NetworkPassphrase)
+	in.LedgerRange = meta.StartLedger
+	rows, err := extract.ExtractRestoredKeys(in)
 	if err != nil {
 		t.Fatal(err)
 	}

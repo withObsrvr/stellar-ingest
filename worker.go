@@ -513,22 +513,26 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 	libInput.LedgerRange = lr
 	libInput.EraID = meta.EraID
 
-	// Fan out to all extractors. Transactions use the local extractor because it
-	// carries Horizon XDR/signature fields not yet exposed by stellar-extract.
+	// Fan out to all extractors.
 	launch("transactions", func() (*LedgerData, error) {
-		rows, err := extractTransactions(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		libRows, err := extract.ExtractTransactions(libInput)
 		if err != nil {
 			return nil, err
 		}
-		for i := range rows {
-			rows[i].EraID = meta.EraID
+		rows := make([]TransactionData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = TransactionData(r)
 		}
 		return &LedgerData{Transactions: rows}, nil
 	})
 	launch("operations", func() (*LedgerData, error) {
-		rows, err := extractOperations(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		libRows, err := extract.ExtractOperations(libInput)
 		if err != nil {
 			return nil, err
+		}
+		rows := make([]OperationData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = OperationData(r)
 		}
 		return &LedgerData{Operations: rows}, nil
 	})
@@ -555,9 +559,13 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 		return &LedgerData{Trades: rows}, nil
 	})
 	launch("accounts", func() (*LedgerData, error) {
-		rows, err := extractAccounts(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		libRows, err := extract.ExtractAccounts(libInput)
 		if err != nil {
 			return nil, err
+		}
+		rows := make([]AccountData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = AccountData(r)
 		}
 		return &LedgerData{Accounts: rows}, nil
 	})
@@ -697,12 +705,13 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 		return &LedgerData{NativeBalances: rows}, nil
 	})
 	launch("restored_keys", func() (*LedgerData, error) {
-		// The pinned library v0.1.2 scans operations and misses automatic
-		// restorations. Keep this mapping local until a full library upgrade
-		// can be reconciled against the other 20 tables' goldens.
-		rows, err := extractRestoredKeys(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, lr)
+		libRows, err := extract.ExtractRestoredKeys(libInput)
 		if err != nil {
 			return nil, err
+		}
+		rows := make([]RestoredKeyData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = RestoredKeyData(r)
 		}
 		return &LedgerData{RestoredKeys: rows}, nil
 	})
@@ -718,9 +727,13 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 		return &LedgerData{ContractCreations: rows}, nil
 	})
 	launch("ledgers", func() (*LedgerData, error) {
-		rows, err := extractLedgers(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		libRows, err := extract.ExtractLedgers(libInput)
 		if err != nil {
 			return nil, err
+		}
+		rows := make([]LedgerRowData, len(libRows))
+		for i, r := range libRows {
+			rows[i] = LedgerRowData(r)
 		}
 		return &LedgerData{Ledgers: rows}, nil
 	})

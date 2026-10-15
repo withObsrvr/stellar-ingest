@@ -13,6 +13,8 @@ import (
 
 	flowcomponent "github.com/withobsrvr/flowctl/pkg/component"
 	flowctlpb "github.com/withobsrvr/flowctl/proto"
+
+	extract "github.com/withObsrvr/stellar-extract"
 )
 
 // Version is set at build time via -ldflags "-X main.Version=..."
@@ -283,7 +285,7 @@ func main() {
 		fmt.Printf("Total ledgers processed: %d\n", totalLedgers)
 		fmt.Printf("Elapsed time:           %s\n", elapsed.Round(time.Millisecond))
 		fmt.Printf("Throughput:             %.1f ledgers/sec\n", throughput)
-		if skipped := CallGraphSkippedEdges(); skipped > 0 {
+		if skipped := extract.CallGraphSkippedEdges(); skipped > 0 {
 			fmt.Printf("Call-graph edges skipped (non-contract/unencodable address): %d\n", skipped)
 		}
 	} else {
