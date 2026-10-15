@@ -105,7 +105,7 @@ require (
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/twpayne/go-geom v1.6.1 // indirect
-	github.com/withObsrvr/stellar-extract v0.3.3
+	github.com/withObsrvr/stellar-extract v0.3.4-0.20261015170215-f38010272a79
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.39.0 // indirect

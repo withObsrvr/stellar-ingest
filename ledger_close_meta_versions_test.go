@@ -2,9 +2,9 @@ package main
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
+	extract "github.com/withObsrvr/stellar-extract"
 )
 
 func TestExtractLedgersSupportsAllCurrentLedgerCloseMetaVersions(t *testing.T) {
@@ -20,7 +20,7 @@ func TestExtractLedgersSupportsAllCurrentLedgerCloseMetaVersions(t *testing.T) {
 	}
 
 	for _, meta := range metas {
-		if _, err := extractLedgers(meta, "test", 100, time.Unix(0, 0), 0); err != nil {
+		if _, err := extract.ExtractLedgers(extract.NewLedgerInput(meta, "test")); err != nil {
 			t.Fatalf("LedgerCloseMeta V%d: %v", meta.V, err)
 		}
 	}

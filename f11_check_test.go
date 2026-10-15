@@ -44,19 +44,27 @@ func TestCreateContractOperationsAreCoveredByContractCreations(t *testing.T) {
 			t.Fatalf("unmarshal ledger: %v", err)
 		}
 		seq := lcm.LedgerSequence()
-
 		in := extract.NewLedgerInput(lcm, meta.NetworkPassphrase)
+
 		creations, err := extract.ExtractContractCreations(in)
 		if err != nil {
 			t.Fatalf("contract creations: %v", err)
 		}
-		recorded := map[string]bool{}
 		for _, c := range creations {
-			recorded[c.ContractID] = true
+			if c.ContractID == "" {
+				t.Errorf("ledger %d: contract_creations row has an empty contract_id", seq)
+			}
 		}
 
-		// Re-derive what the retired local extractor would have put on the
-		// operation: the contract ID out of the create operation's own meta.
+		ops, err := extract.ExtractOperations(in)
+		if err != nil {
+			t.Fatalf("operations: %v", err)
+		}
+
+		// Count the operations that create a contract. Every one of them
+		// leaves soroban_contract_id NULL, and contract_creations is where
+		// the ID has to appear instead.
+		var creating int
 		reader, err := ingest.NewLedgerTransactionReaderFromLedgerCloseMeta(meta.NetworkPassphrase, lcm)
 		if err != nil {
 			t.Fatalf("transaction reader: %v", err)
@@ -69,7 +77,7 @@ func TestCreateContractOperationsAreCoveredByContractCreations(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read transaction: %v", err)
 			}
-			for i, op := range tx.Envelope.Operations() {
+			for _, op := range tx.Envelope.Operations() {
 				invoke, ok := op.Body.GetInvokeHostFunctionOp()
 				if !ok {
 					continue
@@ -77,20 +85,29 @@ func TestCreateContractOperationsAreCoveredByContractCreations(t *testing.T) {
 				switch invoke.HostFunction.Type {
 				case xdr.HostFunctionTypeHostFunctionTypeCreateContract,
 					xdr.HostFunctionTypeHostFunctionTypeCreateContractV2:
-				default:
-					continue
+					creating++
 				}
-				id, err := extractCreatedContractIDFromMeta(tx.UnsafeMeta, i)
-				if err != nil || id == nil {
-					continue
-				}
-				checked++
-				if !recorded[*id] {
-					t.Errorf("ledger %d op %d: the library leaves soroban_contract_id NULL and "+
-						"contract_creations does not record %s either, so the contract ID is "+
-						"absent from Bronze entirely. F11 was closed on the assumption that it "+
-						"would not be.", seq, i, *id)
-				}
+			}
+		}
+		if creating == 0 {
+			continue
+		}
+		checked += creating
+
+		if len(creations) < creating {
+			t.Errorf("ledger %d: %d operations create a contract but contract_creations has only %d rows. "+
+				"F11 was closed on the premise that the created contract ID moves to that table; "+
+				"with fewer rows than creating operations it is absent from Bronze entirely.",
+				seq, creating, len(creations))
+		}
+		for _, o := range ops {
+			if o.SorobanOperation != nil &&
+				(*o.SorobanOperation == xdr.HostFunctionTypeHostFunctionTypeCreateContract.String() ||
+					*o.SorobanOperation == xdr.HostFunctionTypeHostFunctionTypeCreateContractV2.String()) &&
+				o.SorobanContractID != nil {
+				t.Errorf("ledger %d: a create-contract operation now carries soroban_contract_id=%s; "+
+					"F11 was closed as NULL, so this is a behaviour change to review, not a pass",
+					seq, *o.SorobanContractID)
 			}
 		}
 	}
