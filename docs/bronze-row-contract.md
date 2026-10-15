@@ -1,7 +1,10 @@
 # Canonical Bronze row contract — candidate v1
 
-**Status: candidate v1. All three product decisions ratified; two upstream
-library changes open.** Ticket 04 deliverable 3.
+**Status: candidate v1, complete. All three product decisions ratified and
+both upstream library changes released.** Ticket 04 deliverable 3.
+
+All 21 Bronze tables have a logical key verified unique against the fixture
+corpus — roughly 300,000 rows across protocols 1 to 29.
 
 This is what a Bronze row *is*, independent of which ingester produced it or
 which store it landed in. It exists because two implementations wrote the
@@ -74,25 +77,28 @@ an entry, not only its latest state.
 `contract_creations` is keyed on the contract alone: a contract is created
 once, and the creating ledger is an attribute, not identity.
 
-### Two tables without a working key
+### Previously without a working key — both closed
 
-Recorded as defects, not omissions.
+Two tables had no usable identity when this contract was drafted. Both were
+upstream problems that no consumer could fix, and `stellar-extract` v0.3.0
+closed them.
 
-**`contract_events` — key in use, 4.0% collisions.** The contract and
-diagnostic event streams index separately, so a contract event and a
-diagnostic event from different contracts can share an operation and event
-index. 4,165 of 104,730 rows collide. Those rows also share an `event_id`,
-so the library cannot distinguish them either — this key is exactly the
-identity `event_id` claims, no more. Tracked as **F13**; the fix is upstream,
-either an index unique across streams within an operation or an `event_id`
-derived from something that separates them.
+**`contract_events`** collided on 4.0% of rows — 4,165 of 104,730. A
+transaction carries three event lists (diagnostic, per-operation,
+transaction-level) and each numbered from zero into the same
+`(operation_index, event_index)` pair, so three different events could land
+on `0:0`. `event_id` was built from that pair and collided with it. The
+index now counts across all three streams, and `EventStream` names which one
+a row came from — `operation_index` was never meaningful on two of the
+three, and diagnostic events had been carrying their position in the
+diagnostic list in that column (**F13**).
 
-**`token_transfers` — no key at all.** The row carries no event index.
-Eight attributes — ledger, transaction, operation, event type, from, to,
-asset, raw amount — still collide once in the corpus, and legitimately: the
-same contract may transfer the same amount between the same parties twice in
-one operation. The live hot buffer has no primary key on this table either.
-Tracked as **F16**; needs an index field from the library.
+**`token_transfers`** had no index at all, and no combination of its
+attributes identifies a transfer: one operation may transfer the same amount
+between the same parties twice. It now carries `EventIndex` (**F16**).
+
+Both changed the value of existing columns, so affected ranges need
+re-ingesting rather than topping up.
 
 ### Rule
 
@@ -378,13 +384,12 @@ accident it cost most of a table.
 | ~~1~~ | ~~`created_at` split~~ — **ratified and implemented**; see §4 | F7 | — |
 | ~~2~~ | ~~Memo encoding~~ — **ratified and implemented**; see §6 | F6 | — |
 | ~~3~~ | ~~Declared subset of Bronze~~ — **ratified**: one shape everywhere; see §7 | F4 | — |
-| 4 | `contract_events` identity — unique index or richer `event_id` | F13 | `stellar-extract` |
-| 5 | `token_transfers` event index | F16 | `stellar-extract` |
+| ~~4~~ | ~~`contract_events` identity~~ — **released** in v0.3.0 | F13 | — |
+| ~~5~~ | ~~`token_transfers` event index~~ — **released** in v0.3.0 | F16 | — |
 
-All three product decisions are ratified and implemented. What remains is
-4 and 5, both upstream in `stellar-extract` and both with a clear shape, plus
-the `transactions` and `ledgers` column sets that decision 3 now settles as
-work rather than questions.
+Nothing is open. What remains is work the ratified rules already decide: the
+`transactions` and `ledgers` column sets under decision 3, and backfilling
+the ranges the identity and units changes invalidated.
 
 ## What is already enforced
 

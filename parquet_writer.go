@@ -330,6 +330,7 @@ type ParquetContractEvent struct {
 	Topic2Decoded            *string `parquet:"topic2_decoded,optional"`
 	Topic3Decoded            *string `parquet:"topic3_decoded,optional"`
 	OperationIndex           uint32  `parquet:"operation_index"`
+	EventStream              string  `parquet:"event_stream"`
 	EventIndex               uint32  `parquet:"event_index"`
 	CreatedAt                int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange              uint32  `parquet:"ledger_range"`
@@ -588,6 +589,7 @@ type ParquetTokenTransfer struct {
 	TransactionID   int64   `parquet:"transaction_id"`
 	OperationID     *int64  `parquet:"operation_id,optional"`
 	OperationIndex  *int32  `parquet:"operation_index,optional"`
+	EventIndex      uint32  `parquet:"event_index"`
 	EventType       string  `parquet:"event_type"`
 	From            *string `parquet:"from,optional"`
 	To              *string `parquet:"to,optional"`
@@ -1285,6 +1287,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				TransactionID:   t.TransactionID,
 				OperationID:     t.OperationID,
 				OperationIndex:  t.OperationIndex,
+				EventIndex:      t.EventIndex,
 				EventType:       t.EventType,
 				From:            t.From,
 				To:              t.To,

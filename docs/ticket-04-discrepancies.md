@@ -114,10 +114,10 @@ protocol-boundary fixture — are not exercised by the fixture set.
 | **F10 ScVal rendering** | **closed** | local converter deleted; both sides use the library's |
 | **F11 `soroban_contract_id`** | open, minor | 1 row of 2,913 |
 | **F12 contract events discarded** | **fixed** | 86% of rows lost on insert; migration 018 |
-| **F13 event identity** | open | `event_id` is not unique; 4% of rows unstorable |
+| **F13 event identity** | **closed** | `stellar-extract` v0.3.0; one index across all three streams |
 | **F14 Parquet all-NULL column** | **fixed** | `tx_max_footprint_entries` never populated |
 | **F15 `claimable_balances`** | open, minor | declares `ingested_at` in SQL, Parquet never writes it |
-| **F16 `token_transfers` has no key** | **new** | no event index; 8-attribute key still collides |
+| **F16 `token_transfers` has no key** | **closed** | `stellar-extract` v0.3.0 adds `event_index` |
 | L1–L4 library gaps | **closed** | `stellar-extract` v0.2.1 |
 
 Three tables still differ:

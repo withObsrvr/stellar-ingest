@@ -22,12 +22,16 @@ package parity
 // table.
 var LogicalKeys = map[string][]string{
 	// Event-stream tables: identity is a position in the ledger.
-	"ledgers":         {"Sequence"},
-	"transactions":    {"LedgerSequence", "TransactionHash"},
-	"operations":      {"LedgerSequence", "TransactionHash", "OperationIndex"},
-	"effects":         {"LedgerSequence", "TransactionHash", "OperationIndex", "EffectIndex"},
-	"trades":          {"LedgerSequence", "TransactionHash", "OperationIndex", "TradeIndex"},
-	"contract_events": {"LedgerSequence", "TransactionHash", "OperationIndex", "EventIndex"},
+	"ledgers":      {"Sequence"},
+	"transactions": {"LedgerSequence", "TransactionHash"},
+	"operations":   {"LedgerSequence", "TransactionHash", "OperationIndex"},
+	"effects":      {"LedgerSequence", "TransactionHash", "OperationIndex", "EffectIndex"},
+	"trades":       {"LedgerSequence", "TransactionHash", "OperationIndex", "TradeIndex"},
+	// EventIndex counts across the transaction's three event streams, so
+	// OperationIndex is not part of the identity — only operation events
+	// have a real one.
+	"contract_events": {"LedgerSequence", "TransactionHash", "EventIndex"},
+	"token_transfers": {"LedgerSequence", "TransactionHash", "EventIndex"},
 
 	// Snapshot tables: identity is the entry, scoped to the ledger whose
 	// close produced the snapshot. LedgerSequence is part of every one of
@@ -59,29 +63,25 @@ var LogicalKeys = map[string][]string{
 // use — and it is the best identity available, but it does not fully
 // separate rows. Recording the rate means a regression shows up as the rate
 // moving rather than as silence.
-var KnownNonUniqueKeys = map[string]string{
-	// The contract and diagnostic event streams index separately, so a
-	// contract event and a diagnostic event from different contracts can
-	// occupy the same operation and event index. Such rows also share an
-	// event_id, so the library cannot distinguish them either: this key is
-	// exactly the identity event_id claims, no more and no less.
-	// Measured at 4.0% of rows across the fixture corpus — 4,165 of
-	// 104,730. See Ticket 04 finding F13; the fix is upstream.
-	"contract_events": "contract and diagnostic streams share an index space; ~4% of rows collide",
-}
+// KnownNonUniqueKeys are keys that are in use and are not unique, with the
+// measured collision rate.
+//
+// Empty. contract_events lived here until stellar-extract v0.3.0 gave each
+// of a transaction's three event streams a shared index counter; before
+// that a diagnostic, an operation and a transaction event could all land on
+// the same pair and roughly 4% of rows collided.
+var KnownNonUniqueKeys = map[string]string{}
 
 // KeylessTables are tables with no verified unique key, and why.
 //
 // Listed rather than omitted: "we have not decided" and "no key exists"
 // are different states, and only one of them is a defect to fix.
-var KeylessTables = map[string]string{
-	// No event index. Two transfers of the same amount between the same
-	// parties for the same asset in one operation are indistinguishable —
-	// legitimate on-chain, and observed once in the fixture corpus even
-	// with eight attributes in the key. The library would have to emit an
-	// index within the operation. See Ticket 04 finding F16.
-	"token_transfers": "no event index; eight-attribute key still collides",
-}
+// KeylessTables are tables with no verified unique key, and why.
+//
+// Empty. token_transfers lived here until stellar-extract v0.3.0 gave it an
+// EventIndex; before that nothing identified a transfer, because one
+// operation may transfer the same amount between the same parties twice.
+var KeylessTables = map[string]string{}
 
 // KeyFor returns a table's logical key, and whether it has one.
 func KeyFor(table string) ([]string, bool) {

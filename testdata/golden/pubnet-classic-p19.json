@@ -81,7 +81,7 @@
     },
     "contract_events": {
       "row_count": 7850,
-      "content_hash": "8f3c0710694b3d32e0ad3884ea26b806",
+      "content_hash": "9c2d5e291baf3ea60355256e1f6ebb1b",
       "columns": [
         "event_id",
         "contract_id",
@@ -102,6 +102,7 @@
         "topic2_decoded",
         "topic3_decoded",
         "operation_index",
+        "event_stream",
         "event_index",
         "ledger_range"
       ],
@@ -111,8 +112,9 @@
         "contract_id": "dba38c6900f9821290c4b8a0423e69f9",
         "data_decoded": "23ce03ecce0d331003dbc836202e158e",
         "data_xdr": "78760956a3035196fc630dce7e93485d",
-        "event_id": "2a8b120bf02a6d6c33a3b2dda7e46d29",
-        "event_index": "90bcd28b0eedebbc759d4262d26a3720",
+        "event_id": "3b96c5fd3f66b8f3f05f060278dc2721",
+        "event_index": "405d10683995d0c9635569e9dcac9c24",
+        "event_stream": "6bb11aa07b1b93f691ac13808d338876",
         "event_type": "4fe8047163ad09a6cac4d6fe7d873f41",
         "in_successful_contract_call": "5b733e5beb94270f0e04c696edd403da",
         "ledger_range": "1f41d5059e459ae1c4f33c9e2e86ca43",
@@ -479,13 +481,14 @@
     },
     "token_transfers": {
       "row_count": 7822,
-      "content_hash": "a982afa0ded3795eae7dac58a747e701",
+      "content_hash": "06d5291d0cd6e8692664618897a80479",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
         "transaction_id",
         "operation_id",
         "operation_index",
+        "event_index",
         "event_type",
         "from",
         "to",
@@ -508,6 +511,7 @@
         "asset_type": "73242b35c4e2f5970b70c808e16311bb",
         "closed_at": "105fa0cd3d12349ee083bcc81b805716",
         "contract_id": "379a2a2848b257f1c1cc86b84825ad43",
+        "event_index": "2fbd3662809619d2a2508c3f120b87c8",
         "event_type": "9923b8c83d3a49311f5dd65179628a68",
         "from": "9e87c548bace8f880a91e2c1a6987c34",
         "ledger_range": "7b8629ce87d6f7e33b8ef35c4827c4be",

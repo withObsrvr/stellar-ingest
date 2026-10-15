@@ -381,6 +381,10 @@ CREATE TABLE IF NOT EXISTS bronze.contract_events_stream_v1 (
     data_decoded TEXT,
     topic_count INTEGER,
     operation_index INTEGER,
+    -- Which of the transaction's three event lists this row came from:
+    -- diagnostic, operation or transaction. Only operation events have a
+    -- real operation_index.
+    event_stream TEXT,
     event_index INTEGER,
     topic0_decoded TEXT,
     topic1_decoded TEXT,
@@ -542,6 +546,8 @@ CREATE TABLE IF NOT EXISTS bronze.token_transfers_stream_v1 (
     transaction_id    BIGINT,
     operation_id      BIGINT,
     operation_index   INTEGER,
+    -- Position within the transaction. Nothing else identifies a transfer.
+    event_index BIGINT,
     event_type        TEXT,
     "from"            TEXT,
     "to"              TEXT,
