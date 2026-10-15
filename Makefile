@@ -85,9 +85,24 @@ test-coverage:
 # Regenerate the recorded CLI surface and diff it against the committed
 # baseline. A non-empty diff means the flag contract changed — intentional
 # changes must update docs/baseline/cli-help.txt in the same commit.
+# Two values in --help depend on where it ran, not on the flag contract, so
+# they are normalised before the diff:
+#
+#   Usage of <path>   the binary's path on disk
+#   --workers default runtime.NumCPU() on the recording machine
+#
+# The workers default is the interesting one. It made this check pass on a
+# 16-core developer machine and fail on a 4-core CI runner, for every commit
+# since the baseline was recorded -- a drift report about the hardware rather
+# than the code. Normalising it to <NumCPU> keeps the rest of the line under
+# comparison and states the machine dependency in the baseline itself.
+# Pinning the default instead is a behaviour change; see "Known gaps" item 4
+# in docs/roadmap.md.
 parity-baseline: build
 	@./bin/$(BINARY_NAME) --help > /tmp/stellar-ingest-help.txt 2>&1 || true
-	@sed -e 's|^Usage of .*:$$|Usage of stellar-ingest:|' /tmp/stellar-ingest-help.txt > /tmp/stellar-ingest-help.norm
+	@sed -e 's|^Usage of .*:$$|Usage of stellar-ingest:|' \
+	     -e 's|^\(\s*Number of parallel workers (default \)[0-9][0-9]*)$$|\1<NumCPU>)|' \
+	     /tmp/stellar-ingest-help.txt > /tmp/stellar-ingest-help.norm
 	@diff -u docs/baseline/cli-help.txt /tmp/stellar-ingest-help.norm \
 	  && echo "✓ CLI surface matches committed baseline" \
 	  || { echo "✗ CLI surface drifted from docs/baseline/cli-help.txt"; exit 1; }

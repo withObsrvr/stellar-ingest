@@ -131,7 +131,11 @@ Recorded so they are not mistaken for things the bootstrap introduced:
 3. **`--network-passphrase` defaults to testnet** — a mainnet run that omits it
    is silently mis-labelled.
 4. **`--workers` defaults to `runtime.NumCPU()`** — runs are not reproducible
-   across machines.
+   across machines. It also made the CLI baseline check machine-dependent:
+   the baseline was recorded on a 16-core machine and failed on a 4-core CI
+   runner for every commit since bootstrap. `make parity-baseline` now
+   normalises that one default to `<NumCPU>`, which fixes the check without
+   deciding the flag. Pinning the default is still the open decision.
 5. **Console banner still reads `=== Stellar History Loader ===`** — left in
    place deliberately to hold output parity; revise with TICKET 06.
 6. **Two live copies of this code** — here and at
