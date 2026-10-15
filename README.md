@@ -26,9 +26,12 @@ It is **behaviour-identical** to that application — same flags, same defaults,
 same output, same exit codes. See [`PROVENANCE.md`](PROVENANCE.md) for exactly
 what changed and what parity was verified.
 
-The incremental refactor toward reusable packages has not started. The
-destination is recorded in
-[`docs/target-architecture.md`](docs/target-architecture.md).
+Incremental refactoring now includes a private worker/Parquet boundary and
+the `internal/bronze/restored` mapper. Most code remains in `package main`;
+no public 21-table Bronze API is claimed. See
+[`docs/module-boundaries.md`](docs/module-boundaries.md),
+[`docs/target-architecture.md`](docs/target-architecture.md), and
+[`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).
 
 ## Build with Nix
 
@@ -116,12 +119,12 @@ duckdb -c "SELECT count(*) FROM read_parquet('/data/output/bronze/**/*.parquet')
 
 ```sh
 make test     # unit suite
-make golden   # hermetic Bronze snapshot suite over 7 committed pubnet fixtures
+make golden   # hermetic Bronze snapshot suite over 8 committed pubnet fixtures
 ```
 
 The golden suite needs no network and no credentials — fixtures are committed
-raw pubnet XDR. It covers 20 of the 21 Bronze tables; `restored_keys` is a
-recorded gap.
+raw pubnet XDR. It covers all 21 Bronze tables, including 22 automatic
+restorations in ledger 61,500,126.
 
 ## Two things that will bite you
 
@@ -198,6 +201,7 @@ listings and shell history. Environment fallbacks are a known gap, recorded in
 | [`docs/phase0-fixtures.md`](docs/phase0-fixtures.md) | Golden fixture plan (TICKET 02) |
 | [`docs/target-architecture.md`](docs/target-architecture.md) | Ownership boundaries and the target package layout |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phases, tickets, and current state |
+| [`docs/ticket-04-developer-handoff.md`](docs/ticket-04-developer-handoff.md) | Historical/live Bronze parity work plan and discrepancy-report acceptance gate |
 | `docs/baseline/cli-help.txt` | Recorded CLI contract, enforced by `make parity-baseline` |
 
 ## Related repositories

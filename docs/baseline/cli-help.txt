@@ -74,4 +74,4 @@ Usage of stellar-ingest:
   -validate
     	Run quality validation checks after extraction
   -workers int
-    	Number of parallel workers (default 16)
+    	Number of parallel workers (default <NumCPU>)

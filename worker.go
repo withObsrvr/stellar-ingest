@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -212,20 +211,28 @@ type prefetchedLedger struct {
 
 const defaultPrefetchBuffer = 200
 
+// shardWriter is the worker's Parquet boundary. Close finalizes file footers;
+// a shard must not be checkpointed as complete until it succeeds. This stays
+// private: it does not represent a DuckLake or PostgreSQL commit contract.
+type shardWriter interface {
+	WriteBatch(*BatchData) error
+	Close() error
+}
+
 // Worker processes a shard of ledgers through the extraction pipeline.
 type Worker struct {
 	id         int
 	shard      Shard
 	config     OrchestratorConfig
 	progress   *ProgressTracker
-	writer     *ParquetWriter
+	writer     shardWriter
 	source     LedgerSource       // shared across workers for XDR mode, per-worker for FS/GCS
 	checkpoint *CheckpointManager // optional, for resume support
 	lineage    *LineageWriter     // optional, for lineage tracking
 }
 
 // NewWorker creates a new Worker for the given shard.
-func NewWorker(id int, shard Shard, config OrchestratorConfig, progress *ProgressTracker, writer *ParquetWriter, source LedgerSource, checkpoint *CheckpointManager, lineage *LineageWriter) *Worker {
+func NewWorker(id int, shard Shard, config OrchestratorConfig, progress *ProgressTracker, writer shardWriter, source LedgerSource, checkpoint *CheckpointManager, lineage *LineageWriter) *Worker {
 	return &Worker{
 		id:         id,
 		shard:      shard,
@@ -424,6 +431,22 @@ func streamSequentialRange(ctx context.Context, start, end uint32, read func(uin
 // decodeLedger unmarshals raw XDR bytes into a LedgerCloseMeta and extracts
 // header metadata. This is done ONCE per ledger (not per extractor).
 func (w *Worker) decodeLedger(sequence uint32, rawXDR []byte) (LedgerMeta, error) {
+	var eraID *string
+	if w.config.EraID != "" {
+		eraID = &w.config.EraID
+	}
+	return decodeLedgerMeta(sequence, rawXDR, eraID)
+}
+
+// decodeLedgerMeta is the worker-independent half of decodeLedger.
+//
+// It is separate so that the Ticket 04 parity harness enters the Bronze
+// mapping through exactly the decode the production worker uses. A harness
+// that reimplemented this — the close-time conversion and the 10,000-ledger
+// range bucket in particular — would be comparing its own derivation of
+// closed_at against the live ingester's, and a drift between the two would
+// surface as a data discrepancy in every table that carries a timestamp.
+func decodeLedgerMeta(sequence uint32, rawXDR []byte, eraID *string) (LedgerMeta, error) {
 	var lcm xdr.LedgerCloseMeta
 	if err := lcm.UnmarshalBinary(rawXDR); err != nil {
 		return LedgerMeta{}, fmt.Errorf("unmarshal XDR: %w", err)
@@ -437,11 +460,6 @@ func (w *Worker) decodeLedger(sequence uint32, rawXDR []byte) (LedgerMeta, error
 	// Sanity check
 	if ledgerSeq != sequence {
 		return LedgerMeta{}, fmt.Errorf("sequence mismatch: expected %d, got %d", sequence, ledgerSeq)
-	}
-
-	var eraID *string
-	if w.config.EraID != "" {
-		eraID = &w.config.EraID
 	}
 
 	return LedgerMeta{
@@ -460,11 +478,16 @@ type extractorResult struct {
 	err  error
 }
 
-// extractLedger fans out to all 21 extractors in parallel, each receiving the
-// already-decoded LCM. Results are collected and merged into a single LedgerData.
+// extractLedger preserves the worker call site while keeping the mapping
+// independent of scheduling, sources, sinks, and checkpoint state.
 func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
+	return extractBronzeLedger(meta, w.config.NetworkPassphrase, w.config.OnlyTables, w.id)
+}
+
+// extractBronzeLedger fans out to all 21 extractors over an already-decoded
+// ledger. It is not exported yet: the live consumer's contract is unresolved.
+func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool, workerID int) (*LedgerData, error) {
 	lcm := meta.LCM
-	np := w.config.NetworkPassphrase
 	lr := meta.LedgerRange
 
 	resultCh := make(chan extractorResult, len(extractorOutputDirByName))
@@ -473,7 +496,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 
 	// Helper to launch an extractor goroutine
 	launch := func(name string, fn func() (*LedgerData, error)) {
-		if !w.shouldExtractTable(name) {
+		if !shouldExtractTable(onlyTables, name) {
 			return
 		}
 		launched++
@@ -493,18 +516,17 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 	// Fan out to all extractors. Transactions use the local extractor because it
 	// carries Horizon XDR/signature fields not yet exposed by stellar-extract.
 	launch("transactions", func() (*LedgerData, error) {
-		rows, err := extractTransactions(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractTransactions(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
 		for i := range rows {
 			rows[i].EraID = meta.EraID
-			sanitizeTransactionMemo(&rows[i])
 		}
 		return &LedgerData{Transactions: rows}, nil
 	})
 	launch("operations", func() (*LedgerData, error) {
-		rows, err := extractOperations(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractOperations(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -533,7 +555,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{Trades: rows}, nil
 	})
 	launch("accounts", func() (*LedgerData, error) {
-		rows, err := extractAccounts(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractAccounts(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -636,7 +658,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		for i, r := range libRows {
 			rows[i] = ContractEventData(r)
 			if repairs := sanitizeContractEventUTF8(&rows[i]); repairs > 0 {
-				log.Printf("[Worker %d] contract_events utf8_repaired ledger=%d event_id=%s repairs=%d", w.id, meta.LedgerSequence, rows[i].EventID, repairs)
+				log.Printf("[Worker %d] contract_events utf8_repaired ledger=%d event_id=%s repairs=%d", workerID, meta.LedgerSequence, rows[i].EventID, repairs)
 			}
 		}
 		return &LedgerData{ContractEvents: rows}, nil
@@ -675,13 +697,12 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{NativeBalances: rows}, nil
 	})
 	launch("restored_keys", func() (*LedgerData, error) {
-		libRows, err := extract.ExtractRestoredKeys(libInput)
+		// The pinned library v0.1.2 scans operations and misses automatic
+		// restorations. Keep this mapping local until a full library upgrade
+		// can be reconciled against the other 20 tables' goldens.
+		rows, err := extractRestoredKeys(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, lr)
 		if err != nil {
 			return nil, err
-		}
-		rows := make([]RestoredKeyData, len(libRows))
-		for i, r := range libRows {
-			rows[i] = RestoredKeyData(r)
 		}
 		return &LedgerData{RestoredKeys: rows}, nil
 	})
@@ -697,7 +718,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 		return &LedgerData{ContractCreations: rows}, nil
 	})
 	launch("ledgers", func() (*LedgerData, error) {
-		rows, err := extractLedgers(meta.LCM, w.config.NetworkPassphrase, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
+		rows, err := extractLedgers(meta.LCM, np, meta.LedgerSequence, meta.ClosedAt, meta.LedgerRange)
 		if err != nil {
 			return nil, err
 		}
@@ -716,7 +737,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 	})
 
 	if launched == 0 {
-		return nil, fmt.Errorf("no extractors selected by --only-tables=%q", tableSetKey(w.config.OnlyTables))
+		return nil, fmt.Errorf("no extractors selected by --only-tables=%q", tableSetKey(onlyTables))
 	}
 
 	// Wait for all extractors to complete, then close the results channel
@@ -761,7 +782,7 @@ func (w *Worker) extractLedger(meta LedgerMeta) (*LedgerData, error) {
 
 	if len(extractErrors) > 0 {
 		for _, err := range extractErrors {
-			log.Printf("[Worker %d] extractor error on ledger %d: %v", w.id, meta.LedgerSequence, err)
+			log.Printf("[Worker %d] extractor error on ledger %d: %v", workerID, meta.LedgerSequence, err)
 		}
 		return nil, fmt.Errorf("%d extractor(s) failed for ledger %d", len(extractErrors), meta.LedgerSequence)
 	}
@@ -792,6 +813,7 @@ func convertExtractedConfigSetting(r extract.ConfigSettingData) ConfigSettingDat
 		TxMaxReadBytes:                  r.TxMaxReadBytes,
 		TxMaxWriteLedgerEntries:         r.TxMaxWriteLedgerEntries,
 		TxMaxWriteBytes:                 r.TxMaxWriteBytes,
+		TxMaxFootprintEntries:           r.TxMaxFootprintEntries,
 		ContractMaxSizeBytes:            r.ContractMaxSizeBytes,
 		ConfigSettingXDR:                r.ConfigSettingXDR,
 		CreatedAt:                       r.CreatedAt,
@@ -803,12 +825,16 @@ func convertExtractedConfigSetting(r extract.ConfigSettingData) ConfigSettingDat
 }
 
 func (w *Worker) shouldExtractTable(name string) bool {
-	if len(w.config.OnlyTables) == 0 {
+	return shouldExtractTable(w.config.OnlyTables, name)
+}
+
+func shouldExtractTable(onlyTables map[string]bool, name string) bool {
+	if len(onlyTables) == 0 {
 		return true
 	}
 	sourceName := extractorOutputDir(name)
 	duckTableName := mapToDuckLakeTable(sourceName)
-	return tableSetIncludes(w.config.OnlyTables, name, sourceName, duckTableName)
+	return tableSetIncludes(onlyTables, name, sourceName, duckTableName)
 }
 
 // stampEraID sets the EraID field on every row in every table slice.
@@ -922,13 +948,3 @@ func NewParquetWriter(outputDir string, workerID int, pipelineVersion string) (*
 
 // extractRestoredKeys     — see extractors_soroban.go
 // extractContractCreations — see extractors_soroban.go
-
-func sanitizeTransactionMemo(tx *TransactionData) {
-	if tx == nil || tx.MemoType == nil || tx.Memo == nil || *tx.MemoType != "text" {
-		return
-	}
-	memoType := "text_base64"
-	memo := base64.StdEncoding.EncodeToString([]byte(*tx.Memo))
-	tx.MemoType = &memoType
-	tx.Memo = &memo
-}

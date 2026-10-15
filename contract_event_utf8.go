@@ -75,6 +75,7 @@ func parquetContractEventFromData(event ContractEventData, pipelineVersion strin
 		Topic2Decoded:            event.Topic2Decoded,
 		Topic3Decoded:            event.Topic3Decoded,
 		OperationIndex:           event.OperationIndex,
+		EventStream:              event.EventStream,
 		EventIndex:               event.EventIndex,
 		CreatedAt:                event.CreatedAt.UnixMicro(),
 		LedgerRange:              event.LedgerRange,

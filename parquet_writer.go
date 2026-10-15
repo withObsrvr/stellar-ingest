@@ -139,7 +139,8 @@ type ParquetTransaction struct {
 	OperationCount               int32   `parquet:"operation_count"`
 	MemoType                     *string `parquet:"memo_type,optional"`
 	Memo                         *string `parquet:"memo,optional"`
-	CreatedAt                    int64   `parquet:"created_at,timestamp(microsecond)"`
+	MemoRaw                      *string `parquet:"memo_raw,optional"`
+	CreatedAt                    int64   `parquet:"closed_at,timestamp(microsecond)"`
 	AccountSequence              int64   `parquet:"account_sequence"`
 	LedgerRange                  uint32  `parquet:"ledger_range"`
 	SignaturesCount              int32   `parquet:"signatures_count"`
@@ -172,7 +173,7 @@ type ParquetOperation struct {
 	SourceAccountMuxed          *string `parquet:"source_account_muxed,optional"`
 	OpType                      int32   `parquet:"type"`
 	TypeString                  string  `parquet:"type_string"`
-	CreatedAt                   int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt                   int64   `parquet:"closed_at,timestamp(microsecond)"`
 	TransactionSuccessful       bool    `parquet:"transaction_successful"`
 	OperationResultCode         *string `parquet:"operation_result_code,optional"`
 	LedgerRange                 uint32  `parquet:"ledger_range"`
@@ -250,7 +251,7 @@ type ParquetEffect struct {
 	SellerAccount    *string `parquet:"seller_account,optional"`
 	OperationID      *int64  `parquet:"operation_id,optional"`
 	DetailsJSON      *string `parquet:"details_json,optional"`
-	CreatedAt        int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt        int64   `parquet:"closed_at,timestamp(microsecond)"`
 	LedgerRange      uint32  `parquet:"ledger_range"`
 	EraID            *string `parquet:"era_id,optional"`
 	PipelineVersion  string  `parquet:"version_label"`
@@ -272,7 +273,8 @@ type ParquetTrade struct {
 	BuyingAssetIssuer  *string `parquet:"buying_asset_issuer,optional"`
 	BuyingAmount       string  `parquet:"buying_amount"`
 	Price              string  `parquet:"price"`
-	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
+	LiquidityPoolID    *string `parquet:"liquidity_pool_id,optional"`
+	CreatedAt          int64   `parquet:"closed_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
 	PipelineVersion    string  `parquet:"version_label"`
@@ -301,7 +303,7 @@ type ParquetAccount struct {
 	AuthClawbackEnabled bool    `parquet:"auth_clawback_enabled"`
 	Signers             *string `parquet:"signers,optional"`
 	SponsorAccount      *string `parquet:"sponsor_account,optional"`
-	CreatedAt           int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt           int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	UpdatedAt           int64   `parquet:"updated_at,timestamp(microsecond)"`
 	LedgerRange         uint32  `parquet:"ledger_range"`
 	EraID               *string `parquet:"era_id,optional"`
@@ -328,8 +330,9 @@ type ParquetContractEvent struct {
 	Topic2Decoded            *string `parquet:"topic2_decoded,optional"`
 	Topic3Decoded            *string `parquet:"topic3_decoded,optional"`
 	OperationIndex           uint32  `parquet:"operation_index"`
+	EventStream              string  `parquet:"event_stream"`
 	EventIndex               uint32  `parquet:"event_index"`
-	CreatedAt                int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt                int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange              uint32  `parquet:"ledger_range"`
 	EraID                    *string `parquet:"era_id,optional"`
 	PipelineVersion          string  `parquet:"version_label"`
@@ -365,7 +368,7 @@ type ParquetOffer struct {
 	Amount             string  `parquet:"amount"`
 	Price              string  `parquet:"price"`
 	Flags              uint32  `parquet:"flags"`
-	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt          int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
 	PipelineVersion    string  `parquet:"version_label"`
@@ -384,7 +387,7 @@ type ParquetTrustline struct {
 	AuthorizedToMaintainLiabilities bool    `parquet:"authorized_to_maintain_liabilities"`
 	ClawbackEnabled                 bool    `parquet:"clawback_enabled"`
 	LedgerSequence                  uint32  `parquet:"ledger_sequence"`
-	CreatedAt                       int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt                       int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange                     uint32  `parquet:"ledger_range"`
 	EraID                           *string `parquet:"era_id,optional"`
 	PipelineVersion                 string  `parquet:"version_label"`
@@ -398,7 +401,7 @@ type ParquetAccountSigner struct {
 	Sponsor         string  `parquet:"sponsor"`
 	Deleted         bool    `parquet:"deleted"`
 	ClosedAt        int64   `parquet:"closed_at,timestamp(microsecond)"`
-	CreatedAt       int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt       int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange     uint32  `parquet:"ledger_range"`
 	EraID           *string `parquet:"era_id,optional"`
 	PipelineVersion string  `parquet:"version_label"`
@@ -436,7 +439,7 @@ type ParquetLiquidityPool struct {
 	AssetBCode      *string `parquet:"asset_b_code,optional"`
 	AssetBIssuer    *string `parquet:"asset_b_issuer,optional"`
 	AssetBAmount    int64   `parquet:"asset_b_amount"`
-	CreatedAt       int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt       int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange     uint32  `parquet:"ledger_range"`
 	EraID           *string `parquet:"era_id,optional"`
 	PipelineVersion string  `parquet:"version_label"`
@@ -451,7 +454,7 @@ type ParquetTTL struct {
 	LastModifiedLedger int32   `parquet:"last_modified_ledger"`
 	Deleted            bool    `parquet:"deleted"`
 	ClosedAt           int64   `parquet:"closed_at,timestamp(microsecond)"`
-	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt          int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
 	PipelineVersion    string  `parquet:"version_label"`
@@ -464,7 +467,7 @@ type ParquetEvictedKey struct {
 	KeyType         string  `parquet:"key_type"`
 	Durability      string  `parquet:"durability"`
 	ClosedAt        int64   `parquet:"closed_at,timestamp(microsecond)"`
-	CreatedAt       int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt       int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange     uint32  `parquet:"ledger_range"`
 	EraID           *string `parquet:"era_id,optional"`
 	PipelineVersion string  `parquet:"version_label"`
@@ -489,7 +492,7 @@ type ParquetContractData struct {
 	TokenName          *string `parquet:"token_name,optional"`
 	TokenSymbol        *string `parquet:"token_symbol,optional"`
 	TokenDecimals      *int32  `parquet:"token_decimals,optional"`
-	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt          int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
 	PipelineVersion    string  `parquet:"version_label"`
@@ -514,7 +517,7 @@ type ParquetContractCode struct {
 	NImports           *int64  `parquet:"n_imports,optional"`
 	NExports           *int64  `parquet:"n_exports,optional"`
 	NDataSegmentBytes  *int64  `parquet:"n_data_segment_bytes,optional"`
-	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt          int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
 	PipelineVersion    string  `parquet:"version_label"`
@@ -528,21 +531,27 @@ type ParquetRestoredKey struct {
 	Durability         string  `parquet:"durability"`
 	RestoredFromLedger uint32  `parquet:"restored_from_ledger"`
 	ClosedAt           int64   `parquet:"closed_at,timestamp(microsecond)"`
-	CreatedAt          int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt          int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange        uint32  `parquet:"ledger_range"`
 	EraID              *string `parquet:"era_id,optional"`
 	PipelineVersion    string  `parquet:"version_label"`
 }
 
 type ParquetContractCreation struct {
-	ContractID      string  `parquet:"contract_id"`
-	CreatorAddress  string  `parquet:"creator_address"`
-	WasmHash        *string `parquet:"wasm_hash,optional"`
-	CreatedLedger   uint32  `parquet:"created_ledger"`
-	CreatedAt       int64   `parquet:"created_at,timestamp(microsecond)"`
-	LedgerRange     uint32  `parquet:"ledger_range"`
-	EraID           *string `parquet:"era_id,optional"`
-	PipelineVersion string  `parquet:"version_label"`
+	ContractID     string  `parquet:"contract_id"`
+	CreatorAddress string  `parquet:"creator_address"`
+	WasmHash       *string `parquet:"wasm_hash,optional"`
+	// ExecutableType records the deployment kind explicitly. A NULL
+	// wasm_hash no longer implies a SAC: Protocol 28 added external_ref as
+	// a third kind, and the inference broke silently when it arrived.
+	ExecutableType   string  `parquet:"executable_type"`
+	ExternalRefOwner *string `parquet:"external_ref_owner,optional"`
+	ExternalRefTag   *string `parquet:"external_ref_tag,optional"`
+	CreatedLedger    uint32  `parquet:"created_ledger"`
+	CreatedAt        int64   `parquet:"closed_at,timestamp(microsecond)"`
+	LedgerRange      uint32  `parquet:"ledger_range"`
+	EraID            *string `parquet:"era_id,optional"`
+	PipelineVersion  string  `parquet:"version_label"`
 }
 
 type ParquetConfigSetting struct {
@@ -563,9 +572,10 @@ type ParquetConfigSetting struct {
 	TxMaxReadBytes                  *int64  `parquet:"tx_max_read_bytes,optional"`
 	TxMaxWriteLedgerEntries         *int64  `parquet:"tx_max_write_ledger_entries,optional"`
 	TxMaxWriteBytes                 *int64  `parquet:"tx_max_write_bytes,optional"`
+	TxMaxFootprintEntries           *int64  `parquet:"tx_max_footprint_entries,optional"`
 	ContractMaxSizeBytes            *int64  `parquet:"contract_max_size_bytes,optional"`
 	ConfigSettingXDR                string  `parquet:"config_setting_xdr"`
-	CreatedAt                       int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt                       int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange                     uint32  `parquet:"ledger_range"`
 	EraID                           *string `parquet:"era_id,optional"`
 	PipelineVersion                 string  `parquet:"version_label"`
@@ -579,6 +589,7 @@ type ParquetTokenTransfer struct {
 	TransactionID   int64   `parquet:"transaction_id"`
 	OperationID     *int64  `parquet:"operation_id,optional"`
 	OperationIndex  *int32  `parquet:"operation_index,optional"`
+	EventIndex      uint32  `parquet:"event_index"`
 	EventType       string  `parquet:"event_type"`
 	From            *string `parquet:"from,optional"`
 	To              *string `parquet:"to,optional"`
@@ -590,7 +601,7 @@ type ParquetTokenTransfer struct {
 	AmountRaw       string  `parquet:"amount_raw"`
 	ContractID      string  `parquet:"contract_id"`
 	ClosedAt        int64   `parquet:"closed_at,timestamp(microsecond)"`
-	CreatedAt       int64   `parquet:"created_at,timestamp(microsecond)"`
+	CreatedAt       int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange     uint32  `parquet:"ledger_range"`
 	EraID           *string `parquet:"era_id,optional"`
 	PipelineVersion string  `parquet:"version_label"`
@@ -625,7 +636,7 @@ type ParquetLedger struct {
 	SorobanOpCount       *int32  `parquet:"soroban_op_count,optional"`
 	TotalFeeCharged      *int64  `parquet:"total_fee_charged,optional"`
 	ContractEventsCount  *int32  `parquet:"contract_events_count,optional"`
-	IngestionTimestamp   int64   `parquet:"ingestion_timestamp,timestamp(microsecond)"`
+	IngestionTimestamp   int64   `parquet:"ingested_at,timestamp(microsecond)"`
 	LedgerRange          uint32  `parquet:"ledger_range"`
 	EraID                *string `parquet:"era_id,optional"`
 	PipelineVersion      string  `parquet:"version_label"`
@@ -711,6 +722,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				OperationCount:               int32(t.OperationCount),
 				MemoType:                     t.MemoType,
 				Memo:                         t.Memo,
+				MemoRaw:                      t.MemoRaw,
 				CreatedAt:                    t.CreatedAt.UnixMicro(),
 				AccountSequence:              t.AccountSequence,
 				LedgerRange:                  t.LedgerRange,
@@ -907,6 +919,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				BuyingAssetIssuer:  t.BuyingAssetIssuer,
 				BuyingAmount:       t.BuyingAmount,
 				Price:              t.Price,
+				LiquidityPoolID:    t.LiquidityPoolID,
 				CreatedAt:          t.CreatedAt.UnixMicro(),
 				LedgerRange:        t.LedgerRange,
 				EraID:              t.EraID,
@@ -1077,6 +1090,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				TxMaxReadBytes:                  uint32ToInt64Ptr(c.TxMaxReadBytes),
 				TxMaxWriteLedgerEntries:         uint32ToInt64Ptr(c.TxMaxWriteLedgerEntries),
 				TxMaxWriteBytes:                 uint32ToInt64Ptr(c.TxMaxWriteBytes),
+				TxMaxFootprintEntries:           uint32ToInt64Ptr(c.TxMaxFootprintEntries),
 				ContractMaxSizeBytes:            uint32ToInt64Ptr(c.ContractMaxSizeBytes),
 				ConfigSettingXDR:                c.ConfigSettingXDR,
 				CreatedAt:                       c.CreatedAt.UnixMicro(),
@@ -1186,7 +1200,9 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 		for i, c := range batch.ContractCreations {
 			rows[i] = ParquetContractCreation{
 				ContractID: c.ContractID, CreatorAddress: c.CreatorAddress, WasmHash: c.WasmHash,
-				CreatedLedger: c.CreatedLedger, CreatedAt: c.CreatedAt.UnixMicro(), LedgerRange: c.LedgerRange,
+				ExecutableType: c.ExecutableType, ExternalRefOwner: c.ExternalRefOwner,
+				ExternalRefTag: c.ExternalRefTag,
+				CreatedLedger:  c.CreatedLedger, CreatedAt: c.CreatedAt.UnixMicro(), LedgerRange: c.LedgerRange,
 				EraID: c.EraID, PipelineVersion: pw.pipelineVersion,
 			}
 		}
@@ -1271,6 +1287,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				TransactionID:   t.TransactionID,
 				OperationID:     t.OperationID,
 				OperationIndex:  t.OperationIndex,
+				EventIndex:      t.EventIndex,
 				EventType:       t.EventType,
 				From:            t.From,
 				To:              t.To,

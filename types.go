@@ -54,19 +54,24 @@ type TransactionData struct {
 	OperationCount        int
 	MemoType              *string
 	Memo                  *string
-	CreatedAt             time.Time
-	AccountSequence       int64
-	LedgerRange           uint32
-	SignaturesCount       int
-	TxEnvelope            *string
-	EnvelopeSizeBytes     int
-	TxResult              *string
-	TxMeta                *string
-	TxFeeMeta             *string
-	TxSigners             *string
-	NewAccount            bool
-	TimeboundsMinTime     *int64
-	TimeboundsMaxTime     *int64
+	// MemoRaw is base64 of the raw memo bytes, set for text memos only.
+	// It is the authoritative value: MemoText need not be valid UTF-8, and
+	// Memo is NULL when it is not. id, hash and return memos are already
+	// lossless as decimal and hex, so MemoRaw stays NULL for them.
+	MemoRaw           *string
+	CreatedAt         time.Time
+	AccountSequence   int64
+	LedgerRange       uint32
+	SignaturesCount   int
+	TxEnvelope        *string
+	EnvelopeSizeBytes int
+	TxResult          *string
+	TxMeta            *string
+	TxFeeMeta         *string
+	TxSigners         *string
+	NewAccount        bool
+	TimeboundsMinTime *int64
+	TimeboundsMaxTime *int64
 	// Soroban fields
 	SorobanHostFunctionType *string
 	SorobanContractID       *string
@@ -237,6 +242,14 @@ type TradeData struct {
 
 	// Price
 	Price string
+
+	// Pool
+	//
+	// LiquidityPoolID is the hex-encoded pool hash, non-nil exactly when
+	// TradeType is "liquidity_pool". An AMM match has no resting offer and
+	// no counterparty account, so SellerAccount is empty on those rows and
+	// this identifies the pool instead.
+	LiquidityPoolID *string
 
 	// Metadata
 	CreatedAt   time.Time
@@ -462,6 +475,11 @@ type ConfigSettingData struct {
 	TxMaxWriteLedgerEntries     *uint32
 	TxMaxWriteBytes             *uint32
 
+	// TxMaxFootprintEntries is CAP-0062's per-transaction cap on declared
+	// footprint entries. It arrives in its own config setting entry
+	// (ContractLedgerCostExtV0), not alongside the ledger-wide limits above.
+	TxMaxFootprintEntries *uint32
+
 	// Contract size limit (1 field, nullable)
 	ContractMaxSizeBytes *uint32
 
@@ -553,7 +571,13 @@ type ContractEventData struct {
 
 	// Context (2 fields)
 	OperationIndex uint32
-	EventIndex     uint32
+	// EventStream names which of a transaction's three event lists this row
+	// came from: "diagnostic", "operation" or "transaction". Only operation
+	// events have a real OperationIndex.
+	EventStream string
+	// EventIndex is the row's position within its transaction, counted
+	// across all three streams, which is what makes it a key component.
+	EventIndex uint32
 
 	// Metadata (2 fields)
 	CreatedAt   time.Time
@@ -740,10 +764,17 @@ type ContractCreationData struct {
 	ContractID     string
 	CreatorAddress string
 	WasmHash       *string
-	CreatedLedger  uint32
-	CreatedAt      time.Time
-	LedgerRange    uint32
-	EraID          *string
+	// ExecutableType is "wasm", "stellar_asset", or "external_ref"
+	// (Protocol 28, CAP-0085). It exists because a nil WasmHash alone no
+	// longer implies a SAC deployment: the inference this replaced broke
+	// when the third kind arrived, and it broke silently.
+	ExecutableType   string
+	ExternalRefOwner *string
+	ExternalRefTag   *string
+	CreatedLedger    uint32
+	CreatedAt        time.Time
+	LedgerRange      uint32
+	EraID            *string
 }
 
 // TokenTransferData represents a unified token transfer event (token_transfers_stream_v1)
@@ -751,23 +782,27 @@ type ContractCreationData struct {
 type TokenTransferData struct {
 	LedgerSequence  uint32
 	TransactionHash string
-	TransactionID   int64   // TOID of parent transaction
-	OperationID     *int64  // TOID of parent operation (nullable - fee events have no operation)
-	OperationIndex  *int32  // 1-indexed (nullable)
-	EventType       string  // transfer, mint, burn, clawback, fee
-	From            *string // nullable (mint has no from)
-	To              *string // nullable (burn/clawback/fee have no to)
-	Asset           string  // canonical: "native" or "credit_alphanum4:CODE:ISSUER"
-	AssetType       string  // native, credit_alphanum4, credit_alphanum12
-	AssetCode       *string // nullable (native has none)
-	AssetIssuer     *string // nullable
-	Amount          float64 // human-readable (stroops * 0.0000001)
-	AmountRaw       string  // raw stroops string from SDK
-	ContractID      string
-	ClosedAt        time.Time
-	CreatedAt       time.Time
-	LedgerRange     uint32
-	EraID           *string
+	TransactionID   int64  // TOID of parent transaction
+	OperationID     *int64 // TOID of parent operation (nullable - fee events have no operation)
+	OperationIndex  *int32 // 1-indexed (nullable)
+	// EventIndex is the row's position within its transaction. Nothing else
+	// identifies a transfer: one operation may transfer the same amount
+	// between the same parties twice.
+	EventIndex  uint32
+	EventType   string  // transfer, mint, burn, clawback, fee
+	From        *string // nullable (mint has no from)
+	To          *string // nullable (burn/clawback/fee have no to)
+	Asset       string  // canonical: "native" or "credit_alphanum4:CODE:ISSUER"
+	AssetType   string  // native, credit_alphanum4, credit_alphanum12
+	AssetCode   *string // nullable (native has none)
+	AssetIssuer *string // nullable
+	Amount      float64 // human-readable (stroops * 0.0000001)
+	AmountRaw   string  // raw stroops string from SDK
+	ContractID  string
+	ClosedAt    time.Time
+	CreatedAt   time.Time
+	LedgerRange uint32
+	EraID       *string
 }
 
 // WASMMetadata holds parsed metadata from a WASM binary

@@ -1,9 +1,11 @@
 # Target architecture
 
-The agreed destination for the incremental refactor. Recorded now, at bootstrap
-time, so that Phase 2 has a decided endpoint rather than relitigating layout
-per pull request. **Nothing in this document is implemented yet** — the
-repository is currently one flat `package main`.
+The agreed destination for the incremental refactor. Recorded at bootstrap
+so Phase 2 has a decided endpoint. The CLI and most application code remain a
+flat `package main`; a private `internal/bronze/restored` package and a
+worker-independent mapping entry point are now implemented. See
+[`module-boundaries.md`](module-boundaries.md) for the **current** layout.
+The rest of the tree below is a target, not a description of today's code.
 
 ## The principle
 

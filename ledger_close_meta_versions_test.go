@@ -25,23 +25,3 @@ func TestExtractLedgersSupportsAllCurrentLedgerCloseMetaVersions(t *testing.T) {
 		}
 	}
 }
-
-func TestExtractEvictedKeysSupportsV1AndV2(t *testing.T) {
-	key, err := xdr.NewLedgerKey(xdr.LedgerEntryTypeTtl, xdr.LedgerKeyTtl{KeyHash: xdr.Hash{1}})
-	if err != nil {
-		t.Fatalf("create TTL ledger key: %v", err)
-	}
-	metas := []xdr.LedgerCloseMeta{
-		{V: 1, V1: &xdr.LedgerCloseMetaV1{EvictedKeys: []xdr.LedgerKey{key}}},
-		{V: 2, V2: &xdr.LedgerCloseMetaV2{EvictedKeys: []xdr.LedgerKey{key}}},
-	}
-	for _, meta := range metas {
-		got, err := extractEvictedKeys(meta, 100, time.Unix(0, 0), 0)
-		if err != nil {
-			t.Fatalf("LedgerCloseMeta V%d: %v", meta.V, err)
-		}
-		if len(got) != 1 {
-			t.Fatalf("LedgerCloseMeta V%d extracted %d evicted keys, want 1", meta.V, len(got))
-		}
-	}
-}

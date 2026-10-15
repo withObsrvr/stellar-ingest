@@ -1,6 +1,7 @@
 .PHONY: all build build-compat build-all build-offline run clean test test-race test-coverage \
         deps vendor fmt vet lint install parity-baseline golden golden-update \
-        nix-build nix-run nix-shell nix-check nix-docker \
+        parity-export parity-live parity-report parity-matrix parity-baseline-update \
+        nix-build nix-run nix-shell nix-check nix-docker nix-vendor-hash \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
         ci-build release help
 
@@ -84,9 +85,24 @@ test-coverage:
 # Regenerate the recorded CLI surface and diff it against the committed
 # baseline. A non-empty diff means the flag contract changed — intentional
 # changes must update docs/baseline/cli-help.txt in the same commit.
+# Two values in --help depend on where it ran, not on the flag contract, so
+# they are normalised before the diff:
+#
+#   Usage of <path>   the binary's path on disk
+#   --workers default runtime.NumCPU() on the recording machine
+#
+# The workers default is the interesting one. It made this check pass on a
+# 16-core developer machine and fail on a 4-core CI runner, for every commit
+# since the baseline was recorded -- a drift report about the hardware rather
+# than the code. Normalising it to <NumCPU> keeps the rest of the line under
+# comparison and states the machine dependency in the baseline itself.
+# Pinning the default instead is a behaviour change; see "Known gaps" item 4
+# in docs/roadmap.md.
 parity-baseline: build
 	@./bin/$(BINARY_NAME) --help > /tmp/stellar-ingest-help.txt 2>&1 || true
-	@sed -e 's|^Usage of .*:$$|Usage of stellar-ingest:|' /tmp/stellar-ingest-help.txt > /tmp/stellar-ingest-help.norm
+	@sed -e 's|^Usage of .*:$$|Usage of stellar-ingest:|' \
+	     -e 's|^\(\s*Number of parallel workers (default \)[0-9][0-9]*)$$|\1<NumCPU>)|' \
+	     /tmp/stellar-ingest-help.txt > /tmp/stellar-ingest-help.norm
 	@diff -u docs/baseline/cli-help.txt /tmp/stellar-ingest-help.norm \
 	  && echo "✓ CLI surface matches committed baseline" \
 	  || { echo "✗ CLI surface drifted from docs/baseline/cli-help.txt"; exit 1; }
@@ -101,6 +117,52 @@ golden:
 golden-update:
 	$(GOTEST) -run TestGoldenBronzeOutputs -update ./...
 	@echo "✓ goldens regenerated — review the diff before committing"
+
+# ---- Ticket 04 Bronze parity ------------------------------------------------
+#
+# Compares this repository's Bronze mapping against the live
+# stellar-postgres-ingester over identical authoritative XDR. The two pin
+# different stellar-extract versions and cannot be linked into one binary, so
+# each side exports canonical rows from its own process and the comparison
+# runs over the artifacts. See docs/ticket-04-progress.md.
+#
+# Full run:
+#   make parity-export && make parity-live && make parity-report
+#
+# PARITY_DIR holds the artifacts; the row sets are build output, not fixtures.
+PARITY_DIR  ?= build/parity
+LIVE_INGESTER ?= ../ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester/go
+
+# Historical side: decompress fixtures, extract twice (the second pass is the
+# non-determinism control), write digests and canonical rows.
+parity-export:
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityExportHistorical -timeout 30m -v .
+
+# Live side: runs in the sibling repository against the XDR just exported.
+parity-live:
+	@test -d $(LIVE_INGESTER) || { \
+	  echo "✗ live ingester not found at $(LIVE_INGESTER); set LIVE_INGESTER=<path>"; exit 1; }
+	cd $(LIVE_INGESTER) && PARITY_DIR=$(abspath $(PARITY_DIR)) go test -run TestParityExportLive -timeout 30m -v .
+
+# Comparison over both sides' artifacts, including the row-level drill-down.
+parity-report:
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityCompare -timeout 30m -v .
+	@echo "✓ report → $(PARITY_DIR)/report/summary.md"
+
+# Regenerate the reviewed matrix from the committed digests. Hermetic.
+parity-matrix:
+	$(GOTEST) -run TestParityMatrixUpdate -update .
+	@echo "✓ docs/ticket-04-parity-matrix.md regenerated — review the diff"
+
+# Promote a fresh export to the committed baselines. Never run this to make a
+# failing regression test pass: the baselines are the reviewed record of what
+# each side produced at a pinned revision.
+parity-baseline-update: parity-export
+	cp $(PARITY_DIR)/historical/*.digest.json testdata/parity/historical/
+	@test -d $(PARITY_DIR)/live && cp $(PARITY_DIR)/live/*.digest.json testdata/parity/live/ \
+	  || echo "note: no live digests in $(PARITY_DIR); run make parity-live first to refresh that side"
+	$(MAKE) parity-matrix
+	@echo "✓ baselines updated — review the diff before committing"
 
 fmt:
 	$(GOCMD) fmt ./...
@@ -138,6 +200,27 @@ clean:
 
 nix-build:
 	nix build .#stellar-ingest
+
+# Recompute flake.nix's vendorHash after a dependency change.
+#
+# buildGoModule pins the fetched module set by content hash, so editing
+# go.mod or go.sum invalidates it and the nix build fails with a mismatch.
+# Nothing in `make test` catches that — the Go toolchain does not use the
+# flake — so CI is the first thing to notice unless this is run.
+#
+# Works by asking for a hash that cannot be right and reading the real one
+# out of the resulting error.
+nix-vendor-hash:
+	@echo "→ recomputing vendorHash (this fetches the module set)"
+	@sed -i 's|vendorHash = "sha256-[^"]*";|vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";|' flake.nix
+	@HASH=$$(nix build .#stellar-ingest 2>&1 | awk '/got:/ {print $$2}' | head -1); \
+	  if [ -z "$$HASH" ]; then \
+	    echo "✗ no hash reported — the build may have failed for another reason"; \
+	    git checkout flake.nix; exit 1; \
+	  fi; \
+	  sed -i "s|vendorHash = \"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\";|vendorHash = \"$$HASH\";|" flake.nix; \
+	  echo "✓ vendorHash = $$HASH"
+	@git diff --stat flake.nix
 
 nix-run:
 	nix run . -- $(ARGS)
@@ -219,6 +302,13 @@ help:
 	@echo "  test / test-race / test-coverage / fmt / vet / lint"
 	@echo "  parity-baseline                        Diff CLI surface vs committed baseline"
 	@echo "  golden / golden-update                 Bronze snapshot suite (hermetic)"
+	@echo ""
+	@echo "Ticket 04 Bronze parity (historical vs live ingester):"
+	@echo "  parity-export                          Extract fixtures through this repo's mapping"
+	@echo "  parity-live                            Extract the same XDR in the live ingester"
+	@echo "  parity-report                          Compare both sides; writes summary.md"
+	@echo "  parity-matrix                          Regenerate docs matrix from committed digests"
+	@echo "  parity-baseline-update                 Promote a fresh export to the baselines"
 	@echo "  deps / vendor / install / clean"
 	@echo ""
 	@echo "Docker (image = $(DOCKER_IMAGE)):"
@@ -229,5 +319,6 @@ help:
 	@echo ""
 	@echo "Nix (flakes only see git-tracked files — git add new files first):"
 	@echo "  nix-build / nix-run ARGS=\"...\" / nix-shell / nix-check / nix-docker"
+	@echo "  nix-vendor-hash                        Recompute vendorHash after a go.mod change"
 	@echo ""
 	@echo "CI / Release: ci-build / release"

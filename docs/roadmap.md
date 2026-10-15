@@ -4,6 +4,12 @@ Phases and acceptance gates from *Stellar Ingest & Raw Ledger Origin —
 Developer implementation handoff* (14 October 2026), annotated with what the
 Phase 0 inventory actually found.
 
+Work is also measured against the *Obsrvr Quality CLI Engineering Standard*
+v1.0 (14 October 2026); the repository's conformance and the gaps it opens
+are tracked in [`engineering-standard.md`](engineering-standard.md). What a
+Bronze row *is*, independent of producer and store, is in
+[`bronze-row-contract.md`](bronze-row-contract.md).
+
 ## Phase 0 — Baseline and inventory
 
 **Status: complete.**
@@ -14,12 +20,15 @@ Phase 0 inventory actually found.
 | Inventory public flags and environment variables | Done — `docs/phase0-inventory.md` §2, §3 |
 | Behaviour matrix for all source and output modes | Done — §4, §5 |
 | Identify workflows requiring flowctl registration | Partly — code-level answer in §7; the deployment-manifest half needs information outside this repository |
-| Baseline metrics and golden fixtures | **Plan only** — `docs/phase0-fixtures.md`. No fixtures committed. |
+| Baseline metrics and golden fixtures | Eight fixtures committed; all 21 tables covered. See `docs/ticket-02-progress.md`. Recovery/large-range tests remain open. |
 
-Exit gate — "baseline test suite and compatibility inventory are committed; no
-functional changes yet": the inventory is committed and there are no functional
-changes. The *baseline test suite* is specified but not built; that is TICKET 02
-and is the main thing standing between here and a defensible Phase 2.
+The compatibility inventory and hermetic baseline suite are committed. Full
+21-table baseline coverage now passes; TICKET 02 still has recovery and large-range work. Since bootstrap,
+two reproducibility fixes, XDR EOF handling, and restored-entry extraction
+have changed behavior. The restored-entry change is pinned by real-ledger
+goldens; see `docs/ticket-03-progress.md` for the call-path correction.
+The original "no functional changes yet" Phase 0 condition
+no longer describes the current tree.
 
 ## Phase 1 — Move and stabilize
 
@@ -38,8 +47,8 @@ binary/image runs independently; operational rollbacks documented":
 - Equivalent return codes: verified on the three reachable
   validation-failure paths.
 - Equivalent output: verified for `--help`, and now over real ledger data for
-  20 of the 21 Bronze tables across 7 committed pubnet fixtures via
-  `make golden`. `restored_keys` remains uncovered.
+  all 21 Bronze tables across 8 committed pubnet fixtures via
+  `make golden`.
 - Packaged binary runs independently: yes — standalone with `ENABLE_FLOWCTL`
   unset. **The Docker image has not been built or run.** No Docker daemon was
   available on the bootstrap host, so the `Dockerfile` is unverified; the CI
@@ -49,10 +58,21 @@ binary/image runs independently; operational rollbacks documented":
 
 ## Phase 2 — Consolidate shared processing internals
 
-**Status: not started.** Target layout agreed in `docs/target-architecture.md`.
+**Status: incremental work underway.** Target layout in `docs/target-architecture.md`.
+A private Parquet worker boundary, failure-injection checkpoint tests, a
+real-Parquet restart simulation, and a worker-independent Bronze mapping
+entry point are in place, and restored-key mapping lives in a private Bronze
+package; see `docs/module-boundaries.md`. Existing goldens guard all 21
+historical outputs.
 
-Blocked on TICKET 02: without golden fixtures there is no way to show that
-decomposing a 13,427-line `package main` preserved behaviour.
+Cross-repository Bronze parity is now measured rather than assumed. Ticket 04
+compared all 21 tables against the live ingester over identical authoritative
+XDR and found four defects, one intended semantic difference and eleven
+tables equal; `docs/ticket-04-discrepancies.md` has the matrix. The quality
+standard's §8 condition — "compare all 21 table outputs before removing
+duplicate implementations" — is met for the extraction tier, so consolidation
+can be planned, but the four defects and the undecided canonical row contract
+are what a shared mapper would have to resolve first.
 
 ## Phase 3 — Source integration and replacement evaluation
 
@@ -85,9 +105,13 @@ architecture is changed on the strength of those numbers.
 | Ticket | Description | Status |
 |---|---|---|
 | 01 | Bootstrap `stellar-ingest`; provenance, CI, reproducible build, README, compatibility executable | **Done** |
-| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **Harness complete** — 7 fixtures, 20 of 21 tables covered, 1 recorded gap. Two reproducibility bugs found and fixed; nix flake added. See `docs/ticket-02-progress.md`. |
-| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Unblocked** — the golden suite can now prove a refactor preserved behaviour |
-| 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | Not started |
+| 02 | Golden ledger fixtures and baseline snapshot tests for all Bronze outputs | **21-table fixture coverage complete** — 8 fixtures, including a 22-row automatic-restoration ledger. Crash injection and opt-in large ranges remain. See `docs/ticket-02-progress.md`. |
+| 03 | Documented module boundaries; extract reusable Bronze mapping behind tests without changing behaviour | **Done (bounded scope)** — module ownership inventory, worker-independent mapping, private `internal/bronze/restored` package with direct/fixture/golden tests, Parquet fault/restart tests. The remaining four local mappings and public canonical API depend on Ticket 04 parity; see `docs/module-boundaries.md`. |
+| 04 | Compare `stellar-postgres-ingester` field mappings; discrepancy report | **All four deliverables done.** 18 of 21 equal at the extraction tier, both storage tiers verified, and a candidate canonical row contract in `docs/bronze-row-contract.md` with logical keys machine-verified over ~300,000 rows. All three product decisions are ratified and both upstream library changes
+are released in `stellar-extract` v0.3.0, closing F4, F6, F7, F13 and F16.
+All 21 tables now have a logical key verified unique, and the live storage
+tier stores every extracted row. Remaining: the `transactions` and `ledgers`
+column sets, which the one-shape rule already decides, and backfill. Previously: **18 of 21 equal at the extraction tier; both storage tiers verified.** Storage tier found contract_events discarding 86% of rows on insert (F12, fixed), a Parquet column shipping all-NULL (F14, fixed), and three ways the committed hot-buffer DDL cannot reproduce the deployed schema. Remaining: F4/F6 (decisions), F8, F11, F13 (upstream event identity), F15. Previously: **18 of 21 equal at the extraction tier; live storage tier verified.** The storage tier found contract_events discarding 86% of its rows on insert (F12, fixed) and three ways the committed DDL cannot reproduce the deployed schema. Remaining: F4/F6 (decisions), F8, F11, F13 (upstream event identity), and the historical Parquet storage tier. Previously: **18 of 21 tables equal at the extraction tier; both sides committed and pinned.** F10 closed (local ScVal converter deleted in favour of the library's). Remaining: F4 and F6 (decisions), F8 (provenance), F11 (minor, 1 row), and the storage tier. Previously: **18 of 21 tables equal at the extraction tier.** Both ingesters on `stellar-extract` v0.2.1; F1, F2, F3, F5 and the three adapter-audit findings closed. Remaining: F4 and F6 (decisions), F8 (provenance), F10 (new, this repo's ScVal converter), and the storage tier. Previously: **Extraction tier complete; two findings closed.** `stellar-extract` bumped v0.1.2 → v0.2.1, closing F2 and F1's unit mismatch; four library-side gaps fixed upstream and released. Both repositories now audit their adapter against the library's field surface. Remaining findings wait on the live ingester. Previously: **Extraction tier complete** — reproducible two-process parity harness, committed digest baselines for both sides, and a reviewed 21-table status matrix: 11 equal, 4 bugs, 1 approved semantic difference, 1 provenance-only, `contract_code` unexercised. Storage tier and the canonical row contract remain. See `docs/ticket-04-discrepancies.md` and `docs/ticket-04-progress.md`. |
 | 05 | Source contract tests between `stellar-raw-ledger-origin` and the legacy live source | Not started |
 | 06 | CLI compatibility plan and opt-in new command hierarchy | Not started |
 | 07 | Benchmark identical batches through DuckLake and PostgreSQL sinks | Not started |
@@ -107,7 +131,11 @@ Recorded so they are not mistaken for things the bootstrap introduced:
 3. **`--network-passphrase` defaults to testnet** — a mainnet run that omits it
    is silently mis-labelled.
 4. **`--workers` defaults to `runtime.NumCPU()`** — runs are not reproducible
-   across machines.
+   across machines. It also made the CLI baseline check machine-dependent:
+   the baseline was recorded on a 16-core machine and failed on a 4-core CI
+   runner for every commit since bootstrap. `make parity-baseline` now
+   normalises that one default to `<NumCPU>`, which fixes the check without
+   deciding the flag. Pinning the default is still the open decision.
 5. **Console banner still reads `=== Stellar History Loader ===`** — left in
    place deliberately to hold output parity; revise with TICKET 06.
 6. **Two live copies of this code** — here and at
@@ -119,8 +147,8 @@ Recorded so they are not mistaken for things the bootstrap introduced:
 | | Item |
 |---|---|
 | ◐ | Standalone build, CLI, CI, and documentation work from the new repository — verified locally. Docker package written but **unbuilt**; pending the CI `docker` job. |
-| ☐ | Existing historical workflows reproduce baseline results without flowctl — standalone operation confirmed; *baseline results* unverified pending TICKET 02 |
-| ☐ | 21-table parity suite green or discrepancies catalogued |
+| ◐ | Historical Parquet extraction goldens pass without flowctl; DuckLake and PostgreSQL result parity still need integration verification. |
+| ◐ | 21-table **historical golden coverage** green. Live ingester parity compared at the extraction tier — 11 tables equal, 4 defects open, storage tier unverified (TICKET 04). |
 | ☐ | Source contract verified with `stellar-raw-ledger-origin` without merging repositories |
 | ☑ | No production live source or hot/cold transition changed — the bootstrap is a copy; nothing was removed or rerouted |
 | ☐ | Operator docs include recovery, config migration, credentials, and data-integrity validation — config and credentials documented; recovery and integrity validation pending |
