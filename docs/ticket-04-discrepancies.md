@@ -632,6 +632,22 @@ key that does not exist.
 
 ## Coverage gaps
 
+**Protocols 21 and 22 are not in the fixture corpus.** It jumps from the
+19→20 boundary (ledger 50,457,419) to protocol 23 (59,000,625), leaving
+the entire `LedgerCloseMetaV1` era — roughly 8.5 million ledgers —
+unrepresented. That gap is what let an unhandled V1 arm in
+`ExtractEvictedKeys` go unnoticed, and it is only closable by adding a
+fixture from that range.
+
+Sampling ledgers 52,000,000 / 55,000,000 / 58,500,000 showed the V1→V2
+switch coincides with the protocol 22→23 upgrade, and that eviction is
+not sparse once active — it hits the 2,000-per-ledger cap on every
+ledger. So V1 and eviction never overlapped on pubnet, and the unhandled
+arm was latent there. On a network that upgraded differently it would not
+be.
+
+
+
 Honest limits of this pass, so nothing above reads as broader than it is.
 
 1. **Storage tier unverified for all 21 tables.** No `INSERT`, no Parquet
