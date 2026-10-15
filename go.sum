@@ -283,8 +283,8 @@ github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6Kllzaw
 github.com/valyala/bytebufferpool v1.0.0/go.mod h1:6bBcMArwyJ5K/AmCkWv1jt77kVWyCJ6HpOuEn7z0Csc=
 github.com/valyala/fasthttp v1.34.0 h1:d3AAQJ2DRcxJYHm7OXNXtXt2as1vMDfxeIcFvhmGGm4=
 github.com/valyala/fasthttp v1.34.0/go.mod h1:epZA5N+7pY6ZaEKRmstzOuYJx9HI8DI1oaCGZpdH4h0=
-github.com/withObsrvr/stellar-extract v0.3.0 h1:H3Z6JK3BLCkixiSdiph1iURNjylWjmg3skCVX1qoVbA=
-github.com/withObsrvr/stellar-extract v0.3.0/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
+github.com/withObsrvr/stellar-extract v0.3.2 h1:OhBpugr+c5XUFfkBOWYTKLmj6cf97ErIZIALMknlEpU=
+github.com/withObsrvr/stellar-extract v0.3.2/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5 h1:LGtNObgYA4a90VKx45CANiTotO4BP2QHmvJJBEcpwmE=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5/go.mod h1:b9tgM3xdNi0+Sm+QV9PE7DQUDCgwV5/DNW5HZdhogjM=
 github.com/withobsrvr/flowctl v0.0.10 h1:hz5Kv2ZetZ0s4lFeF+IZySTEX1E+jrk3rgRRwlkTR8Y=
