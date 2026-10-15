@@ -291,6 +291,8 @@ github.com/withObsrvr/stellar-extract v0.3.4-0.20261015170215-f38010272a79 h1:RR
 github.com/withObsrvr/stellar-extract v0.3.4-0.20261015170215-f38010272a79/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
 github.com/withObsrvr/stellar-extract v0.3.4 h1:QlSRAKRt80Oxt+zwuU09LBDQHjwLBF5mWoHFiABwmh8=
 github.com/withObsrvr/stellar-extract v0.3.4/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
+github.com/withObsrvr/stellar-extract v0.3.5-0.20261015175632-704c86cbb0d0 h1:0Li9TcIxOgfJmgB7rw3FsFbNWe5A5KKpmj078IjScIA=
+github.com/withObsrvr/stellar-extract v0.3.5-0.20261015175632-704c86cbb0d0/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5 h1:LGtNObgYA4a90VKx45CANiTotO4BP2QHmvJJBEcpwmE=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5/go.mod h1:b9tgM3xdNi0+Sm+QV9PE7DQUDCgwV5/DNW5HZdhogjM=
 github.com/withobsrvr/flowctl v0.0.10 h1:hz5Kv2ZetZ0s4lFeF+IZySTEX1E+jrk3rgRRwlkTR8Y=

@@ -163,6 +163,18 @@ type ParquetTransaction struct {
 	SorobanFootprintWriteEntries *int32  `parquet:"soroban_footprint_write_entries,optional"`
 	ContractErrorType            *string `parquet:"contract_error_type,optional"`
 	ContractErrorCode            *int32  `parquet:"contract_error_code,optional"`
+	FeeBumpFee                   *int64  `parquet:"fee_bump_fee,optional"`
+	InnerTransactionHash         *string `parquet:"inner_transaction_hash,optional"`
+	InnerSourceAccount           *string `parquet:"inner_source_account,optional"`
+	FeeAccountMuxed              *string `parquet:"fee_account_muxed,optional"`
+	LedgerboundsMin              *int64  `parquet:"ledgerbounds_min,optional"`
+	LedgerboundsMax              *int64  `parquet:"ledgerbounds_max,optional"`
+	MinSequenceNumber            *int64  `parquet:"min_sequence_number,optional"`
+	MinSequenceAge               *int64  `parquet:"min_sequence_age,optional"`
+	ExtraSigners                 *string `parquet:"extra_signers,optional"`
+	SorobanDataSizeBytes         *int32  `parquet:"soroban_data_size_bytes,optional"`
+	SorobanDataResources         *string `parquet:"soroban_data_resources,optional"`
+	SorobanContractEventsCount   *int32  `parquet:"soroban_contract_events_count,optional"`
 	TransactionID                int64   `parquet:"transaction_id"`
 	EraID                        *string `parquet:"era_id,optional"`
 	PipelineVersion              string  `parquet:"version_label"`
@@ -750,6 +762,18 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				SorobanFootprintWriteEntries: t.SorobanFootprintWriteEntries,
 				ContractErrorType:            t.ContractErrorType,
 				ContractErrorCode:            t.ContractErrorCode,
+				FeeBumpFee:                   t.FeeBumpFee,
+				InnerTransactionHash:         t.InnerTransactionHash,
+				InnerSourceAccount:           t.InnerSourceAccount,
+				FeeAccountMuxed:              t.FeeAccountMuxed,
+				LedgerboundsMin:              t.LedgerboundsMin,
+				LedgerboundsMax:              t.LedgerboundsMax,
+				MinSequenceNumber:            t.MinSequenceNumber,
+				MinSequenceAge:               t.MinSequenceAge,
+				ExtraSigners:                 t.ExtraSigners,
+				SorobanDataSizeBytes:         t.SorobanDataSizeBytes,
+				SorobanDataResources:         t.SorobanDataResources,
+				SorobanContractEventsCount:   t.SorobanContractEventsCount,
 				TransactionID:                t.TransactionID,
 				EraID:                        t.EraID,
 				PipelineVersion:              pw.pipelineVersion,
