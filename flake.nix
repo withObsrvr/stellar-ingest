@@ -26,7 +26,7 @@
           # notice, because it never runs nix.
           #
           # Regenerate with `make nix-vendor-hash`.
-          vendorHash = "sha256-JzN2QVhFwMlnLfBZzIGubQdCQbA4C65T8GdPYkZGhys=";
+          vendorHash = "sha256-3W84lzuUOljTcaHSNxj6SfAYSvkFdgDOnxNkJe7vADU=";
 
           # duckdb-go/v2 is cgo and bundles its own DuckDB, so unlike the other
           # Obsrvr services this cannot be built with CGO_ENABLED=0.
