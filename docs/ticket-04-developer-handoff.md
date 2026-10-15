@@ -1,5 +1,17 @@
 # Ticket 04 — developer handoff: historical/live Bronze discrepancy report
 
+> **Superseded, kept for provenance.** This is the brief as written before
+> the work started, and its revisions and version pins are observations from
+> that moment — both repositories pinned `stellar-extract` v0.1.2 and v0.1.5
+> then, and both are on v0.3.0 now. Several risks it lists as "to confirm"
+> were confirmed and fixed.
+>
+> For the current state read
+> [`ticket-04-discrepancies.md`](ticket-04-discrepancies.md) (findings),
+> [`ticket-04-progress.md`](ticket-04-progress.md) (harness) and
+> [`bronze-row-contract.md`](bronze-row-contract.md) (what a Bronze row is).
+> Do not take the pins below as current.
+
 **Scope:** compare `stellar-ingest` and `stellar-postgres-ingester` field by field
 for all 21 Bronze outputs, using identical authoritative `LedgerCloseMeta` XDR.
 Deliver a reviewed discrepancy report and reproducible parity harness. **Do not
