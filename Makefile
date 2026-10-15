@@ -1,7 +1,7 @@
 .PHONY: all build build-compat build-all build-offline run clean test test-race test-coverage \
         deps vendor fmt vet lint install parity-baseline golden golden-update \
         parity-export parity-live parity-report parity-matrix parity-baseline-update \
-        nix-build nix-run nix-shell nix-check nix-docker \
+        nix-build nix-run nix-shell nix-check nix-docker nix-vendor-hash \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
         ci-build release help
 
@@ -186,6 +186,27 @@ clean:
 nix-build:
 	nix build .#stellar-ingest
 
+# Recompute flake.nix's vendorHash after a dependency change.
+#
+# buildGoModule pins the fetched module set by content hash, so editing
+# go.mod or go.sum invalidates it and the nix build fails with a mismatch.
+# Nothing in `make test` catches that — the Go toolchain does not use the
+# flake — so CI is the first thing to notice unless this is run.
+#
+# Works by asking for a hash that cannot be right and reading the real one
+# out of the resulting error.
+nix-vendor-hash:
+	@echo "→ recomputing vendorHash (this fetches the module set)"
+	@sed -i 's|vendorHash = "sha256-[^"]*";|vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";|' flake.nix
+	@HASH=$$(nix build .#stellar-ingest 2>&1 | awk '/got:/ {print $$2}' | head -1); \
+	  if [ -z "$$HASH" ]; then \
+	    echo "✗ no hash reported — the build may have failed for another reason"; \
+	    git checkout flake.nix; exit 1; \
+	  fi; \
+	  sed -i "s|vendorHash = \"sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\";|vendorHash = \"$$HASH\";|" flake.nix; \
+	  echo "✓ vendorHash = $$HASH"
+	@git diff --stat flake.nix
+
 nix-run:
 	nix run . -- $(ARGS)
 
@@ -283,5 +304,6 @@ help:
 	@echo ""
 	@echo "Nix (flakes only see git-tracked files — git add new files first):"
 	@echo "  nix-build / nix-run ARGS=\"...\" / nix-shell / nix-check / nix-docker"
+	@echo "  nix-vendor-hash                        Recompute vendorHash after a go.mod change"
 	@echo ""
 	@echo "CI / Release: ci-build / release"

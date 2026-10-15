@@ -20,7 +20,13 @@
 
           src = self;
 
-          vendorHash = "sha256-lcap44Wc+FcLfjJZJrTbBHRo9nxjtQLWerSeVpJn3Uo=";
+          # Content hash of the fetched Go module set. It is derived from
+          # go.mod and go.sum, so ANY dependency change invalidates it and
+          # the nix build fails with a hash mismatch — `make test` will not
+          # notice, because it never runs nix.
+          #
+          # Regenerate with `make nix-vendor-hash`.
+          vendorHash = "sha256-JzN2QVhFwMlnLfBZzIGubQdCQbA4C65T8GdPYkZGhys=";
 
           # duckdb-go/v2 is cgo and bundles its own DuckDB, so unlike the other
           # Obsrvr services this cannot be built with CGO_ENABLED=0.
