@@ -550,7 +550,9 @@ CREATE TABLE IF NOT EXISTS bronze.contract_creations_v1 (
 -- stellar-postgres-ingester/migrations/004_add_toid_and_token_transfers.sql.
 CREATE TABLE IF NOT EXISTS bronze.token_transfers_stream_v1 (
     ledger_sequence   INTEGER,
-    transaction_hash  TEXT,
+    -- transaction_hash removed: 775 GB of incompressible hex for an identity
+    -- transaction_id already carries at ~4 bytes/row, with no reader anywhere.
+    -- Join transactions_row_v2 on transaction_id to recover it.
     transaction_id    BIGINT,
     operation_id      BIGINT,
     operation_index   INTEGER,

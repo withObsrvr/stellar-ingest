@@ -599,9 +599,21 @@ type ParquetConfigSetting struct {
 	ResolvedAtLedger                *int64  `parquet:"resolved_at_ledger,optional"`
 }
 
+// ParquetTokenTransfer carries transaction_id rather than transaction_hash.
+//
+// The hash was 775 GB of cold Bronze — 34.7 compressed bytes per row across
+// 23.95 billion rows — because a 64-character hex string is incompressible:
+// random hex has no redundancy for a block compressor to exploit, so it costs
+// its full width forever. transaction_id is the same identity as an int64 at
+// ~4 bytes per row, it is non-null on every one of those rows, and the hash
+// is recoverable by joining transactions_row_v2 on it.
+//
+// Nothing read the hash from this table: not stellar-query-api, not
+// serving-cold-backfill, not the silver transformer (which builds
+// token_transfers_raw from contract_events_stream_v1, joined to transactions
+// on *that* table's hash). It was written and never read.
 type ParquetTokenTransfer struct {
 	LedgerSequence  uint32  `parquet:"ledger_sequence"`
-	TransactionHash string  `parquet:"transaction_hash"`
 	TransactionID   int64   `parquet:"transaction_id"`
 	OperationID     *int64  `parquet:"operation_id,optional"`
 	OperationIndex  *int32  `parquet:"operation_index,optional"`
@@ -1315,7 +1327,6 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 		for i, t := range batch.TokenTransfers {
 			rows[i] = ParquetTokenTransfer{
 				LedgerSequence:  t.LedgerSequence,
-				TransactionHash: t.TransactionHash,
 				TransactionID:   t.TransactionID,
 				OperationID:     t.OperationID,
 				OperationIndex:  t.OperationIndex,

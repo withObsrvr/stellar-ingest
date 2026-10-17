@@ -33,12 +33,42 @@ var deliberatelyNotWritten = map[string]string{
 
 	// See claimableBalanceCreatedAtNote below.
 	"ClaimableBalanceData.CreatedAt": claimableBalanceCreatedAtNote,
+
+	// See tokenTransferHashNote below.
+	"TokenTransferData.TransactionHash": tokenTransferHashNote,
 }
 
 // knownUnwritten records fields lost by accident rather than decision, each
 // awaiting a Parquet column. Separate from the list above because a pending
 // bug and a settled decision are not the same thing.
 var knownUnwritten = map[string]string{}
+
+// tokenTransferHashNote explains why the transfer stream drops the hash.
+//
+// transaction_hash was 775 GB of cold Bronze on its own -- 34.7 compressed
+// bytes per row across 23.95 billion rows. A 64-character hex string is
+// incompressible: random hex carries no redundancy for a block compressor to
+// exploit, so it costs close to its full width in every file forever. Across
+// cold Bronze the hash columns total roughly 2.9 TB, more than every XDR
+// payload column combined.
+//
+// transaction_id is the same identity as an int64 at ~4 bytes per row, and it
+// is non-null on all 23,950,927,112 rows in cold, so nothing is lost:
+// transactions_row_v2 joined on transaction_id recovers the hash.
+//
+// Dropping it is safe here specifically because this table had no reader.
+// stellar-query-api never selects it; serving-cold-backfill never selects it;
+// the silver transformer builds token_transfers_raw from
+// contract_events_stream_v1 and joins transactions on *that* table's hash.
+// The column was written 23.95 billion times and read zero times.
+//
+// The same argument applies to operations_row_v2 (714 GB) but not the same
+// freedom: query-api projects that hash and orders by it, so it needs the
+// consumer change first. contract_events_stream_v1 (700 GB) has no
+// transaction_id at all yet, so it needs the column added before its hash can
+// go. transactions_row_v2 keeps its hash -- it is the lookup key for
+// Horizon's tx-by-hash endpoint -- but could store it as 32-byte binary.
+const tokenTransferHashNote = "identity carried by transaction_id; 775 GB of incompressible hex with no reader"
 
 // claimableBalanceCreatedAtNote explains the one asymmetry the scan finds.
 //

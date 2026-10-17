@@ -629,10 +629,9 @@
     },
     "token_transfers": {
       "row_count": 2823,
-      "content_hash": "dcdced840cfc47bee0294768d254621c",
+      "content_hash": "66de3b7374354496f9e7663eff0f0442",
       "columns": [
         "ledger_sequence",
-        "transaction_hash",
         "transaction_id",
         "operation_id",
         "operation_index",
@@ -667,7 +666,6 @@
         "operation_id": "58d0c2c63ead2ae55739b1805a5006ec",
         "operation_index": "882967a5b311f489b321ff5357b46577",
         "to": "7b10d6d8d53d6828f3aa15527fd09783",
-        "transaction_hash": "42331c849e3aff41556c0f1ca34a1fdb",
         "transaction_id": "55544bacfbc27f3dcddc745d48765e45"
       }
     },
