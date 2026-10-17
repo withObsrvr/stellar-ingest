@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,7 +43,76 @@ func splitLedgerChunks(start, end, chunkSize uint32) []ledgerChunk {
 	return chunks
 }
 
-func runChunkedCommand(ctx context.Context, originalArgs []string, start, end, chunkSize uint32, outputDir string) error {
+// chunkResult is one chunk's outcome. Results are returned in chunk order
+// regardless of completion order, so a report reads chronologically.
+type chunkResult struct {
+	Chunk    ledgerChunk
+	Err      error
+	Duration time.Duration
+}
+
+// prefixWriter tags each line with its chunk so concurrent children remain
+// attributable. Buffering per chunk and printing on completion would be
+// simpler, but a chunk can run for an hour and silence for an hour is not
+// what you want from a multi-day backfill.
+type prefixWriter struct {
+	prefix string
+	out    *os.File
+	mu     *sync.Mutex
+	buf    []byte
+}
+
+func (w *prefixWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.buf = append(w.buf, p...)
+	for {
+		i := bytes.IndexByte(w.buf, '\n')
+		if i < 0 {
+			break
+		}
+		fmt.Fprintf(w.out, "%s %s\n", w.prefix, w.buf[:i])
+		w.buf = w.buf[i+1:]
+	}
+	return len(p), nil
+}
+
+// runChunksConcurrently runs chunks under a semaphore.
+//
+// No errgroup, deliberately: a failing chunk must not cancel its siblings.
+// They are independent ledger ranges, and a chunk that fails is re-derived
+// later from the range catalog -- cancelling the others would throw away
+// hours of completed work to report one failure sooner. The flusher learned
+// this the same way.
+func runChunksConcurrently(chunks []ledgerChunk, concurrency int, run func(ledgerChunk) error) []chunkResult {
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	if concurrency > len(chunks) {
+		concurrency = len(chunks)
+	}
+
+	results := make([]chunkResult, len(chunks))
+	slots := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+
+	for i, chunk := range chunks {
+		wg.Add(1)
+		go func(i int, chunk ledgerChunk) {
+			defer wg.Done()
+			slots <- struct{}{}
+			defer func() { <-slots }()
+
+			started := time.Now()
+			err := run(chunk)
+			results[i] = chunkResult{Chunk: chunk, Err: err, Duration: time.Since(started)}
+		}(i, chunk)
+	}
+	wg.Wait()
+	return results
+}
+
+func runChunkedCommand(ctx context.Context, originalArgs []string, start, end, chunkSize uint32, outputDir string, concurrency int) error {
 	chunks := splitLedgerChunks(start, end, chunkSize)
 	if len(chunks) == 0 {
 		return fmt.Errorf("invalid chunk range %d-%d with size %d", start, end, chunkSize)
@@ -51,23 +123,57 @@ func runChunkedCommand(ctx context.Context, originalArgs []string, start, end, c
 	}
 
 	started := time.Now()
-	fmt.Printf("=== Chunked Backfill ===\nRange: %d - %d\nChunk size: %d\nChunks: %d\n\n", start, end, chunkSize, len(chunks))
-	for index, chunk := range chunks {
+	fmt.Printf("=== Chunked Backfill ===\nRange: %d - %d\nChunk size: %d\nChunks: %d\nConcurrency: %d\n\n",
+		start, end, chunkSize, len(chunks), concurrency)
+
+	// One mutex across every child so a line is never torn by another
+	// chunk's write.
+	var outMu sync.Mutex
+	var doneCount atomic.Int64
+
+	results := runChunksConcurrently(chunks, concurrency, func(chunk ledgerChunk) error {
+		label := fmt.Sprintf("[%d-%d]", chunk.Start, chunk.End)
 		chunkOutput := filepath.Join(outputDir, "chunks", fmt.Sprintf("%d-%d", chunk.Start, chunk.End))
 		args := rewriteChunkArgs(originalArgs, chunk, chunkOutput)
-		fmt.Printf("=== Chunk %d/%d: %d - %d ===\n", index+1, len(chunks), chunk.Start, chunk.End)
+
 		command := exec.CommandContext(ctx, executable, args...)
-		command.Stdin = os.Stdin
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
+		command.Stdout = &prefixWriter{prefix: label, out: os.Stdout, mu: &outMu}
+		command.Stderr = &prefixWriter{prefix: label, out: os.Stderr, mu: &outMu}
 		command.Env = os.Environ()
-		chunkStarted := time.Now()
-		if err := command.Run(); err != nil {
-			return fmt.Errorf("chunk %d-%d after %s: %w", chunk.Start, chunk.End, time.Since(chunkStarted).Round(time.Millisecond), err)
+
+		err := command.Run()
+
+		outMu.Lock()
+		n := doneCount.Add(1)
+		if err != nil {
+			fmt.Printf("%s FAILED (%d/%d done): %v\n", label, n, len(chunks), err)
+		} else {
+			fmt.Printf("%s ok (%d/%d done)\n", label, n, len(chunks))
 		}
-		fmt.Printf("Chunk %d-%d completed in %s\n\n", chunk.Start, chunk.End, time.Since(chunkStarted).Round(time.Millisecond))
+		outMu.Unlock()
+		return err
+	})
+
+	var failed []chunkResult
+	for _, r := range results {
+		if r.Err != nil {
+			failed = append(failed, r)
+		}
 	}
-	fmt.Printf("Chunked backfill completed in %s\n", time.Since(started).Round(time.Millisecond))
+
+	fmt.Printf("\nChunked backfill: %d/%d chunks succeeded in %s\n",
+		len(chunks)-len(failed), len(chunks), time.Since(started).Round(time.Millisecond))
+
+	if len(failed) > 0 {
+		// Every failure is listed rather than just the first. With the range
+		// catalog these chunks are simply unclaimed and re-derived on the
+		// next run, so the useful output is the whole set, not the earliest.
+		for _, r := range failed {
+			fmt.Printf("  failed: %d-%d after %s: %v\n",
+				r.Chunk.Start, r.Chunk.End, r.Duration.Round(time.Millisecond), r.Err)
+		}
+		return fmt.Errorf("%d of %d chunks failed", len(failed), len(chunks))
+	}
 	return nil
 }
 

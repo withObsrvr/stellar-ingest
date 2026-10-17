@@ -44,6 +44,7 @@ func main() {
 	rangeState := flag.Bool("range-state", false, "Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)")
 	rangeStateTable := flag.String("range-state-table", "public.ingest_range_state", "Table holding range state")
 	planOnly := flag.Bool("plan", false, "Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)")
+	chunkConcurrency := flag.Int("chunk-concurrency", 1, "Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers")
 	b2KeyID := flag.String("b2-key-id", "", "B2/S3 access key ID")
 	b2KeySecret := flag.String("b2-key-secret", "", "B2/S3 secret access key")
 	b2Endpoint := flag.String("b2-endpoint", "s3.us-west-004.backblazeb2.com", "B2/S3 endpoint")
@@ -152,6 +153,19 @@ func main() {
 	if *chunkSize > 0 && !extractRequested {
 		log.Fatal("--chunk-size requires an extraction source")
 	}
+	if *chunkConcurrency < 1 {
+		log.Fatal("--chunk-concurrency must be at least 1")
+	}
+	if *chunkConcurrency > 1 && *chunkSize == 0 {
+		log.Fatal("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
+	}
+	if *chunkConcurrency > 1 && !*rangeState {
+		// Concurrent chunks are separate processes writing the same DuckLake
+		// tables. Without the range catalog nothing stops two runs taking the
+		// same chunk, and a crashed chunk leaves no record that it needs
+		// redoing -- which is most of what makes concurrency safe here.
+		log.Fatal("--chunk-concurrency above 1 requires --range-state")
+	}
 	if uint64(*chunkSize) > uint64(^uint32(0)) {
 		log.Fatal("--chunk-size exceeds the supported uint32 ledger range")
 	}
@@ -207,7 +221,7 @@ func main() {
 	}
 
 	if *chunkSize > 0 {
-		if err := runChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(*chunkSize), *output); err != nil {
+		if err := runChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(*chunkSize), *output, *chunkConcurrency); err != nil {
 			log.Fatalf("chunked backfill failed: %v", err)
 		}
 		return
