@@ -1,7 +1,7 @@
 # Bronze storage contract
 
-**Status: rules 1–4 and 6 ratified 2026-10-17. Rule 5 decided in principle,
-pending a measurement that can still reverse it.** Companion to
+**Status: rules 1–4 and 6 ratified 2026-10-17. Rule 5 was decided in
+principle and then withdrawn when measured — see §5.** Companion to
 [`bronze-row-contract.md`](bronze-row-contract.md), which is ratified and is
 not reopened here.
 
@@ -151,65 +151,55 @@ Only `live` partitions 6436 and above were written by the current library:
 roughly **2.5% of history**. See
 [`cold-authority-matrix.md`](cold-authority-matrix.md).
 
-## 5. Payload — store LedgerCloseMeta once, derive the rest
+## 5. Payload — WITHDRAWN: the five columns stay
 
-**Decided: Bronze stores the LedgerCloseMeta once per ledger, and the
-per-transaction XDR columns become derivations.** This supersedes the storage
-half of row contract §6; the fidelity requirement there is unchanged, since an
-LCM reproduces every column it replaces.
+**Decided to store the LedgerCloseMeta once and derive the per-transaction
+columns, then withdrawn on 2026-10-17 when measured. Row contract §6 stands
+unchanged.**
 
-Two consequences, both recorded before implementation because the first can
-reverse the decision.
+Measured over the committed fixture corpus — 49 ledgers, 16,223 transactions,
+protocols 1 through 29, both shapes written as zstd Parquet from identical
+ledgers using the production extractor:
 
-**The saving is unverified and may be negative.** The archive node's win is in
-not storing *derived* columns; ours are raw protocol bytes, so an LCM is the
-same data arranged differently:
+| fixture | ledgers | txs | LCM once | per-tx columns | ratio |
+|---|---|---|---|---|---|
+| `pubnet-protocol-boundary` | 10 | 4,339 | 13,436,933 | 5,250,945 | 2.56× |
+| `pubnet-classic-p19` | 10 | 3,820 | 9,542,172 | 3,569,793 | 2.67× |
+| `pubnet-soroban-p29` | 10 | 4,181 | 17,817,167 | 5,730,940 | 3.11× |
+| `pubnet-state-eviction-p23` | 5 | 1,376 | 11,044,342 | 1,891,815 | 5.84× |
+| `pubnet-contract-creation` | 5 | 1,106 | 8,943,152 | 1,475,219 | 6.06× |
+| `pubnet-tiny-dump` | 3 | 874 | 17,354,780 | 1,600,915 | 10.84× |
+| `pubnet-auto-restore-p25` | 1 | 527 | 18,862,659 | 823,098 | 22.92× |
+| **total** | **49** | **16,223** | **97,005,935** | **20,343,020** | **4.77×** |
 
-	LedgerCloseMeta  =  header + tx set + all results + all metas + upgrades
-	stored today     =  envelope + result + meta + fee_meta + signers, per tx
+**Storing the LCM once is 4.77× larger**, and larger in every fixture.
 
-Storing it once removes per-row overhead and gives the compressor more
-context, but pulls in parts not stored today and duplicates `ledger_header`.
-576 GB is what is being traded, not what is saved. **Measure before
-implementing**: extract a few hundred ledgers both ways, compare compressed
-Parquet, and reverse this rule if the LCM is larger.
+The reasoning behind the rule was wrong, not just the arithmetic. A
+LedgerCloseMeta carries far more than the five columns extract from it: the
+full transaction set, upgrades, the SCP value, and from protocol 20 the
+complete ledger-entry change stream for Soroban state. The five columns are a
+*projection* of the LCM, and the projection is roughly a fifth of the source.
+Storing the source to avoid storing the projection is backwards.
 
-**This rule gets no view-based compatibility.** Rules 1–3 defer consumer work
-because `lower(hex(x))` is expressible in SQL. Deriving `tx_envelope` from an
-LCM is not — XDR cannot be parsed in DuckDB. `horizon_tx_reader.go` selects
-all five columns and would have to fetch the LCM and extract in Go. That work
-ships *with* the re-ingest or the Horizon transaction endpoint breaks. It is
-the one place the layering argument does not hold.
+`pubnet-auto-restore-p25` at 22.92× is the clearest case: one ledger whose LCM
+is dominated by state-restoration entry changes that no transaction column
+references.
 
-### The superseded rule, for the record
+The archive node's design was cited for this rule and does not support it.
+Their win is in not storing *derived* columns — values recomputable from data
+they already hold. These are not derived; they are raw protocol bytes already
+stored in their smallest useful form.
 
-Row contract §6 ratifies raw XDR as **unmodified base64**, for reproducibility
-and as the fallback when a decoded column is wrong. That is a fidelity rule
-and remains true of the LCM.
+Two consequences of withdrawing it, both good:
 
-It has a storage consequence worth putting in front of whoever owns §6:
-base64 is 1.33× the bytes it encodes. Unlike hex identifiers, XDR compresses
-well — it is structured and repetitive — so the real overhead is smaller than
-the ratio suggests. Measured in `transactions_row_v2`:
+- Row contract §6 stands. Raw XDR remains unmodified base64, as ratified.
+- The one rule that needed consumer changes shipping *with* the re-ingest is
+  gone. `horizon_tx_reader.go` is untouched, and every surviving rule gets
+  view-based compatibility — so **no consumer changes ship with the
+  re-ingest at all**.
 
-```
-tx_meta       339 GB   34.5 bytes/row
-tx_envelope   141 GB   14.3
-tx_fee_meta    34 GB    3.5
-tx_signers     33 GB    3.3
-tx_result      29 GB    3.0
-              ──────
-              576 GB   58.6 bytes/row combined
-```
-
-**All five payload columns together cost less per row than
-`transaction_hash` alone (66.0).** This is the finding that reordered the
-work: the payload is not the problem, and Item 2 of the throughput
-recommendations — "stop storing transaction XDR per row" — is third in line
-behind identity, not first.
-
-Whether the LCM itself is stored as base64 or as raw bytes follows rule 1:
-the bytes, with base64 rendered on read where a consumer wants it.
+The measurement lives in `lcm_storage_measure_test.go`, skipped unless
+`MEASURE_LCM=1`, so the number can be reproduced rather than taken on trust.
 
 ## 6. Partitioning stays as it is
 
@@ -230,8 +220,9 @@ Rules 1–3 applied across cold, against the 4,152 GB of identity-as-text:
 | account strkeys stored as bytes (rule 1) | ~400 GB |
 | **total** | **~3.2 TB, about a quarter of the lake** |
 
-Payload work under §5 would add up to ~145 GB on top, which is the point about
-ordering.
+Payload work adds nothing: §5 was withdrawn. Identity is the whole prize, and
+the 576 GB of XDR columns is already the cheaper of the two shapes available
+for it.
 
 These are recovered **only when the files are rewritten**. A `DROP COLUMN` in
 DuckLake is a metadata operation; the bytes leave when the Parquet does. The
@@ -245,7 +236,7 @@ expensive at any other time.
 | 1 | **Re-ingest**, not catch-up. ~4–8 days against ~6 days of catch-up that leaves every v0.1.2 defect in place. |
 | 2 | **Fresh catalog.** Clear B2, one generation, no legacy columns anywhere. Cold is unqueryable during the run. |
 | 3 | **Rules 1–3 approved**, with views as the compatibility layer. |
-| 4 | **Rule 5: store the LCM once and derive** — pending the size measurement, which can reverse it. |
+| 4 | ~~Rule 5: store the LCM once and derive~~ — **withdrawn**; measured 4.77× larger. See §5. |
 | 5 | **`contract_events_stream_v1` gains `transaction_id`.** |
 | 6 | **Prism dark for the duration** is acceptable; the node cannot run both. |
 | 7 | **Item 3 (concurrent partition builds) lands before** the re-ingest. |
@@ -260,27 +251,20 @@ the live stack holds 60 GHz / 77 GiB and a full-scale loader run wants 75 GHz
 
 ## Sequencing
 
-1. **Measure rule 5.** Extract a few hundred ledgers with the LCM stored once
-   and with the five columns per transaction; compare compressed Parquet. This
-   is first because it is the only decision that can still reverse, and
-   everything downstream of it is wasted if it does.
+1. ~~Measure rule 5.~~ **Done — it reversed.** See §5.
 2. **Item 3 — concurrent partition builds.** Decided to land before the
    re-ingest. Bounded by `workers × 200 × ledger size`, which the validation
    dispatches measured.
 3. **Write the schema into `stellar-ingest`** — rules 1–3, plus
-   `contract_events_stream_v1.transaction_id`, plus rule 5 if it survives
-   step 1.
+   `contract_events_stream_v1.transaction_id`.
 4. **Add presentation views** rendering today's shapes over the new storage,
    so none of the 65 identity call sites has to move.
-5. **Migrate `horizon_tx_reader.go`** to derive the XDR columns from the LCM.
-   Unlike step 4 this cannot be deferred — it ships with the re-ingest or the
-   Horizon transaction endpoint breaks.
-6. **Re-ingest into a fresh catalog**, live stack stopped.
-7. **Retire the views per consumer**, later, on whatever schedule suits.
+5. **Re-ingest into a fresh catalog**, live stack stopped.
+6. **Retire the views per consumer**, later, on whatever schedule suits.
 
-Steps 4 and 7 are what make the identity rules a storage change rather than a
-six-service migration. Step 5 is the exception, and the reason rule 5 is the
-most expensive of the five.
+Steps 4 and 6 are what make this a storage change rather than a six-service
+migration. With §5 withdrawn there is no exception: no consumer has to move
+for the re-ingest to land.
 
 ## What is not decided here
 
