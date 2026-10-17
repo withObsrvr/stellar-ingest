@@ -6,6 +6,7 @@ package main
 // wrongly treated as abandoned is built twice by two workers.
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -191,5 +192,72 @@ func TestEnumerateRangesRejectsNonsense(t *testing.T) {
 	}
 	if got := enumerateRanges(1, 100, 0); got != nil {
 		t.Errorf("zero size should yield nothing rather than loop forever, got %v", names(got))
+	}
+}
+
+// formatPlan's output is consumed by a dispatch loop, so its shape is a
+// contract: bare "start end" lines are work, everything else is commentary.
+func TestFormatPlanEmitsDispatchableLines(t *testing.T) {
+	now := time.Now()
+	p := planRanges([]LedgerRange{r1, r2, r3}, map[LedgerRange]RangeState{
+		r2: {Range: r2, State: rangeFrozen},
+	}, testLease, now)
+
+	out := formatPlan(p)
+
+	var work []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if !strings.HasPrefix(line, "#") && line != "" {
+			work = append(work, line)
+		}
+	}
+	if len(work) != 2 {
+		t.Fatalf("got %d dispatchable lines, want 2 (r1 and r3):\n%s", len(work), out)
+	}
+	if work[0] != "1 10000" || work[1] != "20001 30000" {
+		t.Errorf("lines = %v, want sorted start/end pairs", work)
+	}
+	// The frozen range must not appear as work.
+	if strings.Contains(out, "10001 20000") {
+		t.Errorf("a frozen range was emitted as work:\n%s", out)
+	}
+}
+
+// Every range to build is listed. A plan that silently truncated would read
+// as less work than there is, which is the opposite of its purpose.
+func TestFormatPlanTruncatesNothing(t *testing.T) {
+	wanted := enumerateRanges(1, 1000000, 10000)
+	p := planRanges(wanted, map[LedgerRange]RangeState{}, testLease, time.Now())
+
+	out := formatPlan(p)
+
+	n := 0
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if !strings.HasPrefix(line, "#") && line != "" {
+			n++
+		}
+	}
+	if n != len(wanted) {
+		t.Errorf("emitted %d of %d ranges; the plan must not cap its own output", n, len(wanted))
+	}
+}
+
+// Live claims are reported but never emitted as work -- a dispatch loop that
+// picked them up would put two workers on the same ledgers.
+func TestFormatPlanReportsClaimsAsCommentary(t *testing.T) {
+	now := time.Now()
+	p := planRanges([]LedgerRange{r1}, map[LedgerRange]RangeState{
+		r1: {Range: r1, State: rangeFreezing, ClaimedAt: now.Add(-time.Minute)},
+	}, testLease, now)
+
+	out := formatPlan(p)
+
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line != "" && !strings.HasPrefix(line, "#") {
+			t.Errorf("a live claim was emitted as dispatchable work: %q", line)
+		}
+	}
+	if !strings.Contains(out, "held by a live claim") {
+		t.Errorf("the claim should still be reported:\n%s", out)
 	}
 }

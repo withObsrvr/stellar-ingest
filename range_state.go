@@ -33,6 +33,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -266,6 +267,33 @@ func (s *RangeStateStore) Plan(ctx context.Context, wanted []LedgerRange, lease 
 		return RangePlan{}, err
 	}
 	return planRanges(wanted, have, lease, time.Now()), nil
+}
+
+// formatPlan renders a plan for an operator, and for a pipe.
+//
+// Every range to build is printed, one "start end" pair per line, so the
+// output feeds a dispatch loop directly. Nothing is truncated: a plan that
+// quietly capped its own output would read as "less work than there is",
+// which is the opposite of what this is for.
+//
+// The summary goes last so it survives a `| tail`, and the counts are
+// ledgers as well as ranges because ranges are a poor proxy for time when
+// the final one is short.
+func formatPlan(p RangePlan) string {
+	var b strings.Builder
+	sort.Slice(p.Todo, func(i, j int) bool { return p.Todo[i].Start < p.Todo[j].Start })
+	for _, r := range p.Todo {
+		fmt.Fprintf(&b, "%d %d\n", r.Start, r.End)
+	}
+	if len(p.Claimed) > 0 {
+		sort.Slice(p.Claimed, func(i, j int) bool { return p.Claimed[i].Start < p.Claimed[j].Start })
+		fmt.Fprintf(&b, "# %d range(s) held by a live claim, not listed above:\n", len(p.Claimed))
+		for _, r := range p.Claimed {
+			fmt.Fprintf(&b, "#   %s\n", r)
+		}
+	}
+	fmt.Fprintf(&b, "# %s\n", SummarizePlan(p))
+	return b.String()
 }
 
 // SummarizePlan renders a plan for an operator deciding whether to start a

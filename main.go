@@ -43,6 +43,7 @@ func main() {
 	dlSkipTables := flag.String("ducklake-skip-tables", "", "Comma-separated source or DuckLake table names to skip during push")
 	rangeState := flag.Bool("range-state", false, "Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)")
 	rangeStateTable := flag.String("range-state-table", "public.ingest_range_state", "Table holding range state")
+	planOnly := flag.Bool("plan", false, "Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)")
 	b2KeyID := flag.String("b2-key-id", "", "B2/S3 access key ID")
 	b2KeySecret := flag.String("b2-key-secret", "", "B2/S3 secret access key")
 	b2Endpoint := flag.String("b2-endpoint", "s3.us-west-004.backblazeb2.com", "B2/S3 endpoint")
@@ -172,6 +173,37 @@ func main() {
 	}
 	if err := validateTableSelection(duckLakeSkipSet, "ducklake-skip-tables"); err != nil {
 		log.Fatal(err)
+	}
+
+	// --plan answers "what is left" without doing anything. Read-only: it
+	// takes no claim, so running it while a backfill is in flight is safe and
+	// shows that backfill's live claims.
+	//
+	// This is the postcondition-driven half of Item 5. Dispatching ranges by
+	// hand is what made a multi-day backfill depend on an operator's notes;
+	// here the catalog is asked instead.
+	if *planOnly {
+		if *dlCatalog == "" {
+			log.Fatal("--plan requires --ducklake-catalog")
+		}
+		size := uint32(*chunkSize)
+		if size == 0 {
+			// No chunking means the whole span is one range, matching what a
+			// plain --start/--end run would claim.
+			size = endLedger - startLedger + 1
+		}
+		store, err := NewRangeStateStore(context.Background(), *dlCatalog, *rangeStateTable, *eraID)
+		if err != nil {
+			log.Fatalf("range state: %v", err)
+		}
+		defer store.Close()
+
+		plan, err := store.Plan(context.Background(), enumerateRanges(startLedger, endLedger, size), defaultClaimLease)
+		if err != nil {
+			log.Fatalf("range state: %v", err)
+		}
+		fmt.Print(formatPlan(plan))
+		return
 	}
 
 	if *chunkSize > 0 {
