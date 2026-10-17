@@ -19,6 +19,17 @@
 BINARY_NAME  := stellar-ingest
 COMPAT_NAME  := stellar-history-loader
 
+# Build with whichever container CLI the host actually has. A hardcoded
+# `docker` fails outright on a podman host.
+CONTAINER_CLI    ?= $(shell docker info >/dev/null 2>&1 && echo docker || \
+                      { command -v podman >/dev/null 2>&1 && echo podman; } || echo docker)
+
+# Push destination. podman resolves an unqualified local tag to
+# localhost/<name>, so `podman push withobsrvr/x:t` tries to reach a registry
+# on localhost and fails; docker treats the same string as Docker Hub.
+# Qualifying the destination makes both CLIs do the same thing.
+REGISTRY         ?= docker.io
+
 DOCKER_ORG       := withobsrvr
 DOCKER_IMAGE     := $(DOCKER_ORG)/$(BINARY_NAME)
 GIT_SHA          := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
@@ -241,7 +252,7 @@ nix-docker:
 docker-build:
 	@echo "→ building $(DOCKER_IMAGE)"
 	@echo "  tags    : $(DOCKER_TAG), $(VERSION_TAG)"
-	docker build \
+	$(CONTAINER_CLI) build \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		-t $(DOCKER_IMAGE):$(VERSION_TAG) \
 		--build-arg VERSION=$(GIT_SHA) \
@@ -253,26 +264,28 @@ docker-build:
 	@echo "✓ built $(DOCKER_IMAGE):{$(DOCKER_TAG),$(VERSION_TAG)}"
 
 docker-buildx:
-	docker buildx build --platform $(DOCKER_PLATFORM) \
+	$(CONTAINER_CLI) buildx build --platform $(DOCKER_PLATFORM) \
 		--build-arg VERSION=$(GIT_SHA) \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) -t $(DOCKER_IMAGE):$(VERSION_TAG) .
 
 docker-push: docker-build
-	docker push $(DOCKER_IMAGE):$(DOCKER_TAG)
-	docker push $(DOCKER_IMAGE):$(VERSION_TAG)
+	$(CONTAINER_CLI) tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	$(CONTAINER_CLI) tag $(DOCKER_IMAGE):$(VERSION_TAG) $(REGISTRY)/$(DOCKER_IMAGE):$(VERSION_TAG)
+	$(CONTAINER_CLI) push $(REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	$(CONTAINER_CLI) push $(REGISTRY)/$(DOCKER_IMAGE):$(VERSION_TAG)
 	@echo "✓ pushed $(DOCKER_IMAGE):{$(DOCKER_TAG),$(VERSION_TAG)}"
 
 # Batch-tool docker-run: pass ARGS through, e.g.
 #   make docker-run ARGS="--start 1 --end 1000 --output /out ..."
 docker-run:
-	docker run --rm -it $(DOCKER_IMAGE):$(DOCKER_TAG) $(ARGS)
+	$(CONTAINER_CLI) run --rm -it $(DOCKER_IMAGE):$(DOCKER_TAG) $(ARGS)
 
 docker-shell:
-	docker run --rm -it --entrypoint bash $(DOCKER_IMAGE):$(DOCKER_TAG)
+	$(CONTAINER_CLI) run --rm -it --entrypoint bash $(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-clean:
-	-docker rmi $(DOCKER_IMAGE):$(DOCKER_TAG) 2>/dev/null
-	-docker rmi $(DOCKER_IMAGE):$(VERSION_TAG) 2>/dev/null
+	-$(CONTAINER_CLI) rmi $(DOCKER_IMAGE):$(DOCKER_TAG) 2>/dev/null
+	-$(CONTAINER_CLI) rmi $(DOCKER_IMAGE):$(VERSION_TAG) 2>/dev/null
 
 # ---- CI / Release -----------------------------------------------------------
 
