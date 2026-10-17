@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	_ "github.com/duckdb/duckdb-go/v2"
 )
@@ -51,6 +53,16 @@ type DuckLakePusher struct {
 }
 
 // DuckLakePushResult describes rows written during a DuckLake push.
+// Commit-conflict retry policy. Five attempts over roughly 15 seconds of
+// backoff: a conflict clears as soon as the competing writer commits, and a
+// push that cannot land in that window is better reported than retried
+// forever -- the range catalog leaves the chunk unclaimed and a later run
+// re-derives it.
+const (
+	duckLakeCommitAttempts = 5
+	duckLakeCommitBackoff  = 500 * time.Millisecond
+)
+
 type DuckLakePushResult struct {
 	TotalRows int64
 	RowCounts map[string]int64
@@ -145,6 +157,168 @@ func (p *DuckLakePusher) Setup(ctx context.Context) error {
 }
 
 // Push reads local Parquet files and inserts them into DuckLake.
+// pushTableWithRetry pushes one table, retrying a DuckLake commit conflict.
+//
+// Concurrent chunks are separate processes writing the same DuckLake tables
+// for different ledger ranges. Each does delete-then-insert for its own
+// range, which is what makes a push idempotent -- but DuckLake detects the
+// concurrent delete at table granularity, not row or partition granularity,
+// and aborts the commit:
+//
+//	Transaction conflict - attempting to insert into table with index "14"
+//	- but another transaction has deleted from it
+//
+// Observed on the first concurrent dispatch: two chunks hit
+// contract_events_stream_v1 together, one lost, and the chunk died 70
+// seconds in. The ranges did not overlap; the table did.
+//
+// Retrying is safe for exactly the reason the range catalog's lease is safe:
+// the transaction deletes its own range before inserting, so re-running it
+// converges rather than doubling. A conflict also clears on its own -- it
+// means another writer committed -- so a short randomised backoff is the
+// right shape rather than anything cleverer.
+func (p *DuckLakePusher) pushTableWithRetry(ctx context.Context, duckTableName, fullTableName, insertSQL, parquetSourceSQL string) (int64, error) {
+	var rows int64
+	err := retryOnCommitConflict(ctx, duckLakeCommitAttempts, duckLakeCommitBackoff, duckTableName, func() error {
+		var err error
+		rows, err = p.pushTableOnce(ctx, duckTableName, fullTableName, insertSQL, parquetSourceSQL)
+		return err
+	})
+	if err != nil {
+		return 0, err
+	}
+	return rows, nil
+}
+
+// retryOnCommitConflict runs attempt until it succeeds, fails permanently, or
+// runs out of attempts.
+//
+// Separated from the push so the policy can be tested without a database.
+// The policy is where the mistakes live: retrying a permanent error turns an
+// immediate clear failure into a slow one, and not retrying a conflict loses
+// a chunk that would have succeeded a second later.
+func retryOnCommitConflict(ctx context.Context, attempts int, base time.Duration, label string, attempt func() error) error {
+	if attempts < 1 {
+		attempts = 1
+	}
+	var lastErr error
+	for n := 1; n <= attempts; n++ {
+		err := attempt()
+		if err == nil {
+			if n > 1 {
+				log.Printf("[DuckLake] %s: committed on attempt %d", label, n)
+			}
+			return nil
+		}
+		if !isDuckLakeCommitConflict(err) {
+			// Only conflicts are transient. A schema mismatch or a full disk
+			// retried five times is five times the wait and the same failure.
+			return err
+		}
+		lastErr = err
+		if n == attempts {
+			break
+		}
+		// Exponential with jitter: without jitter two chunks that collide
+		// back off in lockstep and collide again on the same schedule.
+		backoff := time.Duration(1<<uint(n-1))*base + time.Duration(rand.Int63n(int64(base)))
+		log.Printf("[DuckLake] %s: commit conflict on attempt %d/%d, retrying in %s",
+			label, n, attempts, backoff.Round(time.Millisecond))
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+	}
+	return fmt.Errorf("%s: commit conflict persisted across %d attempts: %w", label, attempts, lastErr)
+}
+
+// isDuckLakeCommitConflict reports whether an error is DuckLake refusing a
+// commit because another transaction touched the same table.
+//
+// Matched on the message because the duckdb driver surfaces no error code
+// through database/sql. Narrow on purpose: "transaction conflict" is
+// DuckDB's own wording for this case, and matching "conflict" alone would
+// also catch constraint violations, which must not be retried.
+func isDuckLakeCommitConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "transaction conflict")
+}
+
+// pushTableOnce runs one table's delete-and-insert as a single DuckLake
+// transaction.
+func (p *DuckLakePusher) pushTableOnce(ctx context.Context, duckTableName, fullTableName, insertSQL, parquetSourceSQL string) (int64, error) {
+	// Delete-before-insert for idempotent multi-push. Keep delete and insert
+	// in one transaction and fail hard on any table error; otherwise a failed
+	// insert after a successful delete can create/expand Bronze gaps while the
+	// Nomad allocation still reports success.
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin DuckLake transaction for %s: %w", duckTableName, err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
+				log.Printf("[DuckLake] rollback failed for %s: %v", duckTableName, rbErr)
+			}
+		}
+	}()
+
+	seqCol := ledgerSequenceColumn(duckTableName)
+	if seqCol != "" {
+		var minSeq, maxSeq int64
+		if p.config.StartLedger > 0 && p.config.EndLedger >= p.config.StartLedger {
+			// For chunked repairs, delete the whole requested chunk, not the
+			// per-table Parquet min/max. Previous partial pushes can leave stale
+			// table tails outside the new Parquet row range, causing false Bronze
+			// consistency where operations/effects exist beyond transactions.
+			minSeq = int64(p.config.StartLedger)
+			maxSeq = int64(p.config.EndLedger)
+		} else {
+			rangeSQL := fmt.Sprintf("SELECT MIN(%s), MAX(%s) FROM read_parquet(%s)", seqCol, seqCol, parquetSourceSQL)
+			var parquetMinSeq, parquetMaxSeq sql.NullInt64
+			if err := tx.QueryRowContext(ctx, rangeSQL).Scan(&parquetMinSeq, &parquetMaxSeq); err != nil {
+				return 0, fmt.Errorf("read ledger range for %s: %w", duckTableName, err)
+			} else if !parquetMinSeq.Valid || !parquetMaxSeq.Valid {
+				minSeq = 0
+				maxSeq = -1
+			} else {
+				minSeq = parquetMinSeq.Int64
+				maxSeq = parquetMaxSeq.Int64
+			}
+		}
+		if minSeq <= maxSeq {
+			deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE %s BETWEEN %d AND %d",
+				fullTableName, seqCol, minSeq, maxSeq)
+			delResult, err := tx.ExecContext(ctx, deleteSQL)
+			if err != nil {
+				return 0, fmt.Errorf("delete existing %s rows in range %d-%d: %w", duckTableName, minSeq, maxSeq, err)
+			}
+			deleted, _ := delResult.RowsAffected()
+			if deleted > 0 {
+				log.Printf("[DuckLake] %s: deleted %d existing rows in range %d-%d (idempotent push)",
+					duckTableName, deleted, minSeq, maxSeq)
+			}
+		}
+	}
+
+	log.Printf("[DuckLake] Pushing %s...", duckTableName)
+	result, err := tx.ExecContext(ctx, insertSQL)
+	if err != nil {
+		return 0, fmt.Errorf("insert %s into DuckLake: %w", duckTableName, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit DuckLake transaction for %s: %w", duckTableName, err)
+	}
+	committed = true
+
+	rows, _ := result.RowsAffected()
+	return rows, nil
+}
+
 func (p *DuckLakePusher) Push(ctx context.Context, outputDir string) (*DuckLakePushResult, error) {
 	pushResult := &DuckLakePushResult{RowCounts: map[string]int64{}}
 	if err := p.Setup(ctx); err != nil {
@@ -284,72 +458,10 @@ func (p *DuckLakePusher) Push(ctx context.Context, outputDir string) (*DuckLakeP
 		colList := strings.Join(quoted, ", ")
 		insertSQL := fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM read_parquet(%s)", fullTableName, colList, colList, parquetSourceSQL)
 
-		// Delete-before-insert for idempotent multi-push. Keep delete and insert
-		// in one transaction and fail hard on any table error; otherwise a failed
-		// insert after a successful delete can create/expand Bronze gaps while the
-		// Nomad allocation still reports success.
-		tx, err := p.db.BeginTx(ctx, nil)
+		rows, err := p.pushTableWithRetry(ctx, duckTableName, fullTableName, insertSQL, parquetSourceSQL)
 		if err != nil {
-			return nil, fmt.Errorf("begin DuckLake transaction for %s: %w", duckTableName, err)
+			return nil, err
 		}
-		committed := false
-		defer func() {
-			if !committed {
-				if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
-					log.Printf("[DuckLake] rollback failed for %s: %v", duckTableName, rbErr)
-				}
-			}
-		}()
-
-		seqCol := ledgerSequenceColumn(duckTableName)
-		if seqCol != "" {
-			var minSeq, maxSeq int64
-			if p.config.StartLedger > 0 && p.config.EndLedger >= p.config.StartLedger {
-				// For chunked repairs, delete the whole requested chunk, not the
-				// per-table Parquet min/max. Previous partial pushes can leave stale
-				// table tails outside the new Parquet row range, causing false Bronze
-				// consistency where operations/effects exist beyond transactions.
-				minSeq = int64(p.config.StartLedger)
-				maxSeq = int64(p.config.EndLedger)
-			} else {
-				rangeSQL := fmt.Sprintf("SELECT MIN(%s), MAX(%s) FROM read_parquet(%s)", seqCol, seqCol, parquetSourceSQL)
-				var parquetMinSeq, parquetMaxSeq sql.NullInt64
-				if err := tx.QueryRowContext(ctx, rangeSQL).Scan(&parquetMinSeq, &parquetMaxSeq); err != nil {
-					return nil, fmt.Errorf("read ledger range for %s: %w", duckTableName, err)
-				} else if !parquetMinSeq.Valid || !parquetMaxSeq.Valid {
-					minSeq = 0
-					maxSeq = -1
-				} else {
-					minSeq = parquetMinSeq.Int64
-					maxSeq = parquetMaxSeq.Int64
-				}
-			}
-			if minSeq <= maxSeq {
-				deleteSQL := fmt.Sprintf("DELETE FROM %s WHERE %s BETWEEN %d AND %d",
-					fullTableName, seqCol, minSeq, maxSeq)
-				delResult, err := tx.ExecContext(ctx, deleteSQL)
-				if err != nil {
-					return nil, fmt.Errorf("delete existing %s rows in range %d-%d: %w", duckTableName, minSeq, maxSeq, err)
-				}
-				deleted, _ := delResult.RowsAffected()
-				if deleted > 0 {
-					log.Printf("[DuckLake] %s: deleted %d existing rows in range %d-%d (idempotent push)",
-						duckTableName, deleted, minSeq, maxSeq)
-				}
-			}
-		}
-
-		log.Printf("[DuckLake] Pushing %s...", duckTableName)
-		result, err := tx.ExecContext(ctx, insertSQL)
-		if err != nil {
-			return nil, fmt.Errorf("insert %s into DuckLake: %w", duckTableName, err)
-		}
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("commit DuckLake transaction for %s: %w", duckTableName, err)
-		}
-		committed = true
-
-		rows, _ := result.RowsAffected()
 		totalRows += rows
 		pushResult.RowCounts[duckTableName] = rows
 		log.Printf("[DuckLake] %s: %d rows", duckTableName, rows)
