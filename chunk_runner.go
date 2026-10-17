@@ -178,7 +178,12 @@ func runChunkedCommand(ctx context.Context, originalArgs []string, start, end, c
 }
 
 func rewriteChunkArgs(args []string, chunk ledgerChunk, outputDir string) []string {
-	remove := map[string]bool{"start": true, "end": true, "output": true, "chunk-size": true}
+	// chunk-concurrency is stripped alongside chunk-size: a child builds one
+	// chunk and must not re-chunk or re-parallelise. Leaving it set gave every
+	// child "--chunk-concurrency 2" with no --chunk-size, which the loader's
+	// own guard rejects -- all five chunks failed in 62ms.
+	remove := map[string]bool{"start": true, "end": true, "output": true,
+		"chunk-size": true, "chunk-concurrency": true}
 	result := make([]string, 0, len(args)+4)
 	for index := 0; index < len(args); index++ {
 		arg := args[index]

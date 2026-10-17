@@ -8,6 +8,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -130,5 +131,77 @@ func TestNonPositiveConcurrencyRunsSequentially(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatalf("concurrency %d deadlocked", n)
 		}
+	}
+}
+
+// A child builds exactly one chunk, so it must inherit neither the chunk
+// geometry nor the concurrency. Leaving --chunk-concurrency set handed every
+// child a flag with no --chunk-size, which the loader's own guard rejects:
+// all five chunks of a real dispatch failed in 62ms.
+func TestChunkArgsStripChunkingFlagsFromChildren(t *testing.T) {
+	args := []string{
+		"--start", "1", "--end", "40000",
+		"--chunk-size", "10000", "--chunk-concurrency", "2",
+		"--range-state", "--workers", "4", "--output", "/data/out",
+	}
+	got := rewriteChunkArgs(args, ledgerChunk{Start: 10000, End: 19999}, "/data/out/chunks/10000-19999")
+
+	joined := strings.Join(got, " ")
+	// --chunk-concurrency must be gone entirely. --chunk-size is not removed
+	// but pinned to 0, which is how the child is told "you are the chunk":
+	// inheriting the parent's size would re-chunk recursively.
+	if strings.Contains(joined, "--chunk-concurrency") {
+		t.Errorf("child inherited --chunk-concurrency; with --chunk-size 0 the loader rejects it "+
+			"and every chunk fails in milliseconds: %s", joined)
+	}
+	if !strings.Contains(joined, "--chunk-size 0") {
+		t.Errorf("child should be pinned to --chunk-size 0: %s", joined)
+	}
+	// What it must keep: its own range, and the flags that make concurrency
+	// safe. Dropping --range-state would let two runs take the same chunk.
+	for _, required := range []string{"--range-state", "--workers 4", "--start 10000", "--end 19999"} {
+		if !strings.Contains(joined, required) {
+			t.Errorf("child lost %q: %s", required, joined)
+		}
+	}
+}
+
+// A boundary-aligned chunker emits a single-ledger trailing chunk whenever
+// the range ends one past a boundary. That is correct geometry, so the range
+// validation has to accept it -- roadmap known gap 2.
+func TestSplitEmitsSingleLedgerTrailingChunk(t *testing.T) {
+	got := splitLedgerChunks(64350000, 64354000, 1000)
+
+	last := got[len(got)-1]
+	if last.Start != 64354000 || last.End != 64354000 {
+		t.Fatalf("last chunk = %d-%d, want the single ledger 64354000", last.Start, last.End)
+	}
+	if last.Start != last.End {
+		t.Fatal("expected a one-ledger chunk; this test exists because the loader used to reject one")
+	}
+	// Coverage is still exact: no ledger dropped at the seam.
+	next := uint32(64350000)
+	for _, c := range got {
+		if c.Start != next {
+			t.Errorf("gap or overlap at %d-%d, expected start %d", c.Start, c.End, next)
+		}
+		next = c.End + 1
+	}
+	if next != 64354001 {
+		t.Errorf("coverage ends at %d, want 64354001", next)
+	}
+}
+
+// The range rule the chunker depends on. A single-ledger range is valid;
+// only an inverted one is not.
+func TestValidateLedgerRangeAcceptsASingleLedger(t *testing.T) {
+	if err := validateLedgerRange(64354000, 64354000); err != nil {
+		t.Errorf("a one-ledger range must be valid -- a boundary-aligned chunker emits them: %v", err)
+	}
+	if err := validateLedgerRange(1, 40000); err != nil {
+		t.Errorf("ordinary range rejected: %v", err)
+	}
+	if err := validateLedgerRange(100, 50); err == nil {
+		t.Error("an inverted range must still be rejected")
 	}
 }

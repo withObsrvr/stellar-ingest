@@ -20,6 +20,30 @@ import (
 // Version is set at build time via -ldflags "-X main.Version=..."
 var Version = "dev"
 
+// validateLedgerRange accepts any range where end is not before start,
+// including a single ledger.
+//
+// Closes roadmap known gap 2: --start/--end are inclusive, so start == end is
+// a legitimate one-ledger range, but validation rejected it and a single
+// ledger could not be expressed.
+//
+// Chunking forced the decision the roadmap said this needed. A
+// boundary-aligned chunker emits a single-ledger trailing chunk whenever the
+// range ends one past a boundary -- 64350000..64354000 at chunk size 1000
+// ends with 64354000-64354000 -- and merging that into the previous chunk
+// would break the alignment splitLedgerChunks exists to preserve. So the
+// range semantics give way, not the chunk geometry.
+//
+// This is a function rather than three lines in main so it can be tested:
+// the rule cost a real dispatch, where four chunks succeeded and the trailing
+// single-ledger chunk failed.
+func validateLedgerRange(start, end uint32) error {
+	if end < start {
+		return fmt.Errorf("--end (%d) must not be less than --start (%d)", end, start)
+	}
+	return nil
+}
+
 func main() {
 	start := flag.Uint("start", 0, "Start ledger sequence (required)")
 	end := flag.Uint("end", 0, "End ledger sequence (required)")
@@ -139,8 +163,8 @@ func main() {
 	}
 	duckLakeSkipSet := parseCSVSet(*dlSkipTables)
 
-	if endLedger <= startLedger {
-		log.Fatalf("--end (%d) must be greater than --start (%d)", endLedger, startLedger)
+	if err := validateLedgerRange(startLedger, endLedger); err != nil {
+		log.Fatal(err)
 	}
 
 	if *workers < 1 {
