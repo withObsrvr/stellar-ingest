@@ -65,6 +65,10 @@ Usage of stellar-ingest:
     	PostgreSQL SSL mode (default "require")
   -pg-user string
     	PostgreSQL user
+  -range-state
+    	Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)
+  -range-state-table string
+    	Table holding range state (default "public.ingest_range_state")
   -start uint
     	Start ledger sequence (required)
   -storage-type string

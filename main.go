@@ -41,6 +41,8 @@ func main() {
 	dlSchemaSQL := flag.String("ducklake-schema-sql", "", "Path to v3_bronze_schema.sql (optional)")
 	dlOnlyTables := flag.String("ducklake-only-tables", "", "Comma-separated source or DuckLake table names to push; defaults to --only-tables when set")
 	dlSkipTables := flag.String("ducklake-skip-tables", "", "Comma-separated source or DuckLake table names to skip during push")
+	rangeState := flag.Bool("range-state", false, "Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)")
+	rangeStateTable := flag.String("range-state-table", "public.ingest_range_state", "Table holding range state")
 	b2KeyID := flag.String("b2-key-id", "", "B2/S3 access key ID")
 	b2KeySecret := flag.String("b2-key-secret", "", "B2/S3 secret access key")
 	b2Endpoint := flag.String("b2-endpoint", "s3.us-west-004.backblazeb2.com", "B2/S3 endpoint")
@@ -237,6 +239,47 @@ func main() {
 	}
 	fmt.Println()
 
+	// Durable range state. Claimed before any work and frozen only after the
+	// DuckLake push returns, because a range is not done when its Parquet
+	// exists -- it is done when the push lands.
+	//
+	// This sits on the single-range path deliberately: runChunkedCommand
+	// re-invokes this binary per chunk, so chunked backfills inherit it
+	// without the chunk runner knowing anything about it, and so does a
+	// one-range Nomad dispatch.
+	var rangeStore *RangeStateStore
+	thisRange := LedgerRange{Start: startLedger, End: endLedger}
+	rangeAttemptID := newAttemptID()
+	if *rangeState {
+		if *dlCatalog == "" {
+			log.Fatal("--range-state requires --ducklake-catalog")
+		}
+		// frozen means "pushed to DuckLake". Claiming a range this run can
+		// never push would leave it freezing until the lease expired.
+		if !*runDuckLake {
+			log.Fatal("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
+		}
+		var err error
+		rangeStore, err = NewRangeStateStore(context.Background(), *dlCatalog, *rangeStateTable, *eraID)
+		if err != nil {
+			log.Fatalf("range state: %v", err)
+		}
+		defer rangeStore.Close()
+
+		claimed, err := rangeStore.Claim(context.Background(), thisRange, rangeAttemptID, Version, defaultClaimLease)
+		if err != nil {
+			log.Fatalf("range state: %v", err)
+		}
+		if !claimed {
+			// Either already frozen, or held by a live claim. Both mean there
+			// is nothing to do here, and both are a success: a resumed plan
+			// walking a range it already finished must not fail the run.
+			fmt.Printf("Range %s is already frozen or claimed by another run; nothing to do.\n", thisRange)
+			return
+		}
+		fmt.Printf("Range %s claimed (freezing)\n", thisRange)
+	}
+
 	// Skip extraction if only doing DuckLake push on existing output
 	if extractRequested {
 		config := OrchestratorConfig{
@@ -356,6 +399,15 @@ func main() {
 		}
 
 		fmt.Printf("DuckLake push completed in %s\n", time.Since(dlStart).Round(time.Millisecond))
+
+		// Frozen only now. Anything earlier would mark a range done whose
+		// rows had not reached cold, and a resumed plan would skip it.
+		if rangeStore != nil {
+			if err := rangeStore.Freeze(context.Background(), thisRange, rangeAttemptID, pushResult.TotalRows); err != nil {
+				log.Fatalf("range state: %v", err)
+			}
+			fmt.Printf("Range %s frozen (%d rows)\n", thisRange, pushResult.TotalRows)
+		}
 		if err := reporter.ReportChunkCompleted(ctx, int64(startLedger), int64(endLedger), true, pushResult.RowCounts, map[string]string{
 			"gate":   "ducklake-push",
 			"passed": "true",

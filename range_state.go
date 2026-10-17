@@ -237,19 +237,24 @@ func (s *RangeStateStore) Claim(ctx context.Context, r LedgerRange, attemptID, v
 // without error -- that ordering is the whole point, because a range is not
 // done when its Parquet exists, it is done when the push lands.
 func (s *RangeStateStore) Freeze(ctx context.Context, r LedgerRange, attemptID string, rowsPushed int64) error {
+	// attempt_id is in the predicate on purpose: freezing must only succeed
+	// while we still hold the claim we took. If the lease expired and another
+	// run re-claimed mid-push, this updates nothing and the caller is told,
+	// rather than one run marking another's range frozen.
 	tag, err := s.pool.Exec(ctx, fmt.Sprintf(`
 		UPDATE %s SET state = 'frozen', completed_at = NOW(), rows_pushed = $4
-		 WHERE era_id = $1 AND start_ledger = $2 AND end_ledger = $3`,
-		s.table), s.eraID, int64(r.Start), int64(r.End), rowsPushed)
+		 WHERE era_id = $1 AND start_ledger = $2 AND end_ledger = $3
+		   AND attempt_id = $5 AND state = 'freezing'`,
+		s.table), s.eraID, int64(r.Start), int64(r.End), rowsPushed, attemptID)
 	if err != nil {
 		return fmt.Errorf("freeze range %s: %w", r, err)
 	}
 	if tag.RowsAffected() != 1 {
-		// The claim vanished under us -- another worker re-claimed after the
-		// lease expired, or the row was deleted. Worth surfacing: the data is
-		// pushed either way (the push is idempotent), but the catalog no
-		// longer reflects who did it.
-		return fmt.Errorf("freeze range %s: expected 1 row, updated %d", r, tag.RowsAffected())
+		// Our claim is gone -- the lease expired and another run took it, or
+		// the row was deleted. The data is pushed either way, since the push
+		// is idempotent; what is lost is this run's right to declare the
+		// range done, and the other run will redo and freeze it.
+		return fmt.Errorf("freeze range %s: claim no longer held by attempt %s", r, attemptID)
 	}
 	return nil
 }
