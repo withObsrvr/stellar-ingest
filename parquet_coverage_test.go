@@ -36,6 +36,10 @@ var deliberatelyNotWritten = map[string]string{
 
 	// See tokenTransferHashNote below.
 	"TokenTransferData.TransactionHash": tokenTransferHashNote,
+
+	// Same reasoning as the transfer stream, but this one has a reader, so
+	// stellar-query-api recovers it by join. See operationHashNote below.
+	"OperationData.TransactionHash": operationHashNote,
 }
 
 // knownUnwritten records fields lost by accident rather than decision, each
@@ -69,6 +73,25 @@ var knownUnwritten = map[string]string{}
 // go. transactions_row_v2 keeps its hash -- it is the lookup key for
 // Horizon's tx-by-hash endpoint -- but could store it as 32-byte binary.
 const tokenTransferHashNote = "identity carried by transaction_id; 775 GB of incompressible hex with no reader"
+
+// operationHashNote explains why operations drop the hash too, and how this
+// case differs from the transfer stream's.
+//
+// 714 GB of cold Bronze, 31.4 compressed bytes per row across 24.4 billion
+// rows, for an identity transaction_id already carries as an int64 at ~4
+// bytes. transaction_id is non-null on all 24,423,813,904 rows.
+//
+// Unlike token_transfers_stream_v1 this column had a reader, so it could not
+// simply disappear. stellar-query-api's ColdReader.QueryOperations now
+// recovers it by joining transactions_row_v2 on (ledger_sequence,
+// transaction_id), keeping its projection identical to HotReader's -- callers
+// merge rows from both tiers through the same scan code. That reader change
+// has to be deployed before this one ships, or the reader selects a column
+// cold no longer has.
+//
+// Hot keeps the column: HotReader.QueryOperations reads it directly, so only
+// the cold copy goes and no PostgreSQL migration is needed.
+const operationHashNote = "identity carried by transaction_id; query-api recovers the hash by join"
 
 // claimableBalanceCreatedAtNote explains the one asymmetry the scan finds.
 //

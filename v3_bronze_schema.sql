@@ -101,7 +101,10 @@ CREATE TABLE IF NOT EXISTS bronze.transactions_row_v2 (
 );
 
 CREATE TABLE IF NOT EXISTS bronze.operations_row_v2 (
-    transaction_hash TEXT,
+    -- transaction_hash removed: 714 GB of incompressible hex for an identity
+    -- transaction_id already carries at ~4 bytes/row. stellar-query-api's
+    -- cold reader joins transactions_row_v2 on (ledger_sequence,
+    -- transaction_id) to recover it. Hot still stores it.
     operation_index INTEGER,
     ledger_sequence BIGINT,
     source_account TEXT,

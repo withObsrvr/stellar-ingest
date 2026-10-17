@@ -180,8 +180,23 @@ type ParquetTransaction struct {
 	PipelineVersion              string  `parquet:"version_label"`
 }
 
+// ParquetOperation carries transaction_id and transaction_index rather than
+// transaction_hash.
+//
+// The hash was 714 GB of cold Bronze -- 31.4 compressed bytes per row across
+// 24.4 billion rows -- for an identity transaction_id already carries as an
+// int64 at ~4 bytes. A 64-character hex string is incompressible: random hex
+// gives a block compressor no redundancy, so it pays close to full width in
+// every file forever.
+//
+// stellar-query-api's cold reader recovers it by joining transactions_row_v2
+// on (ledger_sequence, transaction_id); transaction_id is non-null on all
+// 24,423,813,904 rows, so the join is total. That reader change has to be
+// deployed before this one, or it selects a column cold no longer has.
+//
+// Hot keeps the column -- HotReader.QueryOperations reads it directly -- so
+// only the cold copy goes.
 type ParquetOperation struct {
-	TransactionHash             string  `parquet:"transaction_hash"`
 	TransactionIndex            int32   `parquet:"transaction_index"`
 	OperationIndex              int32   `parquet:"operation_index"`
 	LedgerSequence              uint32  `parquet:"ledger_sequence"`
@@ -832,7 +847,6 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				highThreshold = &v
 			}
 			rows[i] = ParquetOperation{
-				TransactionHash:             o.TransactionHash,
 				TransactionIndex:            int32(o.TransactionIndex),
 				OperationIndex:              int32(o.OperationIndex),
 				LedgerSequence:              o.LedgerSequence,

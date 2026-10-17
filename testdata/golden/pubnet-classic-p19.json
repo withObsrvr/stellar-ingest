@@ -351,9 +351,8 @@
     },
     "operations": {
       "row_count": 7720,
-      "content_hash": "d3ce3bae6761818dc3473e72484395da",
+      "content_hash": "f6fd45b0de556e0b57b01622958acc57",
       "columns": [
-        "transaction_hash",
         "transaction_index",
         "operation_index",
         "ledger_sequence",
@@ -470,7 +469,6 @@
         "source_asset_type": "7634a7d0196f329f066d8b518943755e",
         "sponsored_id": "4a9622623bb5dcbec13a1ee287dbcc0e",
         "starting_balance": "8d668457b72b21c6c4c977d4760aa670",
-        "transaction_hash": "9060e64efa6a759defc9ee4a7e69df7d",
         "transaction_id": "5f32626fa1c35c2b9a840ebfe513b077",
         "transaction_index": "21e354d025e0ffe48fabe1d19072fc96",
         "transaction_successful": "cb011ce1d01b2ed4c61983bf8c5a8948",
