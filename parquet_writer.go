@@ -331,6 +331,7 @@ type ParquetContractEvent struct {
 	ContractID               *string `parquet:"contract_id,optional"`
 	LedgerSequence           uint32  `parquet:"ledger_sequence"`
 	TransactionHash          string  `parquet:"transaction_hash"`
+	TransactionID            int64   `parquet:"transaction_id"`
 	ClosedAt                 int64   `parquet:"closed_at,timestamp(microsecond)"`
 	EventType                string  `parquet:"event_type"`
 	InSuccessfulContractCall bool    `parquet:"in_successful_contract_call"`

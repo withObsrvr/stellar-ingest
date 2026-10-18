@@ -4,8 +4,8 @@
   "fixture": "pubnet-genesis-p1",
   "pins": {
     "repo": "stellar-ingest",
-    "revision": "3db342cdc815d8cef850f0917c76a36d28d809af-dirty",
-    "stellar-extract": "v0.3.5-0.20261015175632-704c86cbb0d0"
+    "revision": "4379dfcc60eda87c2d794aeceb6bc2713b9bd37b-dirty",
+    "stellar-extract": "v0.3.6"
   },
   "excluded_columns": [
     "EraID",
@@ -115,7 +115,7 @@
         "EvictedKeysCount": "a7cbe3b9941dec282104499f9dc1808e6329fab9be6630d3cc2a47e03c8c5847",
         "FailedTxCount": "97360d6e32ca4f7ef8f4ceecff533a1d5b88d934e334548e7212e8d54c708674",
         "FeePool": "58878e1f411805f31ecadfdbc395e55033216e30a303f497722f9fe001066ab5",
-        "IngestionTimestamp": "10ceedc709bca3d0e66d6f2f58a47cd3bae8ad2a976aa29d7e4eb6e0da40f7b0",
+        "IngestionTimestamp": "cfbd7a23a77123174d7ac59833a257e03589ccc1748d9a041676a7ee4cb63039",
         "LedgerHash": "bdbfaf4b47513f59a00ed9f0a17173c90494b5c398ee7c60e8a2c115d7b5b61f",
         "LedgerHeader": "045b724aef19c006c9432a9a6a9dd4e62ee5ac709c951824ec44cec118be8149",
         "LedgerRange": "76e66392397f33d067585d1144c8c6e959b65bc70c53e73ac5b53ed13b470d59",

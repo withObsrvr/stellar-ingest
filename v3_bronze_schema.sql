@@ -401,7 +401,11 @@ CREATE TABLE IF NOT EXISTS bronze.contract_events_stream_v1 (
     ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
-    version_label TEXT
+    version_label TEXT,
+    -- TOID of the parent transaction (stellar-extract v0.3.6). Added at the
+    -- tail because ALTER TABLE ADD COLUMN appends in both PostgreSQL and
+    -- DuckLake, and the flusher's migration list depends on that order.
+    transaction_id BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS bronze.contract_data_snapshot_v1 (

@@ -127,12 +127,13 @@
     },
     "contract_events": {
       "row_count": 14515,
-      "content_hash": "454d6df8360a52d99b8b6cafd02efa26",
+      "content_hash": "65c9d5dba9eb53d36b05048ef9735dbe",
       "columns": [
         "event_id",
         "contract_id",
         "ledger_sequence",
         "transaction_hash",
+        "transaction_id",
         "closed_at",
         "event_type",
         "in_successful_contract_call",
@@ -174,7 +175,8 @@
         "topic_count": "6f0a876a3823e512c28dad3334085183",
         "topics_decoded": "717c3ceff004451aa74dab94ce9583c7",
         "topics_json": "7d0657cb715463108ca66a246dbe5c24",
-        "transaction_hash": "28bf76d794662282ede38e34dea7e5ef"
+        "transaction_hash": "28bf76d794662282ede38e34dea7e5ef",
+        "transaction_id": "fc29d3bfc6e9e22af2f6c17ab985160a"
       }
     },
     "effects": {

@@ -600,7 +600,16 @@ type ContractEventData struct {
 	ContractID      *string
 	LedgerSequence  uint32
 	TransactionHash string
-	ClosedAt        time.Time
+	// TransactionID is the TOID of the transaction this event belongs to,
+	// the same value TransactionData.TransactionID carries for the parent
+	// row. Added in stellar-extract v0.3.6.
+	//
+	// Position matters: this type is converted directly from
+	// extract.ContractEventData, so the fields have to line up. The compiler
+	// caught the mismatch when the pin moved, which is the only check that
+	// layer gets.
+	TransactionID int64
+	ClosedAt      time.Time
 
 	// Event Type (4 fields)
 	EventType                string
