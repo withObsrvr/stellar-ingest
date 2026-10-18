@@ -2,7 +2,7 @@
 -- Auto-generated to match stellar-postgres-ingester output
 
 -- Core tables
-CREATE TABLE IF NOT EXISTS bronze.ledgers_row_v2 (
+CREATE TABLE IF NOT EXISTS bronze_store.ledgers_row_v2 (
     sequence BIGINT,
     ledger_hash TEXT,
     previous_ledger_hash TEXT,
@@ -34,9 +34,13 @@ CREATE TABLE IF NOT EXISTS bronze.ledgers_row_v2 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.transactions_row_v2 (
+CREATE TABLE IF NOT EXISTS bronze_store.transactions_row_v2 (
     ledger_sequence BIGINT,
-    transaction_hash TEXT,
+    -- Rule 1: the 32 bytes of the digest, not its 64-char hex
+    -- rendering. 66.0 bytes/row as text, and a digest does not
+    -- compress. The bronze.transactions_row_v2 view renders
+    -- lower(hex(transaction_hash)) so consumers see no change.
+    transaction_hash BLOB,
     source_account TEXT,
     fee_charged BIGINT,
     max_fee BIGINT,
@@ -100,8 +104,10 @@ CREATE TABLE IF NOT EXISTS bronze.transactions_row_v2 (
     transaction_id BIGINT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.operations_row_v2 (
-    transaction_hash TEXT,
+CREATE TABLE IF NOT EXISTS bronze_store.operations_row_v2 (
+    -- Rule 3: transaction_id below names the same transaction in 8
+    -- bytes against 31.4. The bronze.operations_row_v2 view recovers
+    -- the hash by joining transactions_row_v2. 714 GB.
     operation_index INTEGER,
     ledger_sequence BIGINT,
     source_account TEXT,
@@ -176,7 +182,7 @@ CREATE TABLE IF NOT EXISTS bronze.operations_row_v2 (
 );
 
 -- Effects (FIXED: matches PostgreSQL exactly - 22 columns)
-CREATE TABLE IF NOT EXISTS bronze.effects_row_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.effects_row_v1 (
     ledger_sequence BIGINT,
     transaction_hash TEXT,
     operation_index INTEGER,
@@ -208,7 +214,7 @@ CREATE TABLE IF NOT EXISTS bronze.effects_row_v1 (
 );
 
 -- Trades (FIXED: matches PostgreSQL exactly - 19 columns)
-CREATE TABLE IF NOT EXISTS bronze.trades_row_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.trades_row_v1 (
     ledger_sequence BIGINT,
     transaction_hash TEXT,
     operation_index INTEGER,
@@ -235,7 +241,7 @@ CREATE TABLE IF NOT EXISTS bronze.trades_row_v1 (
 );
 
 -- Snapshot tables
-CREATE TABLE IF NOT EXISTS bronze.accounts_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.accounts_snapshot_v1 (
     account_id TEXT,
     ledger_sequence BIGINT,
     closed_at TIMESTAMP,
@@ -265,7 +271,7 @@ CREATE TABLE IF NOT EXISTS bronze.accounts_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.trustlines_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.trustlines_snapshot_v1 (
     account_id TEXT,
     asset_code TEXT,
     asset_issuer TEXT,
@@ -284,7 +290,7 @@ CREATE TABLE IF NOT EXISTS bronze.trustlines_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.account_signers_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.account_signers_snapshot_v1 (
     account_id TEXT,
     signer TEXT,
     ledger_sequence BIGINT,
@@ -298,7 +304,7 @@ CREATE TABLE IF NOT EXISTS bronze.account_signers_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.native_balances_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.native_balances_snapshot_v1 (
     account_id TEXT,
     balance BIGINT,
     buying_liabilities BIGINT,
@@ -314,7 +320,7 @@ CREATE TABLE IF NOT EXISTS bronze.native_balances_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.offers_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.offers_snapshot_v1 (
     offer_id BIGINT,
     seller_account TEXT,
     ledger_sequence BIGINT,
@@ -334,7 +340,7 @@ CREATE TABLE IF NOT EXISTS bronze.offers_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.liquidity_pools_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.liquidity_pools_snapshot_v1 (
     liquidity_pool_id TEXT,
     ledger_sequence BIGINT,
     closed_at TIMESTAMP,
@@ -356,7 +362,7 @@ CREATE TABLE IF NOT EXISTS bronze.liquidity_pools_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.claimable_balances_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.claimable_balances_snapshot_v1 (
     balance_id TEXT,
     sponsor TEXT,
     ledger_sequence BIGINT,
@@ -373,11 +379,14 @@ CREATE TABLE IF NOT EXISTS bronze.claimable_balances_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.contract_events_stream_v1 (
-    event_id TEXT,
+CREATE TABLE IF NOT EXISTS bronze_store.contract_events_stream_v1 (
+    -- Rule 2: event_id was transaction_hash || ':' || event_index --
+    -- a pure function of two columns in the same row, and the largest
+    -- single column in the lake at 800 GB. Rule 3: transaction_hash
+    -- was the parent's identity a second time, 700 GB. Both are
+    -- reproduced by the bronze.contract_events_stream_v1 view.
     contract_id TEXT,
     ledger_sequence BIGINT,
-    transaction_hash TEXT,
     closed_at TIMESTAMP,
     event_type TEXT,
     in_successful_contract_call BOOLEAN,
@@ -401,10 +410,14 @@ CREATE TABLE IF NOT EXISTS bronze.contract_events_stream_v1 (
     ingested_at TIMESTAMP,
     ledger_range BIGINT,
     era_id TEXT,
-    version_label TEXT
+    version_label TEXT,
+    -- TOID of the parent transaction (stellar-extract v0.3.6). Added at the
+    -- tail because ALTER TABLE ADD COLUMN appends in both PostgreSQL and
+    -- DuckLake, and the flusher's migration list depends on that order.
+    transaction_id BIGINT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.contract_data_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.contract_data_snapshot_v1 (
     contract_id TEXT,
     ledger_sequence BIGINT,
     ledger_key_hash TEXT,
@@ -429,7 +442,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_data_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.contract_code_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.contract_code_snapshot_v1 (
     contract_code_hash TEXT,
     ledger_key_hash TEXT,
     contract_code_ext_v INTEGER,
@@ -454,7 +467,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_code_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.config_settings_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.config_settings_snapshot_v1 (
     config_setting_id INTEGER,
     ledger_sequence BIGINT,
     last_modified_ledger INTEGER,
@@ -485,7 +498,7 @@ CREATE TABLE IF NOT EXISTS bronze.config_settings_snapshot_v1 (
     resolved_at_ledger BIGINT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.ttl_snapshot_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.ttl_snapshot_v1 (
     key_hash TEXT,
     ledger_sequence BIGINT,
     live_until_ledger_seq BIGINT,
@@ -500,7 +513,7 @@ CREATE TABLE IF NOT EXISTS bronze.ttl_snapshot_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.evicted_keys_state_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.evicted_keys_state_v1 (
     key_hash TEXT,
     ledger_sequence BIGINT,
     contract_id TEXT,
@@ -513,7 +526,7 @@ CREATE TABLE IF NOT EXISTS bronze.evicted_keys_state_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.restored_keys_state_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.restored_keys_state_v1 (
     key_hash TEXT,
     ledger_sequence BIGINT,
     contract_id TEXT,
@@ -527,7 +540,7 @@ CREATE TABLE IF NOT EXISTS bronze.restored_keys_state_v1 (
     version_label TEXT
 );
 
-CREATE TABLE IF NOT EXISTS bronze.contract_creations_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.contract_creations_v1 (
     contract_id TEXT,
     creator_address TEXT,
     wasm_hash TEXT,
@@ -548,7 +561,7 @@ CREATE TABLE IF NOT EXISTS bronze.contract_creations_v1 (
 -- Column order MUST match stellar_hot.token_transfers_stream_v1 exactly
 -- (positional INSERT by the bronze flusher). See the PG DDL in
 -- stellar-postgres-ingester/migrations/004_add_toid_and_token_transfers.sql.
-CREATE TABLE IF NOT EXISTS bronze.token_transfers_stream_v1 (
+CREATE TABLE IF NOT EXISTS bronze_store.token_transfers_stream_v1 (
     ledger_sequence   INTEGER,
     -- transaction_hash removed: 775 GB of incompressible hex for an identity
     -- transaction_id already carries at ~4 bytes/row, with no reader anywhere.

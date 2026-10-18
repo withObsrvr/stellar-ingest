@@ -128,8 +128,11 @@ func (w *ParquetTableWriter[T]) Close() error {
 // These mirror the bronze data types but with parquet tags for schema definition.
 
 type ParquetTransaction struct {
-	LedgerSequence               uint32  `parquet:"ledger_sequence"`
-	TransactionHash              string  `parquet:"transaction_hash"`
+	LedgerSequence uint32 `parquet:"ledger_sequence"`
+	// Stored as the 32 bytes it is, not as 64 hex characters: a digest is
+	// random, so hex costs 2x and compresses by nothing. The
+	// bronze.transactions_row_v2 view renders lower(hex(..)) for consumers.
+	TransactionHash              []byte  `parquet:"transaction_hash"`
 	SourceAccount                string  `parquet:"source_account"`
 	SourceAccountMuxed           *string `parquet:"source_account_muxed,optional"`
 	FeeCharged                   int64   `parquet:"fee_charged"`
@@ -181,7 +184,9 @@ type ParquetTransaction struct {
 }
 
 type ParquetOperation struct {
-	TransactionHash             string  `parquet:"transaction_hash"`
+	// transaction_hash dropped under rule 3: transaction_id below names the
+	// same transaction in 8 bytes rather than 31.4, and the
+	// bronze.operations_row_v2 view recovers the hash by joining the parent.
 	TransactionIndex            int32   `parquet:"transaction_index"`
 	OperationIndex              int32   `parquet:"operation_index"`
 	LedgerSequence              uint32  `parquet:"ledger_sequence"`
@@ -327,10 +332,13 @@ type ParquetAccount struct {
 }
 
 type ParquetContractEvent struct {
-	EventID                  string  `parquet:"event_id"`
+	// event_id (rule 2) and transaction_hash (rule 3) both dropped: event_id
+	// was transaction_hash || ':' || event_index, so this table stored one
+	// transaction identity three times. The bronze.contract_events_stream_v1
+	// view reproduces both from transaction_id and event_index. ~1.5 TB.
 	ContractID               *string `parquet:"contract_id,optional"`
 	LedgerSequence           uint32  `parquet:"ledger_sequence"`
-	TransactionHash          string  `parquet:"transaction_hash"`
+	TransactionID            int64   `parquet:"transaction_id"`
 	ClosedAt                 int64   `parquet:"closed_at,timestamp(microsecond)"`
 	EventType                string  `parquet:"event_type"`
 	InSuccessfulContractCall bool    `parquet:"in_successful_contract_call"`
@@ -740,7 +748,7 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 		for i, t := range batch.Transactions {
 			rows[i] = ParquetTransaction{
 				LedgerSequence:               t.LedgerSequence,
-				TransactionHash:              t.TransactionHash,
+				TransactionHash:              decodeHashBytes(t.TransactionHash),
 				SourceAccount:                t.SourceAccount,
 				SourceAccountMuxed:           t.SourceAccountMuxed,
 				FeeCharged:                   t.FeeCharged,
@@ -832,7 +840,6 @@ func (pw *ParquetWriterFull) WriteBatch(batch *BatchData) error {
 				highThreshold = &v
 			}
 			rows[i] = ParquetOperation{
-				TransactionHash:             o.TransactionHash,
 				TransactionIndex:            int32(o.TransactionIndex),
 				OperationIndex:              int32(o.OperationIndex),
 				LedgerSequence:              o.LedgerSequence,

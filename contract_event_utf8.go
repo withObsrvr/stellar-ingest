@@ -56,10 +56,9 @@ func invalidUTF8Marker(value string) string {
 func parquetContractEventFromData(event ContractEventData, pipelineVersion string) ParquetContractEvent {
 	sanitizeContractEventUTF8(&event)
 	return ParquetContractEvent{
-		EventID:                  event.EventID,
 		ContractID:               event.ContractID,
 		LedgerSequence:           event.LedgerSequence,
-		TransactionHash:          event.TransactionHash,
+		TransactionID:            event.TransactionID,
 		ClosedAt:                 event.ClosedAt.UnixMicro(),
 		EventType:                event.EventType,
 		InSuccessfulContractCall: event.InSuccessfulContractCall,
