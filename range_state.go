@@ -39,6 +39,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// rangeSkippedMarker is how a child tells its parent it did no work.
+//
+// A child that finds its range already frozen, or held by another worker,
+// exits 0 -- there is nothing wrong and a resumed plan must not fail. But the
+// parent then reported it as "ok", indistinguishable from a chunk that
+// actually built: a re-dispatch of five finished chunks printed "5/5 chunks
+// succeeded in 87ms", which is true and useless.
+//
+// An exit code would be the obvious channel and is the wrong one: a non-zero
+// exit marks the whole Nomad allocation failed, so a single-range dispatch of
+// an already-complete range would look broken.
+//
+// Parent and child are the same binary, so this is one constant rather than
+// a string match across a boundary.
+const rangeSkippedMarker = "RANGE-ALREADY-COMPLETE"
+
 // Range state values. Deliberately the archive node's words rather than
 // "running"/"done", so the borrowed design stays legible against their code.
 const (

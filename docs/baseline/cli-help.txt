@@ -11,6 +11,8 @@ Usage of stellar-ingest:
     	Ledgers per extraction batch (default 1000)
   -bucket string
     	Storage bucket/path for ledger data (required)
+  -chunk-concurrency int
+    	Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers (default 1)
   -chunk-size uint
     	Maximum ledgers per sequential extract/validate/publish chunk; 0 processes the range as one chunk
   -ducklake

@@ -20,6 +20,30 @@ import (
 // Version is set at build time via -ldflags "-X main.Version=..."
 var Version = "dev"
 
+// validateLedgerRange accepts any range where end is not before start,
+// including a single ledger.
+//
+// Closes roadmap known gap 2: --start/--end are inclusive, so start == end is
+// a legitimate one-ledger range, but validation rejected it and a single
+// ledger could not be expressed.
+//
+// Chunking forced the decision the roadmap said this needed. A
+// boundary-aligned chunker emits a single-ledger trailing chunk whenever the
+// range ends one past a boundary -- 64350000..64354000 at chunk size 1000
+// ends with 64354000-64354000 -- and merging that into the previous chunk
+// would break the alignment splitLedgerChunks exists to preserve. So the
+// range semantics give way, not the chunk geometry.
+//
+// This is a function rather than three lines in main so it can be tested:
+// the rule cost a real dispatch, where four chunks succeeded and the trailing
+// single-ledger chunk failed.
+func validateLedgerRange(start, end uint32) error {
+	if end < start {
+		return fmt.Errorf("--end (%d) must not be less than --start (%d)", end, start)
+	}
+	return nil
+}
+
 func main() {
 	start := flag.Uint("start", 0, "Start ledger sequence (required)")
 	end := flag.Uint("end", 0, "End ledger sequence (required)")
@@ -44,6 +68,7 @@ func main() {
 	rangeState := flag.Bool("range-state", false, "Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)")
 	rangeStateTable := flag.String("range-state-table", "public.ingest_range_state", "Table holding range state")
 	planOnly := flag.Bool("plan", false, "Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)")
+	chunkConcurrency := flag.Int("chunk-concurrency", 1, "Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers")
 	b2KeyID := flag.String("b2-key-id", "", "B2/S3 access key ID")
 	b2KeySecret := flag.String("b2-key-secret", "", "B2/S3 secret access key")
 	b2Endpoint := flag.String("b2-endpoint", "s3.us-west-004.backblazeb2.com", "B2/S3 endpoint")
@@ -138,8 +163,8 @@ func main() {
 	}
 	duckLakeSkipSet := parseCSVSet(*dlSkipTables)
 
-	if endLedger <= startLedger {
-		log.Fatalf("--end (%d) must be greater than --start (%d)", endLedger, startLedger)
+	if err := validateLedgerRange(startLedger, endLedger); err != nil {
+		log.Fatal(err)
 	}
 
 	if *workers < 1 {
@@ -151,6 +176,19 @@ func main() {
 	}
 	if *chunkSize > 0 && !extractRequested {
 		log.Fatal("--chunk-size requires an extraction source")
+	}
+	if *chunkConcurrency < 1 {
+		log.Fatal("--chunk-concurrency must be at least 1")
+	}
+	if *chunkConcurrency > 1 && *chunkSize == 0 {
+		log.Fatal("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
+	}
+	if *chunkConcurrency > 1 && !*rangeState {
+		// Concurrent chunks are separate processes writing the same DuckLake
+		// tables. Without the range catalog nothing stops two runs taking the
+		// same chunk, and a crashed chunk leaves no record that it needs
+		// redoing -- which is most of what makes concurrency safe here.
+		log.Fatal("--chunk-concurrency above 1 requires --range-state")
 	}
 	if uint64(*chunkSize) > uint64(^uint32(0)) {
 		log.Fatal("--chunk-size exceeds the supported uint32 ledger range")
@@ -207,7 +245,7 @@ func main() {
 	}
 
 	if *chunkSize > 0 {
-		if err := runChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(*chunkSize), *output); err != nil {
+		if err := runChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(*chunkSize), *output, *chunkConcurrency); err != nil {
 			log.Fatalf("chunked backfill failed: %v", err)
 		}
 		return
@@ -306,7 +344,10 @@ func main() {
 			// Either already frozen, or held by a live claim. Both mean there
 			// is nothing to do here, and both are a success: a resumed plan
 			// walking a range it already finished must not fail the run.
-			fmt.Printf("Range %s is already frozen or claimed by another run; nothing to do.\n", thisRange)
+			// The marker is for the chunk runner; the sentence is for a
+			// human reading a single-range dispatch.
+			fmt.Printf("%s Range %s is already frozen or claimed by another run; nothing to do.\n",
+				rangeSkippedMarker, thisRange)
 			return
 		}
 		fmt.Printf("Range %s claimed (freezing)\n", thisRange)
