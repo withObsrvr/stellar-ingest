@@ -33,14 +33,23 @@ a per-table exception, and so a writer flips one config value
 About **2.86 TB**, against the ~3.2 TB the contract projected for rules 1–3.
 The gap is the deferred work below.
 
-Both child views join the parent on `transaction_id` **and** `ledger_range`.
+Both child views **LEFT** JOIN the parent on `transaction_id` **and**
+`ledger_range`. Left, not inner, because the two sides do not advance
+together: the flusher keeps a per-table checkpoint, so `contract_events` can
+be flushed past the point `transactions_row_v2` has reached, and a child row
+can genuinely have no parent for a while. Under an inner join those rows are
+absent and nothing says so; under a left join they are present with a null
+`transaction_hash`, which is wrong in a way somebody can see. This layer has
+lost data quietly before.
+
+The partition equality is part of the join condition.
 The partition equality is not redundant, but it is also not the difference
 between pruning and not: without it the parent side still prunes, because a
 TOID sorts with its ledger and DuckLake keeps per-file statistics on
 `transaction_id`, so the optimizer derives a dynamic range filter. Stating the
 equality makes the pruning structural rather than incidental. Measured on a
-50-partition fixture: one partition reads 1 file and 1,000 rows of 50,000, on
-both sides of the join.
+50-partition fixture, with the left join in place: one partition reads 1 file
+and 1,000 rows of 50,000, on both sides.
 
 ## What was verified, and how
 

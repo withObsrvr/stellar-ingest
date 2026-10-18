@@ -183,12 +183,52 @@ func TestViewsRenderTheRemovedIdentityColumns(t *testing.T) {
 	_ = eventIdx
 }
 
-// A child row whose parent is in a different partition must not silently
-// vanish. The views join on ledger_range as well as transaction_id, so a
-// mismatch drops the row -- an inner join is the right shape only because a
-// child and its parent are always written in the same partition. This pins
-// that assumption so a future partitioning change fails here loudly.
-func TestChildRowsJoinTheirParentWithinOnePartition(t *testing.T) {
+// A child row whose parent has not arrived yet must stay visible.
+//
+// The two sides do not advance together: the flusher keeps a per-table
+// checkpoint, so contract_events can be flushed past the point
+// transactions_row_v2 has reached, and a child row can genuinely have no
+// parent row for a while. Under an inner join that row is absent and nothing
+// says so. Under a left join it is present with a null transaction_hash --
+// wrong in a way somebody can see. The same applies to a child whose parent
+// sits in another partition, which the join also requires.
+func TestChildRowsSurviveAParentThatHasNotArrived(t *testing.T) {
+	db := buildCompatSchema(t)
+
+	// An event whose parent transaction is nowhere in the store.
+	if _, err := db.Exec(`INSERT INTO memory.bronze_store.contract_events_stream_v1
+		(transaction_id, event_index, ledger_range) VALUES (99, 0, 6437)`); err != nil {
+		t.Fatal(err)
+	}
+
+	var n int
+	if err := db.QueryRow(`SELECT count(*) FROM memory.bronze.contract_events_stream_v1`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("the view returned %d rows; an orphaned child must stay visible rather than "+
+			"disappearing until its parent is flushed", n)
+	}
+
+	var hash, eventID *string
+	if err := db.QueryRow(
+		`SELECT transaction_hash, event_id FROM memory.bronze.contract_events_stream_v1`,
+	).Scan(&hash, &eventID); err != nil {
+		t.Fatal(err)
+	}
+	if hash != nil {
+		t.Errorf("transaction_hash = %q, want null: there is no parent to render it from", *hash)
+	}
+	if eventID != nil {
+		t.Errorf("event_id = %q, want null", *eventID)
+	}
+}
+
+// The partition equality is still part of the join, so a parent in a
+// different partition does not satisfy it. Pinned because the join would
+// otherwise quietly start matching across partitions if someone simplified
+// it, and because the pruning argument depends on the clause being there.
+func TestChildRowsDoNotMatchAParentInAnotherPartition(t *testing.T) {
 	db := buildCompatSchema(t)
 
 	const hash = "b2069f36e0e430c44cf60d416ca2a8679155a28f695f98d959772dc103294f52"
@@ -202,12 +242,14 @@ func TestChildRowsJoinTheirParentWithinOnePartition(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var n int
-	if err := db.QueryRow(`SELECT count(*) FROM memory.bronze.contract_events_stream_v1`).Scan(&n); err != nil {
+	var rendered *string
+	if err := db.QueryRow(
+		`SELECT transaction_hash FROM memory.bronze.contract_events_stream_v1`,
+	).Scan(&rendered); err != nil {
 		t.Fatal(err)
 	}
-	if n != 0 {
-		t.Fatalf("a cross-partition child joined anyway (%d rows); the partition equality is not "+
-			"doing what this test documents", n)
+	if rendered != nil {
+		t.Errorf("a parent in another partition was joined anyway, rendering %q; the partition "+
+			"equality is not doing what this test documents", *rendered)
 	}
 }
