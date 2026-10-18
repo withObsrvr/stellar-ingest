@@ -49,6 +49,8 @@ type chunkResult struct {
 	Chunk    ledgerChunk
 	Err      error
 	Duration time.Duration
+	// Skipped means the chunk was already complete, not that it built.
+	Skipped bool
 }
 
 // prefixWriter tags each line with its chunk so concurrent children remain
@@ -60,6 +62,9 @@ type prefixWriter struct {
 	out    *os.File
 	mu     *sync.Mutex
 	buf    []byte
+	// saw is set when the child reports it did no work. Read only after
+	// command.Run returns, so the mutex covering writes is sufficient.
+	saw *atomic.Bool
 }
 
 func (w *prefixWriter) Write(p []byte) (int, error) {
@@ -71,7 +76,11 @@ func (w *prefixWriter) Write(p []byte) (int, error) {
 		if i < 0 {
 			break
 		}
-		fmt.Fprintf(w.out, "%s %s\n", w.prefix, w.buf[:i])
+		line := w.buf[:i]
+		if w.saw != nil && bytes.Contains(line, []byte(rangeSkippedMarker)) {
+			w.saw.Store(true)
+		}
+		fmt.Fprintf(w.out, "%s %s\n", w.prefix, line)
 		w.buf = w.buf[i+1:]
 	}
 	return len(p), nil
@@ -84,7 +93,7 @@ func (w *prefixWriter) Write(p []byte) (int, error) {
 // later from the range catalog -- cancelling the others would throw away
 // hours of completed work to report one failure sooner. The flusher learned
 // this the same way.
-func runChunksConcurrently(chunks []ledgerChunk, concurrency int, run func(ledgerChunk) error) []chunkResult {
+func runChunksConcurrently(chunks []ledgerChunk, concurrency int, run func(ledgerChunk) (bool, error)) []chunkResult {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -104,8 +113,8 @@ func runChunksConcurrently(chunks []ledgerChunk, concurrency int, run func(ledge
 			defer func() { <-slots }()
 
 			started := time.Now()
-			err := run(chunk)
-			results[i] = chunkResult{Chunk: chunk, Err: err, Duration: time.Since(started)}
+			skipped, err := run(chunk)
+			results[i] = chunkResult{Chunk: chunk, Err: err, Duration: time.Since(started), Skipped: skipped}
 		}(i, chunk)
 	}
 	wg.Wait()
@@ -131,38 +140,52 @@ func runChunkedCommand(ctx context.Context, originalArgs []string, start, end, c
 	var outMu sync.Mutex
 	var doneCount atomic.Int64
 
-	results := runChunksConcurrently(chunks, concurrency, func(chunk ledgerChunk) error {
+	results := runChunksConcurrently(chunks, concurrency, func(chunk ledgerChunk) (bool, error) {
 		label := fmt.Sprintf("[%d-%d]", chunk.Start, chunk.End)
 		chunkOutput := filepath.Join(outputDir, "chunks", fmt.Sprintf("%d-%d", chunk.Start, chunk.End))
 		args := rewriteChunkArgs(originalArgs, chunk, chunkOutput)
 
+		var saw atomic.Bool
 		command := exec.CommandContext(ctx, executable, args...)
-		command.Stdout = &prefixWriter{prefix: label, out: os.Stdout, mu: &outMu}
-		command.Stderr = &prefixWriter{prefix: label, out: os.Stderr, mu: &outMu}
+		command.Stdout = &prefixWriter{prefix: label, out: os.Stdout, mu: &outMu, saw: &saw}
+		command.Stderr = &prefixWriter{prefix: label, out: os.Stderr, mu: &outMu, saw: &saw}
 		command.Env = os.Environ()
 
 		err := command.Run()
+		skipped := err == nil && saw.Load()
 
 		outMu.Lock()
 		n := doneCount.Add(1)
-		if err != nil {
+		switch {
+		case err != nil:
 			fmt.Printf("%s FAILED (%d/%d done): %v\n", label, n, len(chunks), err)
-		} else {
-			fmt.Printf("%s ok (%d/%d done)\n", label, n, len(chunks))
+		case skipped:
+			fmt.Printf("%s skipped, already complete (%d/%d done)\n", label, n, len(chunks))
+		default:
+			fmt.Printf("%s built (%d/%d done)\n", label, n, len(chunks))
 		}
 		outMu.Unlock()
-		return err
+		return skipped, err
 	})
 
 	var failed []chunkResult
+	var built, skipped int
 	for _, r := range results {
-		if r.Err != nil {
+		switch {
+		case r.Err != nil:
 			failed = append(failed, r)
+		case r.Skipped:
+			skipped++
+		default:
+			built++
 		}
 	}
 
-	fmt.Printf("\nChunked backfill: %d/%d chunks succeeded in %s\n",
-		len(chunks)-len(failed), len(chunks), time.Since(started).Round(time.Millisecond))
+	// Built and skipped are reported apart because they mean opposite things
+	// about whether the backfill progressed. "5/5 succeeded in 87ms" was all
+	// five chunks skipping, which read as a triumph.
+	fmt.Printf("\nChunked backfill: %d built, %d skipped (already complete), %d failed, in %s\n",
+		built, skipped, len(failed), time.Since(started).Round(time.Millisecond))
 
 	if len(failed) > 0 {
 		// Every failure is listed rather than just the first. With the range

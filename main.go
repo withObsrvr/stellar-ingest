@@ -344,7 +344,10 @@ func main() {
 			// Either already frozen, or held by a live claim. Both mean there
 			// is nothing to do here, and both are a success: a resumed plan
 			// walking a range it already finished must not fail the run.
-			fmt.Printf("Range %s is already frozen or claimed by another run; nothing to do.\n", thisRange)
+			// The marker is for the chunk runner; the sentence is for a
+			// human reading a single-range dispatch.
+			fmt.Printf("%s Range %s is already frozen or claimed by another run; nothing to do.\n",
+				rangeSkippedMarker, thisRange)
 			return
 		}
 		fmt.Printf("Range %s claimed (freezing)\n", thisRange)

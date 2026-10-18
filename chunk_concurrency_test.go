@@ -29,12 +29,12 @@ func chunks(n int) []ledgerChunk {
 // failed chunk is simply unclaimed and re-derived next run.
 func TestOneFailingChunkDoesNotStopTheRest(t *testing.T) {
 	var ran atomic.Int64
-	results := runChunksConcurrently(chunks(6), 3, func(c ledgerChunk) error {
+	results := runChunksConcurrently(chunks(6), 3, func(c ledgerChunk) (bool, error) {
 		ran.Add(1)
 		if c.Start == 20000 {
-			return fmt.Errorf("boom")
+			return false, fmt.Errorf("boom")
 		}
-		return nil
+		return false, nil
 	})
 
 	if got := ran.Load(); got != 6 {
@@ -57,9 +57,9 @@ func TestOneFailingChunkDoesNotStopTheRest(t *testing.T) {
 func TestResultsStayInChunkOrder(t *testing.T) {
 	in := chunks(5)
 	// Finish in reverse: the earliest chunk sleeps longest.
-	results := runChunksConcurrently(in, 5, func(c ledgerChunk) error {
+	results := runChunksConcurrently(in, 5, func(c ledgerChunk) (bool, error) {
 		time.Sleep(time.Duration(5-c.Start/10000) * 10 * time.Millisecond)
-		return nil
+		return false, nil
 	})
 
 	for i, r := range results {
@@ -79,7 +79,7 @@ func TestConcurrencyBoundIsRespected(t *testing.T) {
 	var mu sync.Mutex
 	var inFlight, peak int
 
-	runChunksConcurrently(chunks(20), limit, func(ledgerChunk) error {
+	runChunksConcurrently(chunks(20), limit, func(ledgerChunk) (bool, error) {
 		mu.Lock()
 		inFlight++
 		if inFlight > peak {
@@ -92,7 +92,7 @@ func TestConcurrencyBoundIsRespected(t *testing.T) {
 		mu.Lock()
 		inFlight--
 		mu.Unlock()
-		return nil
+		return false, nil
 	})
 
 	if peak > limit {
@@ -106,7 +106,7 @@ func TestConcurrencyBoundIsRespected(t *testing.T) {
 // Concurrency above the chunk count must not spawn idle workers or panic on
 // a short backfill.
 func TestConcurrencyAboveChunkCountIsClamped(t *testing.T) {
-	results := runChunksConcurrently(chunks(2), 50, func(ledgerChunk) error { return nil })
+	results := runChunksConcurrently(chunks(2), 50, func(ledgerChunk) (bool, error) { return false, nil })
 	if len(results) != 2 {
 		t.Fatalf("got %d results, want 2", len(results))
 	}
@@ -122,7 +122,9 @@ func TestConcurrencyAboveChunkCountIsClamped(t *testing.T) {
 func TestNonPositiveConcurrencyRunsSequentially(t *testing.T) {
 	for _, n := range []int{0, -1} {
 		done := make(chan []chunkResult, 1)
-		go func() { done <- runChunksConcurrently(chunks(3), n, func(ledgerChunk) error { return nil }) }()
+		go func() {
+			done <- runChunksConcurrently(chunks(3), n, func(ledgerChunk) (bool, error) { return false, nil })
+		}()
 		select {
 		case got := <-done:
 			if len(got) != 3 {
@@ -203,5 +205,42 @@ func TestValidateLedgerRangeAcceptsASingleLedger(t *testing.T) {
 	}
 	if err := validateLedgerRange(100, 50); err == nil {
 		t.Error("an inverted range must still be rejected")
+	}
+}
+
+// Built and skipped mean opposite things about whether the backfill
+// progressed, so the scheduler must keep them apart. A re-dispatch of five
+// finished chunks reported "5/5 chunks succeeded in 87ms", which was true
+// and read as a triumph.
+func TestSkippedChunksAreNotCountedAsBuilt(t *testing.T) {
+	results := runChunksConcurrently(chunks(4), 2, func(c ledgerChunk) (bool, error) {
+		switch c.Start {
+		case 0:
+			return true, nil // already complete
+		case 10000:
+			return false, fmt.Errorf("boom")
+		default:
+			return false, nil // built
+		}
+	})
+
+	var built, skipped, failed int
+	for _, r := range results {
+		switch {
+		case r.Err != nil:
+			failed++
+		case r.Skipped:
+			skipped++
+		default:
+			built++
+		}
+	}
+	if built != 2 || skipped != 1 || failed != 1 {
+		t.Errorf("built=%d skipped=%d failed=%d, want 2/1/1", built, skipped, failed)
+	}
+	// A skipped chunk is not an error: a resumed plan walking finished
+	// ranges must not fail the run.
+	if results[0].Err != nil {
+		t.Errorf("skipped chunk reported an error: %v", results[0].Err)
 	}
 }
