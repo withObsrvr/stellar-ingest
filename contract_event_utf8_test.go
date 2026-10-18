@@ -132,8 +132,8 @@ func assertContractEventDecodedUTF8(t *testing.T, event ContractEventData) {
 func assertParquetContractEventUTF8(t *testing.T, event ParquetContractEvent) {
 	t.Helper()
 	values := map[string]string{
-		"event_id":           event.EventID,
-		"transaction_hash":   event.TransactionHash,
+		// event_id and transaction_hash are no longer stored on this row;
+		// the presentation view renders both from transaction_id.
 		"event_type":         event.EventType,
 		"contract_event_xdr": event.ContractEventXDR,
 		"topics_json":        event.TopicsJSON,

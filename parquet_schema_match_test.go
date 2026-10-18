@@ -88,12 +88,12 @@ var knownParquetSchemaGaps = map[string]string{
 	"operations_row_v2.trust_line_flags":                  noProducer,
 	"operations_row_v2.trustor":                           noProducer,
 
-	"transactions_row_v2.max_fee_bid":             noProducer,
-	"transactions_row_v2.soroban_fee_base":        noProducer,
-	"transactions_row_v2.soroban_fee_charged":           noProducer,
-	"transactions_row_v2.soroban_fee_refund":            noProducer,
-	"transactions_row_v2.soroban_fee_resources":         noProducer,
-	"transactions_row_v2.soroban_fee_wasted":            noProducer,
+	"transactions_row_v2.max_fee_bid":           noProducer,
+	"transactions_row_v2.soroban_fee_base":      noProducer,
+	"transactions_row_v2.soroban_fee_charged":   noProducer,
+	"transactions_row_v2.soroban_fee_refund":    noProducer,
+	"transactions_row_v2.soroban_fee_resources": noProducer,
+	"transactions_row_v2.soroban_fee_wasted":    noProducer,
 }
 
 func TestParquetColumnsMatchBronzeSchema(t *testing.T) {
@@ -163,7 +163,7 @@ func bronzeSchemaColumns(t *testing.T) map[string]map[string]bool {
 	if err != nil {
 		t.Fatalf("read v3_bronze_schema.sql: %v", err)
 	}
-	table := regexp.MustCompile(`(?s)CREATE TABLE IF NOT EXISTS bronze\.(\w+)\s*\((.*?)\n\);`)
+	table := regexp.MustCompile(`(?s)CREATE TABLE IF NOT EXISTS bronze_store\.(\w+)\s*\((.*?)\n\);`)
 	column := regexp.MustCompile(`^"?([a-z_0-9]+)"?\s+[A-Z]`)
 
 	out := map[string]map[string]bool{}

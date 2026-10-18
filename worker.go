@@ -666,7 +666,7 @@ func extractBronzeLedger(meta LedgerMeta, np string, onlyTables map[string]bool,
 		for i, r := range libRows {
 			rows[i] = ContractEventData(r)
 			if repairs := sanitizeContractEventUTF8(&rows[i]); repairs > 0 {
-				log.Printf("[Worker %d] contract_events utf8_repaired ledger=%d event_id=%s repairs=%d", workerID, meta.LedgerSequence, rows[i].EventID, repairs)
+				log.Printf("[Worker %d] contract_events utf8_repaired ledger=%d transaction_id=%d event_index=%d repairs=%d", workerID, meta.LedgerSequence, rows[i].TransactionID, rows[i].EventIndex, repairs)
 			}
 		}
 		return &LedgerData{ContractEvents: rows}, nil

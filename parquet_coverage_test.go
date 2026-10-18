@@ -36,7 +36,36 @@ var deliberatelyNotWritten = map[string]string{
 
 	// See tokenTransferHashNote below.
 	"TokenTransferData.TransactionHash": tokenTransferHashNote,
+
+	// The same reasoning as tokenTransferHashNote, applied to the two other
+	// child tables once contract_events gained transaction_id in
+	// stellar-extract v0.3.6. operations_row_v2 already carried it.
+	// bronze.operations_row_v2 and bronze.contract_events_stream_v1 render
+	// the hash by joining the parent, so no consumer sees a change.
+	"OperationData.TransactionHash":     "rule 3: recovered from transaction_id by the presentation view; 714 GB",
+	"ContractEventData.TransactionHash": "rule 3: recovered from transaction_id by the presentation view; 700 GB",
+
+	// See eventIDNote below.
+	"ContractEventData.EventID": eventIDNote,
 }
+
+// eventIDNote explains why the largest single column in the lake is not
+// stored.
+//
+// event_id was transaction_hash || ':' || event_index -- a pure function of
+// two columns in the same row -- and cost 800 GB at 24.1 compressed bytes
+// across 33 billion rows. Storing it meant contract_events held one
+// transaction identity three times: as transaction_hash, inside event_id,
+// and via transaction_id.
+//
+// Reconstruction is exact, not approximate: event_id_reconstruction_test.go
+// checks all 104,730 events in the fixture corpus reproduce their stored
+// event_id from transaction_hash and event_index, and the test fails if any
+// one of them does not. That check is the precondition for removing the
+// column, because the re-ingest rewrites the files and nothing recovers a
+// value that was never derivable.
+const eventIDNote = "rule 2: a pure function of transaction_hash and event_index, " +
+	"rendered by the presentation view; 800 GB, the largest column in the lake"
 
 // knownUnwritten records fields lost by accident rather than decision, each
 // awaiting a Parquet column. Separate from the list above because a pending

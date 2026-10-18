@@ -127,12 +127,10 @@
     },
     "contract_events": {
       "row_count": 14515,
-      "content_hash": "65c9d5dba9eb53d36b05048ef9735dbe",
+      "content_hash": "76fd8b1abaca30cef91ad78fc8ce4a94",
       "columns": [
-        "event_id",
         "contract_id",
         "ledger_sequence",
-        "transaction_hash",
         "transaction_id",
         "closed_at",
         "event_type",
@@ -159,7 +157,6 @@
         "contract_id": "8dc49f707900533be77caa3139e414cf",
         "data_decoded": "15cae52e9131ab198071140bb50d8153",
         "data_xdr": "a0b1afc0c999d45d15d1be35831ff9c4",
-        "event_id": "a3ecea7e69b1edfc142149bcb90af9a8",
         "event_index": "406a5b92d4da24a26b4139542bedcbd6",
         "event_stream": "b07425fb9b096b9786b5ea709a05214c",
         "event_type": "bc658f9dc467d4dd632754768fbf23f8",
@@ -175,7 +172,6 @@
         "topic_count": "6f0a876a3823e512c28dad3334085183",
         "topics_decoded": "717c3ceff004451aa74dab94ce9583c7",
         "topics_json": "7d0657cb715463108ca66a246dbe5c24",
-        "transaction_hash": "28bf76d794662282ede38e34dea7e5ef",
         "transaction_id": "fc29d3bfc6e9e22af2f6c17ab985160a"
       }
     },
@@ -399,9 +395,8 @@
     },
     "operations": {
       "row_count": 2023,
-      "content_hash": "dca4317205e5bcbec2289ca75b7b9a29",
+      "content_hash": "460a05e63241c24c78f07801da233cf5",
       "columns": [
-        "transaction_hash",
         "transaction_index",
         "operation_index",
         "ledger_sequence",
@@ -518,7 +513,6 @@
         "source_asset_type": "05354ccb65329d037878931f7503e77f",
         "sponsored_id": "e5b4d1503d18ab6642413c046d8cedda",
         "starting_balance": "bda6a49c1dacd02f54f305fec20e9136",
-        "transaction_hash": "35ac217eacc31e505d83601a631e168e",
         "transaction_id": "2147e826b0f7f4b0dae6f38d89ae2724",
         "transaction_index": "ae2d0d9807388b4554e143a0c8d73018",
         "transaction_successful": "305d6a32f9a3273bd36c93f43472d63a",
@@ -615,7 +609,7 @@
     },
     "transactions": {
       "row_count": 874,
-      "content_hash": "bc6a4690c13b7920b3a7eccb256307c1",
+      "content_hash": "a2bba616e640114626ca2db75c6d2c1e",
       "columns": [
         "ledger_sequence",
         "transaction_hash",
@@ -707,7 +701,7 @@
         "successful": "977c75cfc5febe777e11376f28f4f7ba",
         "timebounds_max_time": "06ac103e4307083e04fdadb72a25ede8",
         "timebounds_min_time": "3744218f94ae37dd3176d95428d373de",
-        "transaction_hash": "a511e2e21669083c655cf9318916cfbf",
+        "transaction_hash": "17d52ceb242148044d14dce16d7dd231",
         "transaction_id": "402638edf0972969b50667b87ba1760f",
         "transaction_result_code": "009e5f717a5b7e998559de7e521779bd",
         "tx_envelope": "af902d7a6c048e80cdf01cd4ddbe6457",

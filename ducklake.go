@@ -25,13 +25,22 @@ import (
 //go:embed v3_bronze_schema.sql
 var embeddedBronzeSchema string
 
+// embeddedBronzeViews is the presentation layer. Bronze stores the most
+// compact faithful representation; these views render the shapes consumers
+// already query, so a storage change does not become a six-service
+// migration. They are created in the view schema and read the store schema.
+//
+//go:embed v3_bronze_views.sql
+var embeddedBronzeViews string
+
 // DuckLakeConfig holds configuration for pushing Parquet to DuckLake.
 type DuckLakeConfig struct {
 	CatalogDSN      string // PostgreSQL catalog connection string
 	DataPath        string // S3/B2 bucket path (e.g., "s3://obsrvr-lake-testnet/")
 	MetadataSchema  string // Catalog schema (e.g., "bronze_meta")
 	CatalogName     string // DuckLake catalog name (e.g., "lake")
-	SchemaName      string // Schema within catalog (e.g., "bronze")
+	SchemaName      string // Schema holding the physical tables (e.g., "bronze_store")
+	ViewSchemaName  string // Schema holding the presentation views (e.g., "bronze")
 	S3KeyID         string
 	S3KeySecret     string
 	S3Endpoint      string
@@ -61,7 +70,12 @@ func NewDuckLakePusher(config DuckLakeConfig) (*DuckLakePusher, error) {
 		config.CatalogName = "lake"
 	}
 	if config.SchemaName == "" {
-		config.SchemaName = "bronze"
+		config.SchemaName = "bronze_store"
+	}
+	// The views take the name consumers already query, which is why the
+	// physical tables had to move rather than the readers.
+	if config.ViewSchemaName == "" {
+		config.ViewSchemaName = "bronze"
 	}
 	if config.MetadataSchema == "" {
 		config.MetadataSchema = "bronze_meta"
@@ -136,10 +150,13 @@ func (p *DuckLakePusher) Setup(ctx context.Context) error {
 		log.Println("[DuckLake] Created new catalog")
 	}
 
-	// Step 4: Create schema
-	createSchemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s.%s", p.config.CatalogName, p.config.SchemaName)
-	if _, err := p.db.ExecContext(ctx, createSchemaSQL); err != nil {
-		return fmt.Errorf("create schema: %w", err)
+	// Step 4: Create both schemas -- the one holding physical tables and the
+	// one holding the presentation views consumers read.
+	for _, schema := range []string{p.config.SchemaName, p.config.ViewSchemaName} {
+		createSchemaSQL := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s.%s", p.config.CatalogName, schema)
+		if _, err := p.db.ExecContext(ctx, createSchemaSQL); err != nil {
+			return fmt.Errorf("create schema %s: %w", schema, err)
+		}
 	}
 	return nil
 }
@@ -151,9 +168,13 @@ func (p *DuckLakePusher) Push(ctx context.Context, outputDir string) (*DuckLakeP
 		return nil, err
 	}
 
-	// Step 5: Create tables
+	// Step 5: Create tables, then the views over them. Views come second
+	// because they reference the tables.
 	if err := p.createTables(ctx); err != nil {
 		return nil, fmt.Errorf("create tables: %w", err)
+	}
+	if err := p.createViews(ctx); err != nil {
+		return nil, fmt.Errorf("create views: %w", err)
 	}
 
 	// Step 6: Push each bronze table. Fresh extraction runs provide a manifest
@@ -396,6 +417,37 @@ func describeColumns(ctx context.Context, db *sql.DB, query string) ([]string, e
 	return cols, rows.Err()
 }
 
+// qualifySchemaSQL rewrites the two schema placeholders to the configured
+// catalog and schemas. `bronze_store.` names physical tables and `bronze.`
+// names the presentation views; they are separate prefixes because the same
+// SQL text would otherwise be ambiguous about which layer it meant, and
+// getting that backwards would create tables where consumers expect views.
+//
+// Order is safe in either direction -- "bronze_store." does not contain
+// "bronze." as a substring -- but store is rewritten first to make the
+// intent explicit rather than to rely on that.
+func (p *DuckLakePusher) qualifySchemaSQL(sql string) string {
+	sql = strings.ReplaceAll(sql, "bronze_store.",
+		fmt.Sprintf("%s.%s.", p.config.CatalogName, p.config.SchemaName))
+	return strings.ReplaceAll(sql, "bronze.",
+		fmt.Sprintf("%s.%s.", p.config.CatalogName, p.config.ViewSchemaName))
+}
+
+// createViews creates the presentation views over the physical tables.
+//
+// Unlike createTables, a failure here is returned rather than logged. A table
+// that fails to create shows up immediately as a failed insert; a view that
+// fails to create shows up as consumers reading nothing, which is the kind of
+// silence this layer has produced before.
+func (p *DuckLakePusher) createViews(ctx context.Context) error {
+	for _, stmt := range splitSQLStatements(p.qualifySchemaSQL(embeddedBronzeViews)) {
+		if _, err := p.db.ExecContext(ctx, stmt+";"); err != nil {
+			return fmt.Errorf("create presentation view: %w\nstatement: %s", err, stmt)
+		}
+	}
+	return nil
+}
+
 // createTables creates DuckLake tables from the bronze schema SQL.
 func (p *DuckLakePusher) createTables(ctx context.Context) error {
 	schemaSQL := embeddedBronzeSchema
@@ -405,29 +457,41 @@ func (p *DuckLakePusher) createTables(ctx context.Context) error {
 		}
 	}
 
-	schemaSQL = strings.ReplaceAll(schemaSQL, "bronze.", fmt.Sprintf("%s.%s.", p.config.CatalogName, p.config.SchemaName))
+	schemaSQL = p.qualifySchemaSQL(schemaSQL)
 
-	for _, stmt := range strings.Split(schemaSQL, ";") {
-		// Strip comment lines before evaluating the fragment.
-		// A naive HasPrefix("--") check would skip the entire CREATE TABLE
-		// when a comment like "-- Core tables" sits between two semicolons.
-		var cleaned []string
-		for _, line := range strings.Split(stmt, "\n") {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" || strings.HasPrefix(trimmed, "--") {
-				continue
-			}
-			cleaned = append(cleaned, line)
-		}
-		stmt = strings.TrimSpace(strings.Join(cleaned, "\n"))
-		if stmt == "" {
-			continue
-		}
+	for _, stmt := range splitSQLStatements(schemaSQL) {
 		if _, err := p.db.ExecContext(ctx, stmt+";"); err != nil {
 			log.Printf("[DuckLake] Schema warning: %v", err)
 		}
 	}
 	return nil
+}
+
+// splitSQLStatements splits a schema file into executable statements.
+//
+// Comment lines are stripped before splitting, not after. Splitting first
+// looks equivalent and is not: a semicolon inside a comment ends a statement
+// that was never a statement, and the remainder of the comment arrives at the
+// parser as bare SQL. Both schema files are mostly comment by line count,
+// because every column decision carries its rationale, so prose with a
+// semicolon in it is ordinary rather than exotic.
+func splitSQLStatements(sql string) []string {
+	var code []string
+	for _, line := range strings.Split(sql, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "--") {
+			continue
+		}
+		code = append(code, line)
+	}
+
+	var out []string
+	for _, stmt := range strings.Split(strings.Join(code, "\n"), ";") {
+		if s := strings.TrimSpace(stmt); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // mapToDuckLakeTable maps Parquet directory names to DuckLake table names.
