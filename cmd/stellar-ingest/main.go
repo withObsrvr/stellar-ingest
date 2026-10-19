@@ -128,6 +128,17 @@ func runFlatForm(ctx context.Context) error {
 		return nil
 	}
 
+	// Which flags the caller actually typed. The standard library has no
+	// Changed, so the set is collected from Visit, which walks only the
+	// flags that were given.
+	given := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) { given[f.Name] = true })
+
+	configNotices, err := cli.ApplyConfig(values, func(name string) bool { return given[name] })
+	if err != nil {
+		return err
+	}
+
 	req, notices, err := values.Resolve()
 	if err != nil {
 		return err
@@ -136,6 +147,11 @@ func runFlatForm(ctx context.Context) error {
 	log, err := cli.ResolveLogging(values, os.Stderr)
 	if err != nil {
 		return err
+	}
+	for _, notice := range configNotices {
+		// Informational: which context was used, and which flags overrode
+		// it. Not a warning -- nothing is wrong.
+		log.Info("%s", notice)
 	}
 	for _, notice := range notices {
 		// stderr, and never a credential's value.

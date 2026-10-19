@@ -120,6 +120,10 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 		Long:    long,
 		Example: "  " + joinExamples(examples),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			configNotices, err := ApplyConfig(values, cmd.Flags().Changed)
+			if err != nil {
+				return err
+			}
 			req, notices, err := values.Resolve()
 			if err != nil {
 				return err
@@ -128,9 +132,6 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			if err != nil {
 				return err
 			}
-			for _, notice := range notices {
-				fmt.Fprintln(errOut, notice)
-			}
 			emitter, err := NewStatusEmitter(values.ProgramStatus)
 			if err != nil {
 				return err
@@ -138,6 +139,15 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			log, err := ResolveLogging(values, errOut)
 			if err != nil {
 				return err
+			}
+			for _, notice := range configNotices {
+				// Informational: which context was used, and which flags
+				// overrode it. Nothing is wrong, so not a warning.
+				log.Info("%s", notice)
+			}
+			for _, notice := range notices {
+				// stderr, and never a credential's value.
+				log.Warn("%s", notice)
 			}
 			// --timeout bounds the operation. Zero is no limit, which is
 			// what every deployed invocation relies on.
@@ -227,6 +237,10 @@ Exit status is 2 when any check fails, so CI can gate on it.`,
 			"stellar-ingest doctor --output-dir ./bronze",
 		}),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			configNotices, err := ApplyConfig(values, cmd.Flags().Changed)
+			if err != nil {
+				return err
+			}
 			req, notices, err := values.Resolve()
 			if err != nil {
 				return err
@@ -238,6 +252,11 @@ Exit status is 2 when any check fails, so CI can gate on it.`,
 			log, err := ResolveLogging(values, errOut)
 			if err != nil {
 				return err
+			}
+			for _, notice := range configNotices {
+				// Informational: which context was used, and which flags
+				// overrode it. Nothing is wrong, so not a warning.
+				log.Info("%s", notice)
 			}
 			for _, notice := range notices {
 				log.Warn("%s", notice)
@@ -310,6 +329,10 @@ failure.`
 	}
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		configNotices, err := ApplyConfig(values, cmd.Flags().Changed)
+		if err != nil {
+			return err
+		}
 		req, notices, err := values.Resolve()
 		if err != nil {
 			return err
@@ -321,6 +344,11 @@ failure.`
 		log, err := ResolveLogging(values, errOut)
 		if err != nil {
 			return err
+		}
+		for _, notice := range configNotices {
+			// Informational: which context was used, and which flags
+			// overrode it. Nothing is wrong, so not a warning.
+			log.Info("%s", notice)
 		}
 		for _, notice := range notices {
 			log.Warn("%s", notice)

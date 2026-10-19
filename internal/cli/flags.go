@@ -75,6 +75,9 @@ type Values struct {
 	// presentation and never reach RunRequest: an operation does not know
 	// whether anybody is watching. Timeout is applied by the adapter, which
 	// hands the operation a context that is already bounded.
+	ConfigPath string
+	Context    string
+	Network    string
 	EventsPath string
 	WaitFor    string
 	Doctor     bool
@@ -349,6 +352,21 @@ var flagSpecs = []flagSpec{
 		Name: "enrichment-manifest-schema", Usage: "DuckLake schema for the enrichment audit manifest",
 		Kind: kindString, DefString: "bronze_operations",
 		Target: func(v *Values) any { return &v.EnrichmentManifestSchema },
+	},
+	{
+		Name: "config", Usage: "Path to a config file defining contexts; flags given on the command line always win",
+		Kind: kindString, DefString: "",
+		Target: func(v *Values) any { return &v.ConfigPath },
+	},
+	{
+		Name: "context", Usage: "Context in --config to take defaults from; empty uses the file's default-context",
+		Kind: kindString, DefString: "",
+		Target: func(v *Values) any { return &v.Context },
+	},
+	{
+		Name: "network", Usage: "Network to target: mainnet|testnet|futurenet. Sets the passphrase unless --network-passphrase is given",
+		Kind: kindString, DefString: "",
+		Target: func(v *Values) any { return &v.Network },
 	},
 	{
 		Name: "events", Usage: "Write the NDJSON event stream to this path; - for stdout. Empty emits nothing",
