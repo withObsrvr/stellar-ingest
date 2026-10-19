@@ -13,7 +13,14 @@
 -- testdata/compat/legacy_columns.json is the captured record of that order,
 -- and compat_views_test.go asserts every view against it in a real DuckLake.
 --
--- The two child views join the parent on transaction_id AND ledger_range.
+-- The two child views LEFT JOIN the parent on transaction_id AND ledger_range.
+-- Left, not inner, because the two sides do not advance together: the flusher
+-- keeps a per-table checkpoint, so contract_events can be flushed past the
+-- point transactions_row_v2 has reached. Under an inner join those rows are
+-- invisible until the parent catches up -- the row is simply not there, and
+-- nothing says so. Under a left join the row is present with a null
+-- transaction_hash, which is wrong in a way somebody can see. This layer has
+-- lost data quietly before; it should fail loudly instead.
 -- The partition equality is not redundant: without it the parent side still
 -- prunes, but only via a dynamic filter the optimizer derives from the fact
 -- that a TOID sorts with its ledger, together with DuckLake's per-file
@@ -87,7 +94,7 @@ CREATE OR REPLACE VIEW bronze.contract_events_stream_v1 AS
            e.version_label,
            e.transaction_id
     FROM bronze_store.contract_events_stream_v1 e
-    JOIN bronze_store.transactions_row_v2 t
+    LEFT JOIN bronze_store.transactions_row_v2 t
       ON t.transaction_id = e.transaction_id
      AND t.ledger_range = e.ledger_range;
 
@@ -186,7 +193,7 @@ CREATE OR REPLACE VIEW bronze.operations_row_v2 AS
            e.soroban_auth_credentials_types,
            e.soroban_auth_addresses
     FROM bronze_store.operations_row_v2 e
-    JOIN bronze_store.transactions_row_v2 t
+    LEFT JOIN bronze_store.transactions_row_v2 t
       ON t.transaction_id = e.transaction_id
      AND t.ledger_range = e.ledger_range;
 
