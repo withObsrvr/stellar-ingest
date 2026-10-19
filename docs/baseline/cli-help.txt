@@ -58,7 +58,9 @@ Usage of stellar-ingest:
   -only-tables string
     	Comma-separated extractor/source/DuckLake table names to extract; empty extracts all
   -output string
-    	Output directory for Parquet files (required)
+    	Response format: table|json|ndjson (a directory here is deprecated)
+  -output-dir string
+    	Directory for Parquet output (required)
   -pg-database string
     	PostgreSQL database (default "stellar_hot")
   -pg-host string

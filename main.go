@@ -50,7 +50,11 @@ func main() {
 	start := flag.Uint("start", 0, "Start ledger sequence (required)")
 	end := flag.Uint("end", 0, "End ledger sequence (required)")
 	workers := flag.Int("workers", runtime.NumCPU(), "Number of parallel workers")
-	output := flag.String("output", "", "Output directory for Parquet files (required)")
+	outputDir := flag.String("output-dir", "", "Directory for Parquet output (required)")
+	// --output is the response format, per the CLI standard. A path is still
+	// accepted here for one release and resolved as the old directory
+	// meaning; see resolveOutput.
+	output := flag.String("output", "", "Response format: table|json|ndjson (a directory here is deprecated)")
 	batchSize := flag.Int("batch-size", 1000, "Ledgers per extraction batch")
 	chunkSize := flag.Uint("chunk-size", 0, "Maximum ledgers per sequential extract/validate/publish chunk; 0 processes the range as one chunk")
 	networkPassphrase := flag.String("network-passphrase", "Test SDF Network ; September 2015", "Stellar network passphrase")
@@ -119,6 +123,15 @@ func main() {
 		// secret out of places like this one.
 		log.Print(notice)
 	}
+
+	outputs, err := resolveOutput(*outputDir, *output)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if notice := outputs.deprecationNotice(); notice != "" {
+		// stderr: a warning is a diagnostic, and stdout carries results.
+		log.Print(notice)
+	}
 	if *enrichContractBalances {
 		if *start == 0 || *end == 0 || *end < *start {
 			log.Fatalf("--enrich-contract-balances requires a valid inclusive --start/--end range")
@@ -176,7 +189,7 @@ func main() {
 	if *end == 0 {
 		log.Fatal("--end is required and must be > 0")
 	}
-	if *output == "" {
+	if outputs.Dir == "" {
 		log.Fatal("--output is required")
 	}
 	extractRequested := extractionRequested(*storageType, *bucket)
@@ -275,17 +288,17 @@ func main() {
 	}
 
 	if *chunkSize > 0 {
-		if err := runChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(*chunkSize), *output, *chunkConcurrency); err != nil {
+		if err := runChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(*chunkSize), outputs.Dir, *chunkConcurrency); err != nil {
 			log.Fatalf("chunked backfill failed: %v", err)
 		}
 		return
 	}
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(*output, 0o755); err != nil {
-		log.Fatalf("Failed to create output directory %q: %v", *output, err)
+	if err := os.MkdirAll(outputs.Dir, 0o755); err != nil {
+		log.Fatalf("Failed to create output directory %q: %v", outputs.Dir, err)
 	}
-	effectiveOutput := *output
+	effectiveOutput := outputs.Dir
 	manifestPath := ""
 	if !extractRequested {
 		candidate := filepath.Join(effectiveOutput, "manifest.json")
@@ -327,7 +340,7 @@ func main() {
 	fmt.Printf("Ledger range:      %d - %d (%d ledgers)\n", startLedger, endLedger, totalLedgers)
 	fmt.Printf("Workers:           %d\n", *workers)
 	fmt.Printf("Batch size:        %d\n", *batchSize)
-	fmt.Printf("Output directory:  %s\n", *output)
+	fmt.Printf("Output directory:  %s\n", outputs.Dir)
 	fmt.Printf("Storage type:      %s\n", *storageType)
 	fmt.Printf("Bucket:            %s\n", *bucket)
 	fmt.Printf("Network:           %s\n", *networkPassphrase)
@@ -390,7 +403,7 @@ func main() {
 			StartLedger:       startLedger,
 			EndLedger:         endLedger,
 			NumWorkers:        *workers,
-			OutputDir:         *output,
+			OutputDir:         outputs.Dir,
 			BatchSize:         *batchSize,
 			NetworkPassphrase: *networkPassphrase,
 			StorageType:       *storageType,
@@ -406,7 +419,7 @@ func main() {
 		startTime := time.Now()
 
 		if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "extract", nil, map[string]string{
-			"output_dir": *output,
+			"output_dir": outputs.Dir,
 		}); err != nil {
 			log.Printf("Flowctl progress report failed: %v", err)
 		}

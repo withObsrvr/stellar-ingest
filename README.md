@@ -73,7 +73,7 @@ existing scripts keep working. See [`docs/compatibility.md`](docs/compatibility.
 
 ## Usage
 
-The binary takes flags, not a config file. Forty-five flags; `--help` is the
+The binary takes flags, not a config file. Forty-six flags; `--help` is the
 full list and `docs/baseline/cli-help.txt` is the recorded contract, enforced
 by `make parity-baseline` — a flag change that does not update it fails CI.
 
@@ -83,7 +83,7 @@ by `make parity-baseline` — a flag change that does not update it fails CI.
 ./bin/stellar-ingest \
   --start 61790000 --end 61791000 \
   --workers 8 --batch-size 50 \
-  --output /data/output \
+  --output-dir /data/output \
   --storage-type GCS \
   --bucket "obsrvr-stellar-ledger-data-pubnet-data/landing/ledgers/pubnet" \
   --ledgers-per-file 1 --files-per-partition 64000 \
@@ -98,24 +98,25 @@ nebu fetch 61790000 61791000 --output ledgers.xdr
 ./bin/stellar-ingest \
   --start 61790000 --end 61791000 \
   --workers 8 \
-  --output /data/output \
+  --output-dir /data/output \
   --storage-type XDR --bucket ledgers.xdr \
   --network-passphrase "Public Global Stellar Network ; September 2015"
 ```
 
 ### Load an existing output directory into DuckLake
 
+Credentials come from the environment — see [Credentials](#credentials). None
+of these examples passes one as a flag.
+
 Extraction is skipped when `--bucket` is empty; a `manifest.json` in
-`--output` is used instead.
+`--output-dir` is used instead.
 
 ```sh
 ./bin/stellar-ingest \
   --start 61790000 --end 61791000 \
-  --output /data/output \
+  --output-dir /data/output \
   --ducklake \
-  --ducklake-catalog "$DUCKLAKE_CATALOG_DSN" \
-  --ducklake-data-path s3://obsrvr-lake-pubnet/ \
-  --b2-key-id "$B2_KEY_ID" --b2-key-secret "$B2_KEY_SECRET"
+  --ducklake-data-path s3://obsrvr-lake-pubnet/
 ```
 
 ### Query the output
@@ -154,6 +155,26 @@ environment is unset, so `go test ./...` is unaffected.
   is silently mis-labelled. Always pass it explicitly.
 - **`--workers` defaults to `runtime.NumCPU()`.** Runs are not comparable
   across machines unless you pin it.
+
+## `--output` changed meaning
+
+`--output` now selects the **response format**, which is what the Obsrvr CLI
+Engineering Standard reserves it for. The output directory is `--output-dir`.
+
+```sh
+--output-dir ./bronze     # where Parquet goes
+--output json             # how results are rendered: table|json|ndjson
+```
+
+A path passed to `--output` is still accepted for one release, resolved as the
+old directory meaning, and warned about on stderr — so existing scripts and
+jobs keep working while they move. Passing two different directories, one to
+each flag, is refused rather than guessed at.
+
+The transition is resolved by value: `table`, `json` and `ndjson` are formats,
+and anything else is a directory. The only input that gets wrong is an output
+directory named exactly one of those three, which fails immediately with
+`--output-dir` unset rather than writing somewhere surprising.
 
 ## Sources
 
@@ -251,9 +272,7 @@ extracting. It requires DuckLake credentials and, unless
 ./bin/stellar-ingest \
   --enrich-contract-balances --enrichment-dry-run \
   --start 61790000 --end 61891000 \
-  --ducklake-catalog "$DUCKLAKE_CATALOG_DSN" \
-  --ducklake-data-path s3://obsrvr-lake-pubnet/ \
-  --b2-key-id "$B2_KEY_ID" --b2-key-secret "$B2_KEY_SECRET"
+  --ducklake-data-path s3://obsrvr-lake-pubnet/
 ```
 
 ## flowctl

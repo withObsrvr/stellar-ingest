@@ -17,9 +17,9 @@ Measured, not estimated.
 |---|---|
 | Resource nouns and verbs | **No.** One flat command, 45 flags, no subcommands |
 | Stable IDs, `--context`/`--network` targeting | Partial. `--era-id` and `--network-passphrase` exist; no `--context` |
-| `--output`, `--config`, `--timeout`, `--context`, `--quiet`, `--verbose`, `--no-color` | **None of them**, and `--output` is taken — see below |
+| `--output`, `--config`, `--timeout`, `--context`, `--quiet`, `--verbose`, `--no-color` | `--output` now selects the format; the other five are missing |
 | stdout results / stderr diagnostics | Partial. Progress and logs are on stderr; the banner and summaries are on stdout |
-| Human tables default, `--output json`, `--output ndjson` | **No machine-readable output at all** |
+| Human tables default, `--output json`, `--output ndjson` | Flag accepts all three; only `table` is implemented — Stage 3 |
 | Noninteractive, `--yes` for destructive ops | Already noninteractive; nothing prompts |
 | `--` passthrough, stdin `-` | Not applicable yet; nothing is forwarded |
 | `--help` with examples, completion, `version`, `doctor` | `--help` lists flags with no examples; no completion, no `--version`, no `doctor` |
@@ -54,29 +54,39 @@ Two places this tool is **ahead** of the standard, worth not regressing:
   testing pyramid's "golden JSON/NDJSON and exit-code tests" rung for the data
   rather than the CLI.
 
-## The `--output` collision
+## The `--output` collision — resolved
 
-`--output` means **the output directory** in this tool, and the running Nomad
-jobs pass `--output /data/output-validation`. The standard reserves `--output`
-for the response format (`--output json`).
+`--output` meant **the output directory**, and the deployed Nomad jobs pass
+`--output /data/output-validation`. The standard reserves `--output` for the
+response format.
 
-They cannot both be `--output`. Three ways out:
+**Decided: rename the directory flag to `--output-dir` and take `--output` for
+the format**, with the old meaning accepted for one release. This is the only
+option that ends with the standard satisfied and every Obsrvr tool agreeing,
+and the deprecation window costs one release.
 
-1. **Rename the directory flag** to `--output-dir`, accept `--output` as a
-   deprecated alias for one release, then take `--output` for format. Honours
-   the standard; needs a deprecation window, which §5 explicitly allows.
-2. **Keep `--output` as the directory** and use `--format json`. Deviates from
-   the standard in a visible way, and every other Obsrvr tool would have to
-   deviate identically or be inconsistent.
-3. **Let the subcommand grammar settle it** — `stellar-ingest extract --out
-   ./bronze --output json` — since the flat form is retained for
-   compatibility anyway.
+The transition is resolved by *value* rather than by a flag day, because every
+running job passes a path today:
 
-**Recommendation: 1.** It is the only option that ends with the standard
-satisfied and all tools agreeing, the deprecation window costs one release,
-and the alias means no deployment breaks on the day it lands. This is a
-decision for the maintainer, not an implementation detail, which is why it is
-recorded here rather than resolved quietly.
+```
+--output table|json|ndjson   a format, the new meaning
+--output <anything else>     a directory, the old meaning, with a warning
+```
+
+Deterministic and documented rather than clever. The only input it gets wrong
+is an output directory named exactly `table`, `json` or `ndjson`, which fails
+immediately with `--output-dir` unset rather than writing somewhere
+surprising. Two different directories, one to each flag, is an error rather
+than a guess.
+
+The whole rule lives in `resolveOutput`, away from the flag parsing, so it can
+be read and tested on its own — it is the part that either breaks a running
+job or writes Parquet into a directory called "json".
+
+One sequencing note: the validation Nomad job still passes `--output`, on
+purpose. Its pinned image predates `--output-dir`, so switching the job first
+would fail on an unknown flag. The job moves when the next image lands; until
+then it takes the deprecated path and logs the warning.
 
 ## Done
 
@@ -88,6 +98,29 @@ recorded here rather than resolved quietly.
   serving a command line and a UI — at the smallest useful scale.
 - **Progress moved to stderr**, per §3's I/O row. It was on stdout, which
   competes with results in a pipeline.
+- **`--output` freed for the response format**, directory moved to
+  `--output-dir`, old meaning accepted for one release. See above.
+- **Stage 2: secrets out of argv.** `DUCKLAKE_CATALOG_DSN`, `B2_KEY_ID`,
+  `B2_KEY_SECRET` and `PG_PASSWORD`, each with a `_FILE` form that wins over
+  the plain variable. The flags still work and warn, naming the flag and the
+  variables but never the value. A named-but-unreadable or empty file is an
+  error rather than a fallthrough, so a bad secret mount fails where it is
+  wrong instead of becoming an authentication failure somewhere further away.
+
+  Worth recording why this mattered beyond `ps`: the loader re-invokes itself
+  per chunk, so a secret on the parent's command line was on every child's
+  too. The environment route fixes the children for free, because a child
+  inherits an environment rather than an argument list.
+
+  Checked rather than assumed: pgx already redacts the DSN from its dial
+  errors (`user=user database=db`), and the flowctl metadata payload carries
+  no credential, so argv really was the only exposure. `RedactDSN` exists for
+  any future diagnostic that wants to print one.
+
+  This entry was lost when the Stage 2 change merged: it was anchored on text
+  that existed only on the `--output` branch, so the edit silently did
+  nothing and `main` recorded the gate as satisfied without saying how. Added
+  back here.
 
 ## Staged plan
 
@@ -102,8 +135,8 @@ each flag as it lands.
 
 **Stage 3 — machine-readable output.** A typed run summary rendered as a human
 table by default and as JSON on request, with a versioned schema and golden
-tests. Resolves the `--output` question above, because it is the first thing
-that needs the flag.
+tests. The flag already accepts `json` and `ndjson`; this is what makes them
+mean something.
 
 **Stage 4 — the composition root.** `cmd/stellar-ingest/main.go` plus
 `internal/app` holding extract/load/validate/repair as callable operations
