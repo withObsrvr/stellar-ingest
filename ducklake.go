@@ -89,6 +89,9 @@ func NewDuckLakePusher(config DuckLakeConfig) (*DuckLakePusher, error) {
 	if config.ViewSchemaName == "" {
 		config.ViewSchemaName = "bronze"
 	}
+	if err := validateSchemaNames(config.SchemaName, config.ViewSchemaName); err != nil {
+		return nil, err
+	}
 	if config.MetadataSchema == "" {
 		config.MetadataSchema = "bronze_meta"
 	}
@@ -570,6 +573,28 @@ func duckLakeCatalogTarget(dsn string) string {
 	}
 	// Anything else is a path: a DuckDB database file.
 	return "ducklake:" + dsn
+}
+
+// validateSchemaNames rejects a store and view schema that are the same.
+//
+// A table and a view cannot share a name within one schema, so every table
+// would create and then every view would fail against it. createViews returns
+// that error rather than logging it, so the run would stop -- but only after
+// writing 21 tables, and with a message about one view rather than about the
+// configuration. Checked up front instead.
+func validateSchemaNames(store, view string) error {
+	if store == view {
+		return fmt.Errorf("--ducklake-schema and --ducklake-view-schema are both %q; the tables "+
+			"and the views that render them cannot share a schema, because a view would have to "+
+			"take the name of the table it reads", store)
+	}
+	if store == "" {
+		return fmt.Errorf("--ducklake-schema is empty")
+	}
+	if view == "" {
+		return fmt.Errorf("--ducklake-view-schema is empty")
+	}
+	return nil
 }
 
 // qualifySchemaSQL rewrites the two schema placeholders to the configured

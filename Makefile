@@ -99,7 +99,7 @@ test:
 INTEGRATION_PG_PORT ?= 55432
 INTEGRATION_PG_NAME ?= ingest-catalog
 INTEGRATION_DATA_PATH ?= $(CURDIR)/build/lakedata/
-CONTAINER_CLI ?= $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+# CONTAINER_CLI is already defined above; the integration targets reuse it.
 
 integration-up:
 	@test -n "$(CONTAINER_CLI)" || { echo "need podman or docker"; exit 1; }

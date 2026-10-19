@@ -62,6 +62,13 @@ func main() {
 	dlCatalog := flag.String("ducklake-catalog", "", "PostgreSQL catalog DSN for DuckLake")
 	dlDataPath := flag.String("ducklake-data-path", "", "S3/B2 bucket path (e.g., s3://obsrvr-lake-testnet/)")
 	dlMetaSchema := flag.String("ducklake-metadata-schema", "bronze_meta", "DuckLake metadata schema")
+	// The storage layer and the presentation layer live in different schemas:
+	// physical tables in the store schema, the compatibility views in the
+	// schema consumers already query. Both were reachable only as defaults
+	// until now, which left no way to isolate a validation run by schema name
+	// or to point the loader at a differently-named layout.
+	dlSchema := flag.String("ducklake-schema", "bronze_store", "DuckLake schema holding the physical tables")
+	dlViewSchema := flag.String("ducklake-view-schema", "bronze", "DuckLake schema holding the presentation views")
 	dlSchemaSQL := flag.String("ducklake-schema-sql", "", "Path to v3_bronze_schema.sql (optional)")
 	dlOnlyTables := flag.String("ducklake-only-tables", "", "Comma-separated source or DuckLake table names to push; defaults to --only-tables when set")
 	dlSkipTables := flag.String("ducklake-skip-tables", "", "Comma-separated source or DuckLake table names to skip during push")
@@ -438,6 +445,8 @@ func main() {
 
 		if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "ducklake_setup", nil, map[string]string{
 			"ducklake_metadata_schema": *dlMetaSchema,
+			"ducklake_schema":          *dlSchema,
+			"ducklake_view_schema":     *dlViewSchema,
 			"ducklake_data_path":       *dlDataPath,
 		}); err != nil {
 			log.Printf("Flowctl progress report failed: %v", err)
@@ -447,6 +456,8 @@ func main() {
 			CatalogDSN:      *dlCatalog,
 			DataPath:        *dlDataPath,
 			MetadataSchema:  *dlMetaSchema,
+			SchemaName:      *dlSchema,
+			ViewSchemaName:  *dlViewSchema,
 			S3KeyID:         *b2KeyID,
 			S3KeySecret:     *b2KeySecret,
 			S3Endpoint:      *b2Endpoint,

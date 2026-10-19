@@ -25,10 +25,14 @@ Usage of stellar-ingest:
     	DuckLake metadata schema (default "bronze_meta")
   -ducklake-only-tables string
     	Comma-separated source or DuckLake table names to push; defaults to --only-tables when set
+  -ducklake-schema string
+    	DuckLake schema holding the physical tables (default "bronze_store")
   -ducklake-schema-sql string
     	Path to v3_bronze_schema.sql (optional)
   -ducklake-skip-tables string
     	Comma-separated source or DuckLake table names to skip during push
+  -ducklake-view-schema string
+    	DuckLake schema holding the presentation views (default "bronze")
   -end uint
     	End ledger sequence (required)
   -enrich-contract-balances
