@@ -350,6 +350,12 @@ func (p *DuckLakePusher) Push(ctx context.Context, outputDir string) (*DuckLakeP
 	if err := p.createTables(ctx); err != nil {
 		return nil, fmt.Errorf("create tables: %w", err)
 	}
+	// Partitioning goes on before anything is inserted: DuckLake applies the
+	// layout to files written from then on, so doing it afterwards leaves the
+	// backfill's own files unpartitioned.
+	if err := p.setPartitioning(ctx, partitionableTables(p.bronzeSchemaSQL())); err != nil {
+		return nil, fmt.Errorf("partition tables: %w", err)
+	}
 	if err := p.createViews(ctx); err != nil {
 		return nil, fmt.Errorf("create views: %w", err)
 	}
@@ -613,6 +619,98 @@ func (p *DuckLakePusher) qualifySchemaSQL(sql string) string {
 		fmt.Sprintf("%s.%s.", p.config.CatalogName, p.config.ViewSchemaName))
 }
 
+// duckLakePartitionColumn is the bucket every Bronze table is partitioned on.
+//
+// 10,000-ledger ranges, which is rule 6 of the Bronze storage contract and the
+// unit backfill-scope, the range catalog and the flusher already speak. The
+// Parquet the loader writes is already grouped this way -- the writer keys its
+// output directories off LedgerRange -- so this tells DuckLake about a layout
+// the data already has rather than imposing a new one.
+const duckLakePartitionColumn = "ledger_range"
+
+// partitionableTables returns the tables the schema declares with a
+// ledger_range column.
+//
+// Derived from the schema rather than hardcoded. Every Bronze table has the
+// column today, so a list in code would be 21 names that silently stop
+// matching the schema the moment a table is added -- and a table that misses
+// partitioning is not visible until someone measures a query.
+func partitionableTables(schemaSQL string) []string {
+	var out []string
+	for _, stmt := range splitSQLStatements(schemaSQL) {
+		name, body, ok := parseCreateTable(stmt)
+		if !ok {
+			continue
+		}
+		for _, col := range body {
+			if col == duckLakePartitionColumn {
+				out = append(out, name)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// parseCreateTable pulls the table name and column names out of a CREATE
+// TABLE statement, after splitSQLStatements has already stripped comments.
+func parseCreateTable(stmt string) (string, []string, bool) {
+	const marker = "CREATE TABLE IF NOT EXISTS "
+	i := strings.Index(stmt, marker)
+	if i < 0 {
+		return "", nil, false
+	}
+	rest := stmt[i+len(marker):]
+	open := strings.Index(rest, "(")
+	if open < 0 {
+		return "", nil, false
+	}
+	qualified := strings.TrimSpace(rest[:open])
+	name := qualified
+	if dot := strings.LastIndex(qualified, "."); dot >= 0 {
+		name = qualified[dot+1:]
+	}
+
+	var cols []string
+	for _, line := range strings.Split(rest[open+1:], "\n") {
+		line = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), ","))
+		if line == "" || line == ")" {
+			continue
+		}
+		if f := strings.Fields(line); len(f) >= 2 {
+			cols = append(cols, strings.Trim(f[0], `"`))
+		}
+	}
+	return name, cols, name != ""
+}
+
+// setPartitioning partitions each table by ledger_range.
+//
+// Runs after createTables and before any insert, because DuckLake applies a
+// partition layout to files written from then on -- setting it after a
+// backfill would leave every file already written unpartitioned, which is the
+// state a loader-created catalog is in today.
+//
+// Errors are returned rather than logged. Every Bronze table declares
+// ledger_range, so there is no table this can legitimately fail for, and a
+// partitioning that silently did not happen shows up much later as a query
+// reading more files than it should.
+func (p *DuckLakePusher) setPartitioning(ctx context.Context, tables []string) error {
+	if len(tables) == 0 {
+		return fmt.Errorf("no tables declare %s; the schema parser is broken", duckLakePartitionColumn)
+	}
+	for _, table := range tables {
+		sql := fmt.Sprintf("ALTER TABLE %s.%s.%s SET PARTITIONED BY (%s)",
+			p.config.CatalogName, p.config.SchemaName, table, duckLakePartitionColumn)
+		if _, err := p.db.ExecContext(ctx, sql); err != nil {
+			return fmt.Errorf("partition %s by %s: %w", table, duckLakePartitionColumn, err)
+		}
+	}
+	log.Printf("[DuckLake] Partitioned %d tables by %s", len(tables), duckLakePartitionColumn)
+	return nil
+}
+
 // createViews creates the presentation views over the physical tables.
 //
 // Unlike createTables, a failure here is returned rather than logged. A table
@@ -629,15 +727,23 @@ func (p *DuckLakePusher) createViews(ctx context.Context) error {
 }
 
 // createTables creates DuckLake tables from the bronze schema SQL.
-func (p *DuckLakePusher) createTables(ctx context.Context) error {
-	schemaSQL := embeddedBronzeSchema
+// bronzeSchemaSQL returns the table schema this run uses: the embedded copy,
+// or the file named by --ducklake-schema-sql when one is given.
+//
+// Shared with the partitioning step so both read the same definitions. Parsing
+// the embedded schema while creating tables from a file override would
+// partition a different set of tables than it created.
+func (p *DuckLakePusher) bronzeSchemaSQL() string {
 	if p.config.BronzeSchemaSQL != "" {
 		if data, err := os.ReadFile(p.config.BronzeSchemaSQL); err == nil {
-			schemaSQL = string(data)
+			return string(data)
 		}
 	}
+	return embeddedBronzeSchema
+}
 
-	schemaSQL = p.qualifySchemaSQL(schemaSQL)
+func (p *DuckLakePusher) createTables(ctx context.Context) error {
+	schemaSQL := p.qualifySchemaSQL(p.bronzeSchemaSQL())
 
 	for _, stmt := range splitSQLStatements(schemaSQL) {
 		if _, err := p.db.ExecContext(ctx, stmt+";"); err != nil {

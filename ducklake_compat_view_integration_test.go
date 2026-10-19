@@ -25,9 +25,12 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -98,8 +101,14 @@ func TestCompatViewsRenderIdentityFromRealDuckLake(t *testing.T) {
 	// Its own metadata schema, so this never touches another catalog.
 	pusher, err := NewDuckLakePusher(DuckLakeConfig{
 		CatalogDSN: catalog, DataPath: dataPath,
-		MetadataSchema: "bronze_compat_view_test_meta", CatalogName: "lake",
-		SchemaName: "bronze_compat_store", ViewSchemaName: "bronze_compat",
+		// A metadata schema per run, because each one is a separate DuckLake
+		// catalog and so cannot inherit the previous run's tables. Reusing a
+		// fixed name made the partition assertion pass with the partitioning
+		// code removed: CREATE TABLE IF NOT EXISTS left the already-partitioned
+		// tables from the run before, and the test asserted against those.
+		MetadataSchema: fmt.Sprintf("bronze_compat_%d_meta", time.Now().UnixNano()),
+		CatalogName:    "lake",
+		SchemaName:     "bronze_compat_store", ViewSchemaName: "bronze_compat",
 		S3KeyID: "integration-test", S3KeySecret: "integration-test",
 		S3Endpoint: "localhost:9000", S3Region: "us-east-1",
 		StartLedger: seq, EndLedger: seq, OnlyTables: only, ManifestPath: manifestPath,
@@ -111,6 +120,7 @@ func TestCompatViewsRenderIdentityFromRealDuckLake(t *testing.T) {
 	if _, err := pusher.db.Exec("SET extension_directory = '" + extensions + "'"); err != nil {
 		t.Fatal(err)
 	}
+
 	if _, err := pusher.Push(context.Background(), root); err != nil {
 		t.Fatal(err)
 	}
@@ -168,6 +178,55 @@ func TestCompatViewsRenderIdentityFromRealDuckLake(t *testing.T) {
 		}
 		if hash != compatTestHash {
 			t.Errorf("transaction_hash = %q, want %q", hash, compatTestHash)
+		}
+	})
+
+	// Rule 6: the files the loader writes must be laid out by ledger_range.
+	// This is what the validation run showed missing -- distinct_partitions was
+	// 0 on every table, because the loader never set a partition layout and
+	// pruning was falling back to per-file statistics.
+	t.Run("files are laid out by ledger_range", func(t *testing.T) {
+		// DuckLake inlines small writes into the catalog rather than writing
+		// Parquet, and a test range is small. Flush first, so this asserts
+		// rather than skipping -- a skip here would have hidden exactly the
+		// gap this test exists for.
+		if _, err := pusher.db.Exec(`CALL ducklake_flush_inlined_data('lake')`); err != nil {
+			t.Fatalf("flush inlined data: %v", err)
+		}
+
+		for _, table := range []string{"transactions_row_v2", "operations_row_v2", "contract_events_stream_v1"} {
+			// The schema argument is required: these tables live in the store
+			// schema, and without it the function looks in main and reports
+			// the table as nonexistent.
+			rows, err := pusher.db.Query(
+				`SELECT data_file FROM ducklake_list_files('lake', ?, schema => ?)`,
+				table, pusher.config.SchemaName)
+			if err != nil {
+				t.Fatalf("%s: list files: %v", table, err)
+			}
+			var files, partitioned int
+			for rows.Next() {
+				var path string
+				if err := rows.Scan(&path); err != nil {
+					rows.Close()
+					t.Fatal(err)
+				}
+				files++
+				// DuckLake writes a Hive-style directory per partition value.
+				if strings.Contains(path, duckLakePartitionColumn+"=") {
+					partitioned++
+				}
+			}
+			rows.Close()
+
+			if files == 0 {
+				t.Errorf("%s: no data files after flushing; nothing was verified", table)
+				continue
+			}
+			if partitioned != files {
+				t.Errorf("%s: %d of %d files carry a %s= directory; unpartitioned files prune "+
+					"only by statistics", table, partitioned, files, duckLakePartitionColumn)
+			}
 		}
 	})
 
