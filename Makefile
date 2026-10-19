@@ -86,6 +86,48 @@ run: build
 test:
 	$(GOTEST) -v ./...
 
+# Run the DuckLake integration tests against a throwaway PostgreSQL catalog
+# and a local data directory. These are the only tests that exercise the real
+# path the re-ingest runs: Parquet -> read_parquet -> a BLOB column -> a view
+# that renders lower(hex(..)) and joins a parent. Everything else about the
+# compact-identity change is covered without a database.
+#
+# Needs podman or docker for the catalog. The DuckDB extension directory must
+# match the version the Go driver links (1.5.4), which is what
+# $(HOME)/.duckdb/extensions holds once the duckdb CLI has installed ducklake,
+# httpfs and postgres_scanner.
+INTEGRATION_PG_PORT ?= 55432
+INTEGRATION_PG_NAME ?= ingest-catalog
+INTEGRATION_DATA_PATH ?= $(CURDIR)/build/lakedata/
+CONTAINER_CLI ?= $(shell command -v podman 2>/dev/null || command -v docker 2>/dev/null)
+
+integration-up:
+	@test -n "$(CONTAINER_CLI)" || { echo "need podman or docker"; exit 1; }
+	-$(CONTAINER_CLI) rm -f $(INTEGRATION_PG_NAME) >/dev/null 2>&1
+	$(CONTAINER_CLI) run -d --name $(INTEGRATION_PG_NAME) \
+	  -e POSTGRES_PASSWORD=ingest -e POSTGRES_USER=ingest -e POSTGRES_DB=ducklake_catalog \
+	  -p $(INTEGRATION_PG_PORT):5432 docker.io/library/postgres:16-alpine
+	@printf 'waiting for postgres'
+	@for i in $$(seq 1 60); do \
+	  if $(CONTAINER_CLI) exec $(INTEGRATION_PG_NAME) pg_isready -U ingest -d ducklake_catalog >/dev/null 2>&1; then \
+	    echo " ready"; exit 0; fi; printf '.'; sleep 1; done; \
+	  echo " timed out"; exit 1
+
+integration-down:
+	-$(CONTAINER_CLI) rm -f $(INTEGRATION_PG_NAME)
+
+# Assumes integration-up has run. Kept separate so the catalog can be reused
+# across runs while iterating.
+integration-ducklake:
+	@mkdir -p $(INTEGRATION_DATA_PATH)
+	DUCKLAKE_INGESTION_TEST_POSTGRES="postgresql://ingest:ingest@localhost:$(INTEGRATION_PG_PORT)/ducklake_catalog?sslmode=disable" \
+	DUCKLAKE_INGESTION_TEST_EXTENSION_DIR="$(HOME)/.duckdb/extensions" \
+	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_DATA_PATH)" \
+	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' .
+
+integration: integration-up
+	$(MAKE) integration-ducklake; status=$$?; $(MAKE) integration-down; exit $$status
+
 test-race:
 	$(GOTEST) -race -v ./...
 
