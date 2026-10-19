@@ -1,10 +1,11 @@
 package jobs
 
 import (
-	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
 	extract "github.com/withObsrvr/stellar-extract"

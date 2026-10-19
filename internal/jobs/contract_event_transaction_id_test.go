@@ -14,11 +14,12 @@ package jobs
 // nothing, digesting perfectly all the while.
 
 import (
+	"path/filepath"
+	"testing"
+
 	"github.com/withObsrvr/stellar-ingest/internal/adapters"
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
-	"path/filepath"
-	"testing"
 )
 
 // eventsWithTransactions extracts every ledger of every fixture and returns

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"github.com/withObsrvr/stellar-ingest/internal/logging"
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
@@ -57,6 +58,12 @@ type OrchestratorConfig struct {
 	// StatusEmitter publishes OSC 7501 program status so a terminal or UI can
 	// follow the run. Nil disables it, and every call is then a no-op.
 	StatusEmitter *status.Emitter
+
+	// Log receives the orchestrator's narration: shard layout, worker
+	// starts, errors. Nil is safe -- every method on logging.Logger
+	// tolerates a nil receiver -- so a caller that does not narrate passes
+	// nothing rather than a discarding instance.
+	Log *logging.Logger
 
 	StartLedger       uint32
 	EndLedger         uint32

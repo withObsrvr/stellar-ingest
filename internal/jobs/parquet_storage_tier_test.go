@@ -18,14 +18,15 @@ package jobs
 import (
 	"database/sql"
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/adapters"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
-	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/adapters"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 
 	"github.com/withObsrvr/stellar-ingest/internal/parity"
 )

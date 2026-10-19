@@ -2,8 +2,9 @@ package jobs
 
 import (
 	"errors"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 
 	flowctlpb "github.com/withobsrvr/flowctl/proto"
 )

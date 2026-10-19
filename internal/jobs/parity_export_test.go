@@ -3,8 +3,6 @@ package jobs
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
-	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 	"io"
 	"os"
 	"os/exec"
@@ -12,6 +10,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 
 	"github.com/withObsrvr/stellar-ingest/internal/parity"
 )

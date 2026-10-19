@@ -15,6 +15,12 @@ Usage of stellar-ingest:
     	Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers (default 1)
   -chunk-size uint
     	Maximum ledgers per sequential extract/validate/publish chunk; 0 processes the range as one chunk
+  -config string
+    	Path to a config file defining contexts; flags given on the command line always win
+  -context string
+    	Context in --config to take defaults from; empty uses the file's default-context
+  -doctor
+    	Check credentials, DuckDB extensions and catalog reachability, then exit without ingesting
   -ducklake
     	Push bronze Parquet to DuckLake (B2 + catalog)
   -ducklake-catalog string
@@ -49,12 +55,20 @@ Usage of stellar-ingest:
     	Durable manifest run ID (required for mutating enrichment)
   -era-id string
     	Era identifier for DuckLake partitioning (optional)
+  -events string
+    	Write the NDJSON event stream to this path; - for stdout. Empty emits nothing
   -files-per-partition uint
     	Files per archive partition (GCS/S3) (default 64000)
+  -for string
+    	Condition wait blocks on: succeeded|settled (default "succeeded")
   -ledgers-per-file uint
     	Ledgers per archive file (GCS/S3) (default 1)
+  -network string
+    	Network to target: mainnet|testnet|futurenet. Sets the passphrase unless --network-passphrase is given
   -network-passphrase string
     	Stellar network passphrase (default "Test SDF Network ; September 2015")
+  -no-color
+    	Disable ANSI colour on stderr (also honoured: NO_COLOR, a non-terminal stderr)
   -only-tables string
     	Comma-separated extractor/source/DuckLake table names to extract; empty extracts all
   -output string
@@ -77,6 +91,8 @@ Usage of stellar-ingest:
     	Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)
   -program-status string
     	Report OSC 7501 program status on stderr: auto|always|never (default "auto")
+  -quiet
+    	Suppress progress on stderr; warnings and errors are still reported
   -range-state
     	Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)
   -range-state-table string
@@ -87,8 +103,12 @@ Usage of stellar-ingest:
     	Backend storage type: GCS, S3, RPC, CAPTIVE_CORE, XDR, FS (default "FS")
   -tail-ledgers uint
     	Number of recent ledgers to load into hot buffer (default 100000)
+  -timeout duration
+    	Abandon the run after this long, e.g. 30m or 4h; 0 means no limit
   -validate
     	Run quality validation checks after extraction
+  -verbose
+    	Report per-step detail and structured attributes on stderr
   -version
     	Print the build version and exit
   -workers int

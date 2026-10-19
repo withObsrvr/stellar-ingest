@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/logging"
 )
 
 type ledgerChunk struct {
@@ -121,19 +124,35 @@ func runChunksConcurrently(chunks []ledgerChunk, concurrency int, run func(ledge
 	return results
 }
 
-func RunChunkedCommand(ctx context.Context, originalArgs []string, start, end, chunkSize uint32, outputDir string, concurrency int) error {
+// ChunkedSummary tallies a chunked backfill.
+//
+// Built and skipped are separate because they mean opposite things about
+// whether the backfill progressed: "5/5 succeeded in 87ms" was five chunks
+// skipping, which read as a triumph.
+type ChunkedSummary struct {
+	Total   int
+	Built   int
+	Skipped int
+	Failed  int
+}
+
+func RunChunkedCommand(ctx context.Context, originalArgs []string, start, end, chunkSize uint32, outputDir string, concurrency int, log *logging.Logger) (ChunkedSummary, error) {
 	chunks := SplitLedgerChunks(start, end, chunkSize)
 	if len(chunks) == 0 {
-		return fmt.Errorf("invalid chunk range %d-%d with size %d", start, end, chunkSize)
+		return ChunkedSummary{}, fmt.Errorf("invalid chunk range %d-%d with size %d", start, end, chunkSize)
 	}
 	executable, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("resolve executable: %w", err)
+		return ChunkedSummary{}, fmt.Errorf("resolve executable: %w", err)
 	}
 
 	started := time.Now()
-	fmt.Printf("=== Chunked Backfill ===\nRange: %d - %d\nChunk size: %d\nChunks: %d\nConcurrency: %d\n\n",
-		start, end, chunkSize, len(chunks), concurrency)
+	log.Section("Chunked Backfill")
+	log.Field("Range", "%d - %d", start, end)
+	log.Field("Chunk size", "%d", chunkSize)
+	log.Field("Chunks", "%d", len(chunks))
+	log.Field("Concurrency", "%d", concurrency)
+	log.Line()
 
 	// One mutex across every child so a line is never torn by another
 	// chunk's write.
@@ -158,11 +177,11 @@ func RunChunkedCommand(ctx context.Context, originalArgs []string, start, end, c
 		n := doneCount.Add(1)
 		switch {
 		case err != nil:
-			fmt.Printf("%s FAILED (%d/%d done): %v\n", label, n, len(chunks), err)
+			log.Error("%s FAILED (%d/%d done): %v", label, n, len(chunks), err)
 		case skipped:
-			fmt.Printf("%s skipped, already complete (%d/%d done)\n", label, n, len(chunks))
+			log.Info("%s skipped, already complete (%d/%d done)", label, n, len(chunks))
 		default:
-			fmt.Printf("%s built (%d/%d done)\n", label, n, len(chunks))
+			log.Info("%s built (%d/%d done)", label, n, len(chunks))
 		}
 		outMu.Unlock()
 		return skipped, err
@@ -184,20 +203,23 @@ func RunChunkedCommand(ctx context.Context, originalArgs []string, start, end, c
 	// Built and skipped are reported apart because they mean opposite things
 	// about whether the backfill progressed. "5/5 succeeded in 87ms" was all
 	// five chunks skipping, which read as a triumph.
-	fmt.Printf("\nChunked backfill: %d built, %d skipped (already complete), %d failed, in %s\n",
+	log.Line()
+	log.Info("Chunked backfill: %d built, %d skipped (already complete), %d failed, in %s",
 		built, skipped, len(failed), time.Since(started).Round(time.Millisecond))
+
+	summary := ChunkedSummary{Total: len(chunks), Built: built, Skipped: skipped, Failed: len(failed)}
 
 	if len(failed) > 0 {
 		// Every failure is listed rather than just the first. With the range
 		// catalog these chunks are simply unclaimed and re-derived on the
 		// next run, so the useful output is the whole set, not the earliest.
 		for _, r := range failed {
-			fmt.Printf("  failed: %d-%d after %s: %v\n",
+			log.Error("  failed: %d-%d after %s: %v",
 				r.Chunk.Start, r.Chunk.End, r.Duration.Round(time.Millisecond), r.Err)
 		}
-		return fmt.Errorf("%d of %d chunks failed", len(failed), len(chunks))
+		return summary, fmt.Errorf("%d of %d chunks failed", len(failed), len(chunks))
 	}
-	return nil
+	return summary, nil
 }
 
 func rewriteChunkArgs(args []string, chunk ledgerChunk, outputDir string) []string {

@@ -17,42 +17,42 @@ package app
 // flag a deployed job passes. The flags stay shared until each operation has
 // a reason to reject one.
 
-import (
-	"context"
-
-	"github.com/withObsrvr/stellar-ingest/internal/status"
-)
+import "context"
 
 // Extract acquires ledgers and writes the 21 Bronze datasets as Parquet. It
 // does not push to DuckLake or populate the hot buffer.
-func Extract(ctx context.Context, req RunRequest, emitter *status.Emitter) {
+func Extract(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "extract"
 	req.RunDuckLake = false
 	req.PgHost = ""
-	Run(ctx, req, emitter)
+	return Run(ctx, req, deps)
 }
 
 // Load pushes an existing output directory into DuckLake. Extraction is
 // skipped, which the engine decides by finding no source to read from.
-func Load(ctx context.Context, req RunRequest, emitter *status.Emitter) {
+func Load(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "load"
 	req.Bucket = ""
 	req.RunDuckLake = true
-	Run(ctx, req, emitter)
+	return Run(ctx, req, deps)
 }
 
 // Validate checks an existing output directory and reports, without pushing
 // anywhere or writing anything new.
-func Validate(ctx context.Context, req RunRequest, emitter *status.Emitter) {
+func Validate(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "validate"
 	req.Bucket = ""
 	req.RunValidate = true
 	req.RunDuckLake = false
 	req.PgHost = ""
-	Run(ctx, req, emitter)
+	return Run(ctx, req, deps)
 }
 
 // Repair backfills missing Bronze contract balance fields in place. It is the
 // one operation that was already a mode switch rather than a phase, and it
 // returns without extracting.
-func Repair(ctx context.Context, req RunRequest, emitter *status.Emitter) {
+func Repair(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "repair"
 	req.EnrichContractBalances = true
-	Run(ctx, req, emitter)
+	return Run(ctx, req, deps)
 }

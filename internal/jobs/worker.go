@@ -3,13 +3,14 @@ package jobs
 import (
 	"context"
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/adapters"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/adapters"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
 	extract "github.com/withObsrvr/stellar-extract"

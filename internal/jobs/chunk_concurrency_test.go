@@ -8,12 +8,13 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 )
 
 func chunks(n int) []ledgerChunk {

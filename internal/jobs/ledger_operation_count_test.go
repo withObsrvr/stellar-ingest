@@ -1,9 +1,10 @@
 package jobs
 
 import (
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"testing"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 
 	"github.com/stellar/go-stellar-sdk/xdr"
 )
