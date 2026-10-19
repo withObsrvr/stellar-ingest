@@ -40,10 +40,21 @@ Against §5 security: **closed.** All four credentials now resolve from the
 environment or a file, the flags warn, and the warning never echoes a value.
 See *Done* below.
 
-Against §6 (layout): the standard's layout is `cmd/`, `internal/cli`,
-`internal/app`, `internal/domain`, `internal/jobs`, `internal/events`,
-`internal/adapters`. Today 69 files sit in `package main` at the root, with
-`internal/bronze/restored`, `internal/parity` and `internal/status` carved out.
+Against §6 (layout): **done for the layers that matter now.**
+
+```
+cmd/stellar-ingest/     composition root
+internal/cli/           flags, resolution, rendering
+internal/app/           the operations
+internal/ingest/        the engine, importable
+```
+
+`internal/domain`, `internal/jobs`, `internal/events` and `internal/adapters`
+are not split out. The engine is one package because splitting 26 files into
+four judgement-based layers is a separate exercise from making them
+importable, and doing both at once would have made a move bug
+indistinguishable from a layering mistake. `internal/jobs` and
+`internal/events` have nothing to hold until Stage 6 anyway.
 
 Two places this tool is **ahead** of the standard, worth not regressing:
 

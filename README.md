@@ -26,9 +26,21 @@ It is **behaviour-identical** to that application — same flags, same defaults,
 same output, same exit codes. See [`PROVENANCE.md`](PROVENANCE.md) for exactly
 what changed and what parity was verified.
 
-Incremental refactoring now includes a private worker/Parquet boundary and
-the `internal/bronze/restored` mapper. Most code remains in `package main`;
-no public 21-table Bronze API is claimed. See
+The code is now layered, per §2 and §6 of the
+[CLI Engineering Standard](docs/cli-standard-adoption.md):
+
+```
+cmd/stellar-ingest/     composition root: flags in, typed request out
+internal/cli/           flag resolution and rendering only
+internal/app/           the operations: a run, callable without a terminal
+internal/ingest/        the engine, importable
+internal/credential/    where a secret came from
+internal/status/        OSC 7501 program status
+```
+
+`internal/ingest` is importable, which is the point: an API, a UI or a test
+can run an ingestion without a process boundary or a flag parser. No public
+21-table Bronze API is claimed — `internal/` is private by construction. See
 [`docs/module-boundaries.md`](docs/module-boundaries.md),
 [`docs/target-architecture.md`](docs/target-architecture.md), and
 [`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).
@@ -62,10 +74,11 @@ Flakes only see git-tracked files, so `git add` a new file before building it.
 ## Build
 
 ```sh
-make build-all     # bin/stellar-ingest and bin/stellar-history-loader
-make build         # stellar-ingest only
+make build-all      # bin/stellar-ingest and bin/stellar-history-loader
+make build          # stellar-ingest only
 make test
-make ci-build      # deps, vet, build, test, CLI parity gate
+make version-stamp  # assert the build stamp reached the binary
+make ci-build       # deps, vet, build, test, CLI parity gate, build stamp
 ```
 
 `stellar-history-loader` is a transitional alias for the same program so

@@ -48,7 +48,10 @@ GOENV      := GOWORK=off CGO_ENABLED=1
 GOBUILD    := $(GOENV) $(GOCMD) build
 GOTEST     := $(GOENV) $(GOCMD) test
 GOCLEAN    := $(GOCMD) clean
-LDFLAGS    := -X main.Version=$(GIT_SHA)
+# Version lives in internal/ingest, which is what stamps it into manifests,
+# lineage rows and parity records. The linker path moved with it; a build that
+# still said main.Version would silently stamp "dev".
+LDFLAGS    := -X github.com/withObsrvr/stellar-ingest/internal/ingest.Version=$(GIT_SHA)
 
 all: build-all
 
@@ -57,21 +60,21 @@ all: build-all
 build:
 	@echo "→ building $(BINARY_NAME) (sha: $(GIT_SHA))"
 	@mkdir -p bin
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o bin/$(BINARY_NAME) .
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/stellar-ingest
 	@echo "✓ $(BINARY_NAME) → bin/$(BINARY_NAME)"
 
 # Transitional: same package, legacy executable name. Existing operational
 # scripts keep working unchanged during the migration.
 build-compat:
 	@mkdir -p bin
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o bin/$(COMPAT_NAME) .
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o bin/$(COMPAT_NAME) ./cmd/stellar-ingest
 	@echo "✓ $(COMPAT_NAME) (compatibility name) → bin/$(COMPAT_NAME)"
 
 build-all: build build-compat
 
 build-offline:
 	@mkdir -p bin
-	GO111MODULE=on GOPROXY=off $(GOBUILD) -mod=vendor -ldflags "$(LDFLAGS)" -o bin/$(BINARY_NAME) .
+	GO111MODULE=on GOPROXY=off $(GOBUILD) -mod=vendor -ldflags "$(LDFLAGS)" -o bin/$(BINARY_NAME) ./cmd/stellar-ingest
 	@echo "✓ $(BINARY_NAME) (offline/vendored) → bin/$(BINARY_NAME)"
 
 # ---- Run --------------------------------------------------------------------
@@ -101,6 +104,18 @@ INTEGRATION_PG_NAME ?= ingest-catalog
 INTEGRATION_DATA_PATH ?= $(CURDIR)/build/lakedata/
 # CONTAINER_CLI is already defined above; the integration targets reuse it.
 
+# The build stamp must actually land. Version lives in internal/ingest and is
+# set by a linker flag naming that package, from three build paths -- this
+# Makefile, the Dockerfile and flake.nix. A build that misses it stamps "dev"
+# into every manifest, lineage row and parity record, which is precisely the
+# provenance gap the cold-authority work had to untangle after the fact.
+version-stamp: build
+	@stamp=$$(./bin/$(BINARY_NAME) --version); \
+	if [ "$$stamp" = "dev" ]; then \
+	  echo "✗ --version reports \"dev\": the linker flag did not reach $(LDFLAGS)"; exit 1; \
+	fi; \
+	echo "✓ build stamped $$stamp"
+
 integration-up:
 	@test -n "$(CONTAINER_CLI)" || { echo "need podman or docker"; exit 1; }
 	-$(CONTAINER_CLI) rm -f $(INTEGRATION_PG_NAME) >/dev/null 2>&1
@@ -123,7 +138,7 @@ integration-ducklake:
 	DUCKLAKE_INGESTION_TEST_POSTGRES="postgresql://ingest:ingest@localhost:$(INTEGRATION_PG_PORT)/ducklake_catalog?sslmode=disable" \
 	DUCKLAKE_INGESTION_TEST_EXTENSION_DIR="$(HOME)/.duckdb/extensions" \
 	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_DATA_PATH)" \
-	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' .
+	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' ./internal/ingest
 
 # The same two tests against a DuckDB file catalog instead of PostgreSQL.
 # Needs no container and no credentials, so this is the one to reach for while
@@ -136,7 +151,7 @@ integration-ducklake-file:
 	DUCKLAKE_INGESTION_TEST_POSTGRES="$(INTEGRATION_FILE_CATALOG)/catalog.ducklake" \
 	DUCKLAKE_INGESTION_TEST_EXTENSION_DIR="$(HOME)/.duckdb/extensions" \
 	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_FILE_CATALOG)/data/" \
-	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' .
+	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' ./internal/ingest
 
 integration: integration-up
 	$(MAKE) integration-ducklake; status=$$?; $(MAKE) integration-down; exit $$status
@@ -202,7 +217,7 @@ LIVE_INGESTER ?= ../ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester/go
 # Historical side: decompress fixtures, extract twice (the second pass is the
 # non-determinism control), write digests and canonical rows.
 parity-export:
-	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityExportHistorical -timeout 30m -v .
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityExportHistorical -timeout 30m -v ./internal/ingest
 
 # Live side: runs in the sibling repository against the XDR just exported.
 parity-live:
@@ -212,20 +227,20 @@ parity-live:
 
 # Comparison over both sides' artifacts, including the row-level drill-down.
 parity-report:
-	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityCompare -timeout 30m -v .
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityCompare -timeout 30m -v ./internal/ingest
 	@echo "✓ report → $(PARITY_DIR)/report/summary.md"
 
 # Regenerate the reviewed matrix from the committed digests. Hermetic.
 parity-matrix:
-	$(GOTEST) -run TestParityMatrixUpdate -update .
+	$(GOTEST) -run TestParityMatrixUpdate -update ./internal/ingest
 	@echo "✓ docs/ticket-04-parity-matrix.md regenerated — review the diff"
 
 # Promote a fresh export to the committed baselines. Never run this to make a
 # failing regression test pass: the baselines are the reviewed record of what
 # each side produced at a pinned revision.
 parity-baseline-update: parity-export
-	cp $(PARITY_DIR)/historical/*.digest.json testdata/parity/historical/
-	@test -d $(PARITY_DIR)/live && cp $(PARITY_DIR)/live/*.digest.json testdata/parity/live/ \
+	cp $(PARITY_DIR)/historical/*.digest.json internal/ingest/testdata/parity/historical/
+	@test -d $(PARITY_DIR)/live && cp $(PARITY_DIR)/live/*.digest.json internal/ingest/testdata/parity/live/ \
 	  || echo "note: no live digests in $(PARITY_DIR); run make parity-live first to refresh that side"
 	$(MAKE) parity-matrix
 	@echo "✓ baselines updated — review the diff before committing"
@@ -344,7 +359,7 @@ docker-clean:
 
 # ---- CI / Release -----------------------------------------------------------
 
-ci-build: deps vet build-all test parity-baseline golden
+ci-build: deps vet build-all test parity-baseline golden version-stamp
 
 release: docker-build docker-push
 	@echo "✓ released $(DOCKER_IMAGE):$(VERSION_TAG)"
