@@ -2,17 +2,21 @@ package jobs
 
 import (
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
+
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/logging"
 
 	"github.com/parquet-go/parquet-go"
 )
 
 // LineageWriter collects lineage records and writes them to Parquet.
 type LineageWriter struct {
+	log             *logging.Logger
 	mu              sync.Mutex
 	records         []domain.LineageRecord
 	outputDir       string
@@ -20,8 +24,9 @@ type LineageWriter struct {
 	startedAt       time.Time
 }
 
-func NewLineageWriter(outputDir, pipelineVersion string) *LineageWriter {
+func NewLineageWriter(outputDir, pipelineVersion string, log *logging.Logger) *LineageWriter {
 	return &LineageWriter{
+		log:             log,
 		outputDir:       outputDir,
 		pipelineVersion: pipelineVersion,
 		startedAt:       time.Now(),
@@ -82,7 +87,7 @@ func (lw *LineageWriter) Flush() error {
 		return fmt.Errorf("close lineage writer: %w", err)
 	}
 
-	fmt.Printf("[Lineage] Wrote %d lineage records to %s\n", len(lw.records), path)
+	lw.log.Detail("[Lineage] Wrote %d lineage records to %s", len(lw.records), path)
 	return nil
 }
 

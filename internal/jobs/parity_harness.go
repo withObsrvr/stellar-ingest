@@ -17,13 +17,14 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/adapters"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/withObsrvr/stellar-ingest/internal/adapters"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 
 	"github.com/withObsrvr/stellar-ingest/internal/parity"
 )

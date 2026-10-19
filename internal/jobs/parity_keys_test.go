@@ -10,10 +10,11 @@ package jobs
 // on the way to storage.
 
 import (
-	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 
 	"github.com/withObsrvr/stellar-ingest/internal/parity"
 )

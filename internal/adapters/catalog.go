@@ -6,11 +6,17 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/withObsrvr/stellar-ingest/internal/logging"
 )
 
-// GenerateCatalogReport scans the output directory and prints a summary
-// of all Parquet files with row counts and DuckDB query examples.
-func GenerateCatalogReport(outputDir string) error {
+// GenerateCatalogReport scans the output directory and narrates a summary
+// of all Parquet files with shard counts and DuckDB query examples.
+//
+// Narration, not a result: it is informational, it prints on every run, and
+// §3 reserves stdout for the one thing a caller would parse. It used to go
+// to stdout, where it sat in front of anything downstream.
+func GenerateCatalogReport(outputDir string, log *logging.Logger) error {
 	bronzeDir := filepath.Join(outputDir, "bronze")
 	if _, err := os.Stat(bronzeDir); os.IsNotExist(err) {
 		return fmt.Errorf("no bronze directory found in %s", outputDir)
@@ -43,26 +49,30 @@ func GenerateCatalogReport(outputDir string) error {
 	}
 	sort.Strings(names)
 
-	fmt.Println("=== Catalog Report ===")
-	fmt.Printf("Output directory: %s\n", outputDir)
-	fmt.Printf("Tables found: %d\n\n", len(names))
+	log.Section("Catalog Report")
+	log.Field("Output directory", "%s", outputDir)
+	log.Field("Tables found", "%d", len(names))
+	log.Line()
 
 	for _, name := range names {
 		files := tables[name]
-		fmt.Printf("  %-35s %d shard file(s)\n", name, len(files))
+		log.Info("  %-35s %d shard file(s)", name, len(files))
 	}
 
-	fmt.Println()
-	fmt.Println("=== DuckDB Query Examples ===")
-	fmt.Println()
+	// The query examples are a copy-paste aid rather than part of the
+	// report, so they are detail: useful when asked for, noise on every
+	// chunk of a thousand-chunk backfill.
+	log.Line()
+	log.Section("DuckDB Query Examples")
+	log.Line()
 	for _, name := range names {
 		globPath := filepath.Join(bronzeDir, name, "**", "*.parquet")
-		fmt.Printf("-- %s\n", name)
-		fmt.Printf("SELECT count(*) FROM read_parquet('%s');\n\n", globPath)
+		log.Detail("-- %s", name)
+		log.Detail("SELECT count(*) FROM read_parquet('%s');", globPath)
 	}
 
-	fmt.Println("-- All tables combined row count")
-	fmt.Printf("SELECT count(*) FROM read_parquet('%s');\n", filepath.Join(bronzeDir, "**", "*.parquet"))
+	log.Detail("-- All tables combined row count")
+	log.Detail("SELECT count(*) FROM read_parquet('%s');", filepath.Join(bronzeDir, "**", "*.parquet"))
 
 	return nil
 }

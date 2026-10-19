@@ -3,12 +3,13 @@ package jobs
 import (
 	"database/sql"
 	"encoding/json"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
-	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 
 	_ "github.com/duckdb/duckdb-go/v2"
 )

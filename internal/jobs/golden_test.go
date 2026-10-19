@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+
 	"github.com/withObsrvr/stellar-ingest/internal/adapters"
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"github.com/withObsrvr/stellar-ingest/internal/fixtures"

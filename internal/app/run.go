@@ -177,7 +177,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	}
 
 	if req.ChunkSize > 0 {
-		if err := jobs.RunChunkedCommand(ctx, os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency); err != nil {
+		if err := jobs.RunChunkedCommand(ctx, os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency, log); err != nil {
 			return fmt.Errorf("chunked backfill failed: %w", err)
 		}
 		return nil
@@ -284,6 +284,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	if extractRequested {
 		config := domain.OrchestratorConfig{
 			StatusEmitter:     deps.Status,
+			Log:               log,
 			StartLedger:       startLedger,
 			EndLedger:         endLedger,
 			NumWorkers:        req.Workers,
@@ -344,7 +345,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	// Run quality validation if requested
 	if req.RunValidate {
 		log.Line()
-		validator, err := adapters.NewValidator(effectiveOutput)
+		validator, err := adapters.NewValidator(effectiveOutput, log)
 		if err != nil {
 			log.Warn("validation setup failed: %v", err)
 		} else {
@@ -449,7 +450,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	}
 
 	log.Line()
-	if err := adapters.GenerateCatalogReport(effectiveOutput); err != nil {
+	if err := adapters.GenerateCatalogReport(effectiveOutput, log); err != nil {
 		log.Warn("catalog report failed: %v", err)
 	}
 

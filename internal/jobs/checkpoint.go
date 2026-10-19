@@ -3,11 +3,12 @@ package jobs
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 )
 
 // CheckpointData tracks per-shard progress for resume capability.

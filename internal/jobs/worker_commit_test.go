@@ -3,10 +3,11 @@ package jobs
 import (
 	"context"
 	"errors"
-	"github.com/withObsrvr/stellar-ingest/internal/adapters"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"path/filepath"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/adapters"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 )
 
 // This is deliberately not a general destination abstraction: Close models

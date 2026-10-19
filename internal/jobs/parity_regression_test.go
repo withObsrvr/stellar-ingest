@@ -6,12 +6,13 @@ package jobs
 // asks to have in CI.
 
 import (
-	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/withObsrvr/stellar-ingest/internal/fixtures"
 
 	"github.com/withObsrvr/stellar-ingest/internal/parity"
 )

@@ -4,18 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"path/filepath"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/logging"
 )
 
 // Validator runs quality checks over Parquet output using DuckDB.
 type Validator struct {
 	db        *sql.DB
 	bronzeDir string
+	log       *logging.Logger
 }
 
-func NewValidator(outputDir string) (*Validator, error) {
+func NewValidator(outputDir string, log *logging.Logger) (*Validator, error) {
 	db, err := OpenDuckDB()
 	if err != nil {
 		return nil, fmt.Errorf("open duckdb for validation: %w", err)
@@ -23,6 +25,7 @@ func NewValidator(outputDir string) (*Validator, error) {
 	return &Validator{
 		db:        db,
 		bronzeDir: filepath.Join(outputDir, "bronze"),
+		log:       log,
 	}, nil
 }
 
@@ -42,7 +45,7 @@ func (v *Validator) RunAll(ctx context.Context) error {
 		{"pipeline_version_present", v.checkPipelineVersion},
 	}
 
-	fmt.Println("=== Quality Validation ===")
+	v.log.Section("Quality Validation")
 	passed := 0
 	failed := 0
 
@@ -52,21 +55,22 @@ func (v *Validator) RunAll(ctx context.Context) error {
 		elapsed := time.Since(start).Round(time.Millisecond)
 
 		if err != nil {
-			log.Printf("[Quality] %s: ERROR (%v) [%s]", check.name, err, elapsed)
+			v.log.Warn("[Quality] %s: ERROR (%v) [%s]", check.name, err, elapsed)
 			failed++
 			continue
 		}
 
 		if ok {
-			fmt.Printf("  PASS  %-40s %s [%s]\n", check.name, detail, elapsed)
+			v.log.Info("  PASS  %-40s %s [%s]", check.name, detail, elapsed)
 			passed++
 		} else {
-			fmt.Printf("  FAIL  %-40s %s [%s]\n", check.name, detail, elapsed)
+			v.log.Warn("  FAIL  %-40s %s [%s]", check.name, detail, elapsed)
 			failed++
 		}
 	}
 
-	fmt.Printf("\nResults: %d passed, %d failed\n", passed, failed)
+	v.log.Line()
+	v.log.Info("Results: %d passed, %d failed", passed, failed)
 
 	if failed > 0 {
 		return fmt.Errorf("%d quality check(s) failed", failed)

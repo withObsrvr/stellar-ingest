@@ -3,14 +3,16 @@ package jobs
 import (
 	"context"
 	"fmt"
-	"github.com/withObsrvr/stellar-ingest/internal/adapters"
-	"github.com/withObsrvr/stellar-ingest/internal/domain"
-	"github.com/withObsrvr/stellar-ingest/internal/status"
-	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/withObsrvr/stellar-ingest/internal/adapters"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/logging"
+	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
 // Orchestrator manages parallel workers for history loading.
@@ -47,6 +49,10 @@ type ProgressTracker struct {
 	// expectedLedgers is the size of the requested range, so progress can be
 	// a percentage. Zero means unknown, and no percentage is reported.
 	expectedLedgers uint64
+	// log narrates the progress line. Routed through the logger so --quiet
+	// suppresses it and so the whole line is written at once; see
+	// PrintStatus.
+	log *logging.Logger
 }
 
 // expectedLedgers is how many ledgers the requested range covers, used to
@@ -109,10 +115,11 @@ func NewOrchestrator(config domain.OrchestratorConfig) *Orchestrator {
 			processedByWorker: make(map[int]uint64),
 			statusEmitter:     config.StatusEmitter,
 			expectedLedgers:   expectedLedgers(config),
+			log:               config.Log,
 		},
 		checkpoint:    checkpoint,
 		checkpointErr: checkpointErr,
-		lineage:       NewLineageWriter(config.OutputDir, domain.Version),
+		lineage:       NewLineageWriter(config.OutputDir, domain.Version, config.Log),
 	}
 }
 
@@ -134,10 +141,10 @@ func (o *Orchestrator) Run() error {
 	}
 	shards := o.splitIntoShards()
 
-	log.Printf("Splitting range [%d, %d] into %d shards", o.config.StartLedger, o.config.EndLedger, len(shards))
+	o.config.Log.Info("Splitting range [%d, %d] into %d shards", o.config.StartLedger, o.config.EndLedger, len(shards))
 	for _, s := range shards {
 		shardSize := s.EndLedger - s.StartLedger + 1
-		log.Printf("  Shard %d: ledgers %d - %d (%d ledgers)", s.ID, s.StartLedger, s.EndLedger, shardSize)
+		o.config.Log.Detail("  Shard %d: ledgers %d - %d (%d ledgers)", s.ID, s.StartLedger, s.EndLedger, shardSize)
 	}
 
 	// Create one source factory. SDK streaming sources create and tear down an
@@ -209,7 +216,7 @@ func (o *Orchestrator) Run() error {
 
 	if len(errs) > 0 {
 		for _, err := range errs {
-			log.Printf("ERROR: %v", err)
+			o.config.Log.Error("%v", err)
 		}
 		return fmt.Errorf("%d worker(s) failed", len(errs))
 	}
@@ -257,7 +264,7 @@ func (o *Orchestrator) splitIntoShards() []Shard {
 
 // runWorker creates a Worker and runs it for the given shard.
 func (o *Orchestrator) runWorker(ctx context.Context, shard Shard, source LedgerSource) error {
-	log.Printf("[Worker %d] Starting: ledgers %d - %d", shard.ID, shard.StartLedger, shard.EndLedger)
+	o.config.Log.Info("[Worker %d] Starting: ledgers %d - %d", shard.ID, shard.StartLedger, shard.EndLedger)
 
 	if !o.checkpoint.IsShardComplete(shard.ID) {
 		if err := clearIncompleteShardFiles(o.config.OutputDir, shard.ID); err != nil {
@@ -315,16 +322,25 @@ func (pt *ProgressTracker) PrintStatus() {
 
 	throughput := float64(pt.totalLedgers) / elapsed.Seconds()
 
-	// stderr, not stdout: stdout carries results so a pipeline keeps
-	// working, and progress is diagnostic by definition.
-	fmt.Fprintf(os.Stderr, "[Progress] %d ledgers processed | %.1f ledgers/sec | elapsed %s",
+	// Built as one string and emitted once.
+	//
+	// This used to be five Fprintf calls to os.Stderr followed by a
+	// Println to STDOUT, so the line's terminating newline landed on the
+	// other stream. Successive progress lines then ran together on stderr:
+	// the mainnet validation logs are full of
+	// "...elapsed 5s[Progress] 0 ledgers processed...". Writing the whole
+	// line at once also means a concurrent chunk cannot interleave into the
+	// middle of it, and routing it through the logger is what makes --quiet
+	// suppress progress.
+	var line strings.Builder
+	fmt.Fprintf(&line, "[Progress] %d ledgers processed | %.1f ledgers/sec | elapsed %s",
 		pt.totalLedgers, throughput, elapsed.Round(time.Second))
 
 	pt.reportStatus(throughput)
 
 	// Per-worker breakdown
 	if len(pt.processedByWorker) > 0 {
-		fmt.Fprint(os.Stderr, " | per-worker: ")
+		line.WriteString(" | per-worker: ")
 		first := true
 		for id := 0; id < len(pt.processedByWorker); id++ {
 			count, ok := pt.processedByWorker[id]
@@ -332,13 +348,13 @@ func (pt *ProgressTracker) PrintStatus() {
 				continue
 			}
 			if !first {
-				fmt.Fprint(os.Stderr, ", ")
+				line.WriteString(", ")
 			}
-			fmt.Fprintf(os.Stderr, "w%d=%d", id, count)
+			fmt.Fprintf(&line, "w%d=%d", id, count)
 			first = false
 		}
 	}
-	fmt.Println()
+	pt.log.Info("%s", line.String())
 
 	pt.lastReport = time.Now()
 }
