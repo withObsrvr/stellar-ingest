@@ -46,6 +46,28 @@ Credentials come from the environment, not from arguments:
   DUCKLAKE_CATALOG_DSN   B2_KEY_ID   B2_KEY_SECRET   PG_PASSWORD
 
 each with a _FILE form naming a file to read instead.`,
+		Example: "  " + joinExamples([]string{
+			"# Check this machine before committing to a backfill",
+			"stellar-ingest doctor --ducklake",
+			"",
+			"# Extract one range to Parquet and nothing else",
+			"stellar-ingest extract --network mainnet --start 64000000 --end 64001000 --output-dir ./bronze",
+			"",
+			"# A full pass: extract, push to DuckLake, record the range",
+			"stellar-ingest run --config ingest.yaml --start 64000000 --end 64010000 \\",
+			"    --chunk-size 1000 --chunk-concurrency 4 --ducklake --range-state",
+			"",
+			"# What is left to build, without taking a claim",
+			"stellar-ingest run --config ingest.yaml --start 1 --end 64000000 --chunk-size 10000 --plan",
+			"",
+			"# Where each range stands, and blocking until they are done",
+			"stellar-ingest inspect --start 64000000 --end 64010000 --chunk-size 1000 --output json",
+			"stellar-ingest wait --start 64000000 --end 64010000 --chunk-size 1000 --for succeeded --timeout 6h",
+			"",
+			"# Machine-readable result, and an append-only event log",
+			"stellar-ingest run --config ingest.yaml --start 64000000 --end 64001000 \\",
+			"    --output json --events ./events.ndjson --quiet",
+		}),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		// A bare invocation should say what it offers rather than do
