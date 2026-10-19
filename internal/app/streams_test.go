@@ -36,7 +36,7 @@ func TestNarrationGoesToTheLogStreamAndNotToResults(t *testing.T) {
 		t.Fatalf("setup: %v", err)
 	}
 	req := valid(filepath.Join(parent, "out"))
-	_ = Run(context.Background(), req, deps)
+	_, _ = Run(context.Background(), req, deps)
 
 	if got := results.String(); got != "" {
 		t.Errorf("results stream carries narration: %q", got)
@@ -55,7 +55,7 @@ func TestPlanOutputIsAResult(t *testing.T) {
 	req.PlanOnly = true
 	// No catalog, so this is rejected before reaching one; the assertion is
 	// about which stream the rejection does NOT pollute.
-	err := Run(context.Background(), req, deps)
+	_, err := Run(context.Background(), req, deps)
 	if err == nil {
 		t.Fatal("expected --plan without a catalog to be rejected")
 	}
@@ -74,8 +74,8 @@ func TestQuietSuppressesTheBanner(t *testing.T) {
 	}
 	req := valid(filepath.Join(parent, "out"))
 
-	_ = Run(context.Background(), req, Deps{Log: logging.New(logging.Options{Level: logging.LevelNormal, Err: &loud})})
-	_ = Run(context.Background(), req, Deps{Log: logging.New(logging.Options{Level: logging.LevelQuiet, Err: &quiet})})
+	_, _ = Run(context.Background(), req, Deps{Log: logging.New(logging.Options{Level: logging.LevelNormal, Err: &loud})})
+	_, _ = Run(context.Background(), req, Deps{Log: logging.New(logging.Options{Level: logging.LevelQuiet, Err: &quiet})})
 
 	if strings.Contains(quiet.String(), "Stellar History Loader") {
 		t.Errorf("--quiet still printed the banner: %q", quiet.String())

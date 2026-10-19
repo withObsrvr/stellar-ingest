@@ -155,8 +155,17 @@ func runFlatForm(ctx context.Context) error {
 	ctx, cancel := cli.WithTimeout(ctx, values.Timeout)
 	defer cancel()
 
+	outputs, err := cli.ResolveOutput(values.OutputDir, values.Output)
+	if err != nil {
+		return err
+	}
+
 	// Everything the command line had to decide is decided. From here the
 	// request is data, and the operation behind it has no idea a terminal
 	// exists.
-	return app.Run(ctx, req, app.Deps{Out: os.Stdout, Log: log, Status: emitter})
+	result, err := app.Run(ctx, req, app.Deps{Out: os.Stdout, Log: log, Status: emitter})
+	if err != nil {
+		return err
+	}
+	return cli.RenderResult(os.Stdout, outputs.Format, result)
 }

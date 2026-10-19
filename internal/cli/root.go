@@ -24,7 +24,7 @@ import (
 
 // operation is one of the application's use cases. It returns an error
 // carrying an exit class; the composition root turns that into an exit code.
-type operation func(context.Context, app.RunRequest, app.Deps) error
+type operation func(context.Context, app.RunRequest, app.Deps) (*app.RunResult, error)
 
 // CommandNames are the verbs the root command accepts. The flat-form
 // dispatcher needs this list to tell a verb from a flag.
@@ -121,6 +121,10 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			if err != nil {
 				return err
 			}
+			outputs, err := ResolveOutput(values.OutputDir, values.Output)
+			if err != nil {
+				return err
+			}
 			for _, notice := range notices {
 				fmt.Fprintln(errOut, notice)
 			}
@@ -136,7 +140,15 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			// what every deployed invocation relies on.
 			ctx, cancel := WithTimeout(cmd.Context(), values.Timeout)
 			defer cancel()
-			return op(ctx, req, app.Deps{Out: out, Log: log, Status: emitter})
+
+			result, err := op(ctx, req, app.Deps{Out: out, Log: log, Status: emitter})
+			if err != nil {
+				return err
+			}
+			// Rendering belongs here, not in the operation: the same result
+			// is what an API or a UI would serve, in whatever shape it
+			// wants.
+			return RenderResult(out, outputs.Format, result)
 		},
 	}
 	values.RegisterPFlags(cmd.Flags())

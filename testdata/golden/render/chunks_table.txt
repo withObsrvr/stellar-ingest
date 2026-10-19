@@ -1,0 +1,7 @@
+Operation                run
+Outcome                  succeeded
+Version                  1e2b97a
+Duration                 1m52s
+Ledger range             64000000 - 64002000 (2001 ledgers)
+Chunks                   3 built, 0 skipped, 0 failed of 3
+Chunk size               1000 (concurrency 2)

@@ -1,0 +1,16 @@
+Operation                run
+Outcome                  succeeded
+Version                  1e2b97a
+Duration                 1m52s
+Ledger range             64000000 - 64000999 (1000 ledgers)
+Range frozen             yes (10123654 rows)
+Extracted to             /data/output/attempts/20261019T163918Z-abc123
+Extract throughput       17.9 ledgers/sec in 56.0s
+Call-graph edges skipped 4
+Validation               3 passed, 0 failed
+DuckLake rows            10123654 in 48.0s
+DuckLake path            s3://obsrvr-lake-mainnet/_validation_v4/
+  contract_events_stream_v1  4891233
+  ledgers_row_v2             1000
+  transactions_row_v2        385984
+Hot buffer               loaded (100000 tail ledgers) in 2.1s

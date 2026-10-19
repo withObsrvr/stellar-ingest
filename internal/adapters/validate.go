@@ -34,7 +34,12 @@ func (v *Validator) Close() error {
 }
 
 // RunAll runs all quality checks and reports results.
-func (v *Validator) RunAll(ctx context.Context) error {
+// RunAll runs every quality check and reports how many passed and failed.
+//
+// The counts are returned rather than only narrated because they belong in
+// the typed result: "2 passed, 1 failed" as prose on stderr cannot be read
+// by anything but a person.
+func (v *Validator) RunAll(ctx context.Context) (passedCount, failedCount int, err error) {
 	checks := []struct {
 		name string
 		fn   func(context.Context) (bool, string, error)
@@ -73,9 +78,9 @@ func (v *Validator) RunAll(ctx context.Context) error {
 	v.log.Info("Results: %d passed, %d failed", passed, failed)
 
 	if failed > 0 {
-		return fmt.Errorf("%d quality check(s) failed", failed)
+		return passed, failed, fmt.Errorf("%d quality check(s) failed", failed)
 	}
-	return nil
+	return passed, failed, nil
 }
 
 // checkMonotonicSequence verifies ledger sequences have no gaps in transactions.

@@ -20,6 +20,13 @@ package app
 // RunRequest is everything a full ingestion run needs: acquire, extract to
 // Parquet, push to DuckLake, populate the hot buffer.
 type RunRequest struct {
+	// Operation names the use case this request came from -- extract, load,
+	// validate, repair or run. It is not a flag: the verb the caller used is
+	// the adapter's knowledge, and it is carried here so the result can say
+	// which operation produced it. Empty means "run", which is what the
+	// flat flag form has always performed.
+	Operation string
+
 	// --start: Start ledger sequence (required)
 	Start uint
 	// --end: End ledger sequence (required)

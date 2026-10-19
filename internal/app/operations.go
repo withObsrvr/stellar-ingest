@@ -21,7 +21,8 @@ import "context"
 
 // Extract acquires ledgers and writes the 21 Bronze datasets as Parquet. It
 // does not push to DuckLake or populate the hot buffer.
-func Extract(ctx context.Context, req RunRequest, deps Deps) error {
+func Extract(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "extract"
 	req.RunDuckLake = false
 	req.PgHost = ""
 	return Run(ctx, req, deps)
@@ -29,7 +30,8 @@ func Extract(ctx context.Context, req RunRequest, deps Deps) error {
 
 // Load pushes an existing output directory into DuckLake. Extraction is
 // skipped, which the engine decides by finding no source to read from.
-func Load(ctx context.Context, req RunRequest, deps Deps) error {
+func Load(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "load"
 	req.Bucket = ""
 	req.RunDuckLake = true
 	return Run(ctx, req, deps)
@@ -37,7 +39,8 @@ func Load(ctx context.Context, req RunRequest, deps Deps) error {
 
 // Validate checks an existing output directory and reports, without pushing
 // anywhere or writing anything new.
-func Validate(ctx context.Context, req RunRequest, deps Deps) error {
+func Validate(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "validate"
 	req.Bucket = ""
 	req.RunValidate = true
 	req.RunDuckLake = false
@@ -48,7 +51,8 @@ func Validate(ctx context.Context, req RunRequest, deps Deps) error {
 // Repair backfills missing Bronze contract balance fields in place. It is the
 // one operation that was already a mode switch rather than a phase, and it
 // returns without extracting.
-func Repair(ctx context.Context, req RunRequest, deps Deps) error {
+func Repair(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
+	req.Operation = "repair"
 	req.EnrichContractBalances = true
 	return Run(ctx, req, deps)
 }

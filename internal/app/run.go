@@ -59,26 +59,31 @@ const freezeGrace = 30 * time.Second
 
 // Run executes the request, returning an error whose exit class the adapter
 // turns into a process exit code.
-func Run(ctx context.Context, req RunRequest, deps Deps) error {
+func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 	log := deps.log()
+	started := time.Now()
+	operation := req.Operation
+	if operation == "" {
+		operation = "run"
+	}
 
 	if req.EnrichContractBalances {
-		return runEnrichment(ctx, req, deps)
+		return runEnrichment(ctx, req, deps, operation, started)
 	}
 
 	// Validate required flags
 	if req.Start == 0 {
-		return exit.Usagef("--start is required and must be > 0")
+		return nil, exit.Usagef("--start is required and must be > 0")
 	}
 	if req.End == 0 {
-		return exit.Usagef("--end is required and must be > 0")
+		return nil, exit.Usagef("--end is required and must be > 0")
 	}
 	if req.OutputDir == "" {
-		return exit.Usagef("--output-dir is required")
+		return nil, exit.Usagef("--output-dir is required")
 	}
 	extractRequested := domain.ExtractionRequested(req.StorageType, req.Bucket)
 	if !extractRequested && !req.RunDuckLake {
-		return exit.Usagef("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
+		return nil, exit.Usagef("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
 	}
 
 	startLedger := uint32(req.Start)
@@ -91,53 +96,53 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	duckLakeSkipSet := domain.ParseCSVSet(req.DlSkipTables)
 
 	if err := domain.ValidateLedgerRange(startLedger, endLedger); err != nil {
-		return exit.Wrap(exit.Usage, err)
+		return nil, exit.Wrap(exit.Usage, err)
 	}
 
 	if req.Workers < 1 {
-		return exit.Usagef("--workers must be >= 1")
+		return nil, exit.Usagef("--workers must be >= 1")
 	}
 
 	if req.BatchSize < 1 {
-		return exit.Usagef("--batch-size must be >= 1")
+		return nil, exit.Usagef("--batch-size must be >= 1")
 	}
 	if req.ChunkSize > 0 && !extractRequested {
-		return exit.Usagef("--chunk-size requires an extraction source")
+		return nil, exit.Usagef("--chunk-size requires an extraction source")
 	}
 	if req.ChunkConcurrency < 1 {
-		return exit.Usagef("--chunk-concurrency must be at least 1")
+		return nil, exit.Usagef("--chunk-concurrency must be at least 1")
 	}
 	if req.ChunkConcurrency > 1 && req.ChunkSize == 0 {
-		return exit.Usagef("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
+		return nil, exit.Usagef("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
 	}
 	if req.ChunkConcurrency > 1 && !req.RangeState {
 		// Concurrent chunks are separate processes writing the same DuckLake
 		// tables. Without the range catalog nothing stops two runs taking the
 		// same chunk, and a crashed chunk leaves no record that it needs
 		// redoing -- which is most of what makes concurrency safe here.
-		return exit.Usagef("--chunk-concurrency above 1 requires --range-state")
+		return nil, exit.Usagef("--chunk-concurrency above 1 requires --range-state")
 	}
 	if uint64(req.ChunkSize) > uint64(^uint32(0)) {
-		return exit.Usagef("--chunk-size exceeds the supported uint32 ledger range")
+		return nil, exit.Usagef("--chunk-size exceeds the supported uint32 ledger range")
 	}
 	if req.ChunkSize > 0 && req.PgHost != "" {
-		return exit.Usagef("--chunk-size cannot currently be combined with --pg-host; populate the hot buffer after the chunked backfill")
+		return nil, exit.Usagef("--chunk-size cannot currently be combined with --pg-host; populate the hot buffer after the chunked backfill")
 	}
 
 	switch req.StorageType {
 	case "GCS", "S3", "FS", "XDR", "RPC", "CAPTIVE_CORE":
 		// valid
 	default:
-		return exit.Usagef("--storage-type must be one of: GCS, S3, FS, XDR, RPC, CAPTIVE_CORE (got %q)", req.StorageType)
+		return nil, exit.Usagef("--storage-type must be one of: GCS, S3, FS, XDR, RPC, CAPTIVE_CORE (got %q)", req.StorageType)
 	}
 	if err := domain.ValidateTableSelection(extractOnlySet, "only-tables"); err != nil {
-		return exit.Wrap(exit.Usage, err)
+		return nil, exit.Wrap(exit.Usage, err)
 	}
 	if err := domain.ValidateTableSelection(duckLakeOnlySet, "ducklake-only-tables"); err != nil {
-		return exit.Wrap(exit.Usage, err)
+		return nil, exit.Wrap(exit.Usage, err)
 	}
 	if err := domain.ValidateTableSelection(duckLakeSkipSet, "ducklake-skip-tables"); err != nil {
-		return exit.Wrap(exit.Usage, err)
+		return nil, exit.Wrap(exit.Usage, err)
 	}
 
 	// Credentials and range-state coherence are input rules, so they are
@@ -151,17 +156,17 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	// by asserting that a rejected run creates no output directory.
 	if req.RangeState {
 		if req.DlCatalog == "" {
-			return exit.Usagef("--range-state requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
+			return nil, exit.Usagef("--range-state requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
 		}
 		// frozen means "pushed to DuckLake". Claiming a range this run can
 		// never push would leave it freezing until the lease expired.
 		if !req.RunDuckLake {
-			return exit.Usagef("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
+			return nil, exit.Usagef("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
 		}
 	}
 	if req.RunDuckLake {
 		if err := requireDuckLakeCredentials(req); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -173,15 +178,30 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 	// hand is what made a multi-day backfill depend on an operator's notes;
 	// here the catalog is asked instead.
 	if req.PlanOnly {
-		return runPlan(ctx, req, deps, startLedger, endLedger)
+		return runPlan(ctx, req, deps, operation, started, startLedger, endLedger)
 	}
 
 	if req.ChunkSize > 0 {
-		if err := jobs.RunChunkedCommand(ctx, os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency, log); err != nil {
-			return fmt.Errorf("chunked backfill failed: %w", err)
+		summary, err := jobs.RunChunkedCommand(ctx, os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency, log)
+		if err != nil {
+			return nil, fmt.Errorf("chunked backfill failed: %w", err)
 		}
-		return nil
+		chunked := newRunResult(operation, domain.Version, started)
+		chunked.Range = &RangeResult{Start: startLedger, End: endLedger, Ledgers: endLedger - startLedger + 1}
+		chunked.Chunks = &ChunksResult{
+			Total:       summary.Total,
+			Built:       summary.Built,
+			Skipped:     summary.Skipped,
+			Failed:      summary.Failed,
+			Size:        uint32(req.ChunkSize),
+			Concurrency: req.ChunkConcurrency,
+			DurationMS:  time.Since(started).Milliseconds(),
+		}
+		return chunked.finish(started), nil
 	}
+
+	result := newRunResult(operation, domain.Version, started)
+	result.Range = &RangeResult{Start: startLedger, End: endLedger, Ledgers: endLedger - startLedger + 1}
 
 	totalLedgers := endLedger - startLedger + 1
 
@@ -206,7 +226,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 		// Not classified here: a missing parent and a permission denial are
 		// both common and ClassOf reads the sentinel the filesystem already
 		// attached.
-		return fmt.Errorf("failed to create output directory %q: %w", req.OutputDir, err)
+		return nil, fmt.Errorf("failed to create output directory %q: %w", req.OutputDir, err)
 	}
 	effectiveOutput := req.OutputDir
 	manifestPath := ""
@@ -219,7 +239,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 
 	reporter, err := flowcomponent.NewReporter(ctx, flowcomponent.ConfigFromEnv())
 	if err != nil {
-		return fmt.Errorf("flowctl setup failed: %w", err)
+		return nil, fmt.Errorf("flowctl setup failed: %w", err)
 	}
 	defer reporter.Close()
 	if err := reporter.Register(ctx, flowctlpb.ServiceType_SERVICE_TYPE_SOURCE, map[string]string{
@@ -230,7 +250,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 		"range_start":  fmt.Sprintf("%d", startLedger),
 		"range_end":    fmt.Sprintf("%d", endLedger),
 	}); err != nil {
-		return fmt.Errorf("flowctl registration failed: %w", err)
+		return nil, fmt.Errorf("flowctl registration failed: %w", err)
 	}
 	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
 	defer stopHeartbeat()
@@ -259,13 +279,13 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 		var err error
 		rangeStore, err = jobs.NewRangeStateStore(ctx, req.DlCatalog, req.RangeStateTable, req.EraID)
 		if err != nil {
-			return fmt.Errorf("range state: %w", err)
+			return nil, fmt.Errorf("range state: %w", err)
 		}
 		defer rangeStore.Close()
 
 		claimed, err := rangeStore.Claim(ctx, thisRange, rangeAttemptID, domain.Version, jobs.DefaultClaimLease)
 		if err != nil {
-			return fmt.Errorf("range state: %w", err)
+			return nil, fmt.Errorf("range state: %w", err)
 		}
 		if !claimed {
 			// Either already frozen, or held by a live claim. Both mean there
@@ -275,7 +295,8 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 			// human reading a single-range dispatch.
 			log.Info("%s Range %s is already frozen or claimed by another run; nothing to do.",
 				jobs.RangeSkippedMarker, thisRange)
-			return nil
+			result.Outcome = OutcomeSkipped
+			return result.finish(started), nil
 		}
 		log.Info("Range %s claimed (freezing)", thisRange)
 	}
@@ -315,7 +336,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 			// seeing the record simply stop. error and done both survive
 			// process exit by design.
 			_ = deps.Status.Failed("", fmt.Sprintf("extract %d-%d: %v", startLedger, endLedger, err))
-			return chunkFailed("extract", err, "rerun_chunk")
+			return nil, chunkFailed("extract", err, "rerun_chunk")
 		}
 		effectiveOutput = orchestrator.OutputDir()
 		manifestPath = orchestrator.ManifestPath()
@@ -329,6 +350,13 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 
 		elapsed := time.Since(startTime)
 		throughput := float64(totalLedgers) / elapsed.Seconds()
+		result.Extract = &ExtractResult{
+			OutputDir:             effectiveOutput,
+			Ledgers:               totalLedgers,
+			DurationMS:            elapsed.Milliseconds(),
+			Throughput:            throughput,
+			CallGraphEdgesSkipped: int64(extract.CallGraphSkippedEdges()),
+		}
 
 		log.Line()
 		log.Section("Summary")
@@ -353,9 +381,11 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 			if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "validation", nil, nil); err != nil {
 				log.Warn("flowctl progress report failed: %v", err)
 			}
-			if err := validator.RunAll(ctx); err != nil {
+			passed, failed, err := validator.RunAll(ctx)
+			result.Validate = &ValidateResult{Passed: passed, Failed: failed}
+			if err != nil {
 				_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), "validation", flowctlpb.FailureClass_FAILURE_CLASS_VERIFICATION, err.Error(), "inspect_output")
-				return fmt.Errorf("validation failed: %w", err)
+				return nil, fmt.Errorf("validation failed: %w", err)
 			}
 		}
 	}
@@ -393,7 +423,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 			ManifestPath:    manifestPath,
 		})
 		if err != nil {
-			return chunkFailed("ducklake_setup", err, "retry_chunk")
+			return nil, chunkFailed("ducklake_setup", err, "retry_chunk")
 		}
 		defer pusher.Close()
 
@@ -402,18 +432,26 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 		}
 		pushResult, err := pusher.Push(ctx, effectiveOutput)
 		if err != nil {
-			return chunkFailed("ducklake_push", err, "retry_chunk")
+			return nil, chunkFailed("ducklake_push", err, "retry_chunk")
 		}
 
 		log.Info("DuckLake push completed in %s", time.Since(dlStart).Round(time.Millisecond))
+		result.DuckLake = &DuckLakeResult{
+			DataPath:   req.DlDataPath,
+			TotalRows:  pushResult.TotalRows,
+			RowCounts:  pushResult.RowCounts,
+			DurationMS: time.Since(dlStart).Milliseconds(),
+		}
 
 		// Frozen only now. Anything earlier would mark a range done whose
 		// rows had not reached cold, and a resumed plan would skip it.
 		if rangeStore != nil {
 			if err := freezeRange(ctx, rangeStore, thisRange, rangeAttemptID, pushResult.TotalRows); err != nil {
-				return fmt.Errorf("range state: %w", err)
+				return nil, fmt.Errorf("range state: %w", err)
 			}
 			log.Info("Range %s frozen (%d rows)", thisRange, pushResult.TotalRows)
+			result.Range.Frozen = true
+			result.Range.Rows = pushResult.TotalRows
 		}
 		if err := reporter.ReportChunkCompleted(ctx, int64(startLedger), int64(endLedger), true, pushResult.RowCounts, map[string]string{
 			"gate":   "ducklake-push",
@@ -429,6 +467,8 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 		log.Section("Hot Buffer Population")
 		hotStart := time.Now()
 
+		hot := &HotBufferResult{Host: req.PgHost, TailLedgers: uint32(req.TailLedgers)}
+		result.HotBuffer = hot
 		loader, err := adapters.NewHotBufferLoader(effectiveOutput, adapters.HotBufferConfig{
 			Host:        req.PgHost,
 			Port:        req.PgPort,
@@ -444,7 +484,10 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 			defer loader.Close()
 			if err := loader.LoadTail(ctx, uint32(req.TailLedgers), endLedger); err != nil {
 				log.Warn("hot buffer load had errors: %v", err)
+			} else {
+				hot.Loaded = true
 			}
+			hot.DurationMS = time.Since(hotStart).Milliseconds()
 			log.Info("Hot buffer populated in %s", time.Since(hotStart).Round(time.Millisecond))
 		}
 	}
@@ -471,7 +514,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) error {
 			log.Warn("flowctl completion report failed: %v", err)
 		}
 	}
-	return nil
+	return result.finish(started), nil
 }
 
 // requireDuckLakeCredentials reports what is missing by the name the operator
@@ -525,9 +568,9 @@ func freezeContext(ctx context.Context) (context.Context, func()) {
 }
 
 // runPlan reports which ranges still need building, taking no claim.
-func runPlan(ctx context.Context, req RunRequest, deps Deps, startLedger, endLedger uint32) error {
+func runPlan(ctx context.Context, req RunRequest, deps Deps, operation string, started time.Time, startLedger, endLedger uint32) (*RunResult, error) {
 	if req.DlCatalog == "" {
-		return exit.Usagef("--plan requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
+		return nil, exit.Usagef("--plan requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
 	}
 	size := uint32(req.ChunkSize)
 	if size == 0 {
@@ -537,33 +580,35 @@ func runPlan(ctx context.Context, req RunRequest, deps Deps, startLedger, endLed
 	}
 	store, err := jobs.NewRangeStateStore(ctx, req.DlCatalog, req.RangeStateTable, req.EraID)
 	if err != nil {
-		return fmt.Errorf("range state: %w", err)
+		return nil, fmt.Errorf("range state: %w", err)
 	}
 	defer store.Close()
 
 	plan, err := store.Plan(ctx, jobs.EnumerateRanges(startLedger, endLedger, size), jobs.DefaultClaimLease)
 	if err != nil {
-		return fmt.Errorf("range state: %w", err)
+		return nil, fmt.Errorf("range state: %w", err)
 	}
-	fmt.Fprint(deps.out(), jobs.FormatPlan(plan))
-	return nil
+	result := newRunResult(operation, domain.Version, started)
+	result.Range = &RangeResult{Start: startLedger, End: endLedger, Ledgers: endLedger - startLedger + 1}
+	result.Plan = jobs.FormatPlan(plan)
+	return result.finish(started), nil
 }
 
 // runEnrichment repairs missing Bronze contract balance fields in place. It
 // is the one operation that was already a mode switch rather than a phase,
 // and it returns without extracting.
-func runEnrichment(ctx context.Context, req RunRequest, deps Deps) error {
+func runEnrichment(ctx context.Context, req RunRequest, deps Deps, operation string, started time.Time) (*RunResult, error) {
 	if req.Start == 0 || req.End == 0 || req.End < req.Start {
-		return exit.Usagef("--enrich-contract-balances requires a valid inclusive --start/--end range")
+		return nil, exit.Usagef("--enrich-contract-balances requires a valid inclusive --start/--end range")
 	}
 	if req.EnrichmentChunkSize == 0 {
-		return exit.Usagef("--enrichment-chunk-size must be greater than zero")
+		return nil, exit.Usagef("--enrichment-chunk-size must be greater than zero")
 	}
 	if err := requireDuckLakeCredentials(req); err != nil {
-		return fmt.Errorf("--enrich-contract-balances: %w", err)
+		return nil, fmt.Errorf("--enrich-contract-balances: %w", err)
 	}
 	if !req.EnrichmentDryRun && strings.TrimSpace(req.EnrichmentRunID) == "" {
-		return exit.Usagef("--enrichment-run-id is required unless --enrichment-dry-run is set")
+		return nil, exit.Usagef("--enrichment-run-id is required unless --enrichment-dry-run is set")
 	}
 
 	enricher, err := adapters.NewContractBalanceEnricher(adapters.ContractBalanceEnricherConfig{
@@ -587,16 +632,21 @@ func runEnrichment(ctx context.Context, req RunRequest, deps Deps) error {
 		Resume:         req.EnrichmentResume,
 	})
 	if err != nil {
-		return fmt.Errorf("contract-balance enrichment setup failed: %w", err)
+		return nil, fmt.Errorf("contract-balance enrichment setup failed: %w", err)
 	}
 	defer enricher.Close()
-	result, err := enricher.Run(ctx)
+	repaired, err := enricher.Run(ctx)
 	if err != nil {
-		return fmt.Errorf("contract-balance enrichment failed: %w", err)
+		return nil, fmt.Errorf("contract-balance enrichment failed: %w", err)
 	}
-	fmt.Fprintf(deps.out(),
-		"Contract-balance enrichment complete: dry_run=%t candidates=%d decoded=%d updated=%d skipped=%d\n",
-		req.EnrichmentDryRun, result.CandidateRows, result.DecodedRows, result.UpdatedRows, result.SkippedRows,
-	)
-	return nil
+	result := newRunResult(operation, domain.Version, started)
+	result.Range = &RangeResult{Start: uint32(req.Start), End: uint32(req.End), Ledgers: uint32(req.End - req.Start + 1)}
+	result.Repair = &RepairResult{
+		DryRun:      req.EnrichmentDryRun,
+		Candidates:  repaired.CandidateRows,
+		Decoded:     repaired.DecodedRows,
+		Updated:     repaired.UpdatedRows,
+		SkippedRows: repaired.SkippedRows,
+	}
+	return result.finish(started), nil
 }
