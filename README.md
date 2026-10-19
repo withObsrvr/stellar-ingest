@@ -86,6 +86,24 @@ existing scripts keep working. See [`docs/compatibility.md`](docs/compatibility.
 
 ## Usage
 
+```sh
+stellar-ingest extract   --start 64000000 --end 64001000 --output-dir ./bronze
+stellar-ingest validate  --output-dir ./bronze --output json
+stellar-ingest load      --output-dir ./bronze --ducklake --ducklake-data-path s3://bucket/
+stellar-ingest repair    --start 61790000 --end 61891000 --enrichment-dry-run
+stellar-ingest run       --start 64000000 --end 64001000 --output-dir ./bronze --ducklake
+stellar-ingest version
+```
+
+The flag-only form — no verb — keeps working and is equivalent to `run`. It
+warns once per invocation. Deployed jobs pass about twenty flags with no verb,
+so breaking them to gain a noun was not worth it.
+
+The two surfaces are parsed by different libraries, which matters in one
+visible way: the verb form requires `--flag`, while the flag-only form also
+accepts `-flag`. pflag, which Cobra uses, reads a single dash followed by
+several characters as a cluster of shorthands.
+
 The binary takes flags, not a config file. Forty-six flags; `--help` is the
 full list and `docs/baseline/cli-help.txt` is the recorded contract, enforced
 by `make parity-baseline` — a flag change that does not update it fails CI.

@@ -49,12 +49,42 @@ internal/app/           the operations
 internal/ingest/        the engine, importable
 ```
 
-`internal/domain`, `internal/jobs`, `internal/events` and `internal/adapters`
-are not split out. The engine is one package because splitting 26 files into
-four judgement-based layers is a separate exercise from making them
-importable, and doing both at once would have made a move bug
-indistinguishable from a layering mistake. `internal/jobs` and
-`internal/events` have nothing to hold until Stage 6 anyway.
+`internal/domain`, `internal/jobs` and `internal/adapters` are not split out
+yet. `internal/events` has nothing to hold until Stage 6.
+
+The split has been analysed rather than assumed, and a clean layering does
+exist — but not the obvious one. Counting every cross-file reference in the
+engine against a proposed assignment gives:
+
+```
+jobs      -> domain    34      the expected direction
+adapters  -> jobs      28      a back-edge
+jobs      -> adapters   7      the expected direction
+adapters  -> domain     6      the expected direction
+domain    -> jobs       1      a back-edge
+domain    -> adapters   1      a back-edge
+```
+
+Three cycles, each caused by a value object sitting in the wrong file rather
+than by genuine entanglement:
+
+| back-edge | cause | where it belongs |
+|---|---|---|
+| `domain -> jobs` | `types.go` uses `LedgerRange`, defined in `range_state.go` | `LedgerRange` is a value object: domain |
+| `domain -> adapters` | `table_selection.go` uses `mapToDuckLakeTable` from `ducklake.go` | the 21-table name map is pure data: domain |
+| `adapters -> jobs` | `ducklake.go` and others use the attempt manifest | `AttemptManifest` is a value object: domain |
+
+And one finding worth keeping: `jobs -> adapters` is the *correct* direction —
+an orchestrator writes through a sink — so the first draft of the layering had
+it backwards. `worker.go` needing the Parquet writer and the stream source is
+not a cycle, it is the shape.
+
+What makes this its own change rather than part of Stage 4: the 75 cross-layer
+references are all lowercase today, because they are within one package.
+Splitting means exporting most of them, which is a large API churn on top of
+the 128 files Stage 4 already moved — and it would rewrite the same golden and
+parity files whose `R100` rename status is the evidence that Stage 4 changed
+nothing. Doing both at once would destroy that proof.
 
 Two places this tool is **ahead** of the standard, worth not regressing:
 
@@ -155,10 +185,22 @@ with typed requests and responses. Mechanical and large: it moves code without
 changing it, and it is what makes a UI or an API possible without shelling
 out, per §2.
 
-**Stage 5 — subcommands over the same operations.** `extract`, `validate`,
-`load`, `run` as the standard's §9 vocabulary, with the flat flag form
-retained as a deprecated path so existing jobs keep working. Completion falls
-out of Cobra once this lands.
+**Stage 5 — done.** `extract`, `validate`, `load`, `repair`, `run` and
+`version`, each calling an operation in `internal/app` and owning no
+ingestion logic. The flat flag form is retained and warns once. Completion
+comes from Cobra.
+
+The two surfaces are parsed by different libraries on purpose: pflag reads a
+single dash followed by several characters as a cluster of shorthands, so
+`-output-dir x` — which the standard library accepts and which `--help` has
+always rendered — would fail under it. One flag table feeds both
+registrations, and three tests keep them from drifting: same names, same
+defaults, same resulting request from the same arguments.
+
+Subcommands are presets over `RunRequest` rather than separate pipelines.
+Narrowing each verb's accepted flags is deliberately not done: deciding which
+of 45 flags belongs to which verb is a compatibility decision, and getting it
+wrong silently ignores a flag a deployed job passes.
 
 **Stage 6 — jobs and events.** Operation IDs, the `queued → running →
 succeeded | failed | cancelled` lifecycle, `inspect`, `events --follow` as
