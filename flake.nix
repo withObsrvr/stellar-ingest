@@ -34,7 +34,7 @@
 
           nativeBuildInputs = [ pkgs.pkg-config ];
 
-          ldflags = [ "-X" "github.com/withObsrvr/stellar-ingest/internal/ingest.Version=${revision}" ];
+          ldflags = [ "-X" "github.com/withObsrvr/stellar-ingest/internal/domain.Version=${revision}" ];
 
           # The module is a single flat package main at the repository root.
           subPackages = [ "cmd/stellar-ingest" ];
@@ -58,8 +58,8 @@
           # program, kept so existing operational scripts keep working.
           postInstall = ''
             ln -s stellar-ingest $out/bin/stellar-history-loader
-            install -Dm444 internal/ingest/v3_bronze_schema.sql $out/share/stellar-ingest/v3_bronze_schema.sql
-            install -Dm444 internal/ingest/v3_bronze_views.sql $out/share/stellar-ingest/v3_bronze_views.sql
+            install -Dm444 internal/adapters/v3_bronze_schema.sql $out/share/stellar-ingest/v3_bronze_schema.sql
+            install -Dm444 internal/adapters/v3_bronze_views.sql $out/share/stellar-ingest/v3_bronze_views.sql
           '';
 
           meta = with pkgs.lib; {

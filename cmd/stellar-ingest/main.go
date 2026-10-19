@@ -28,7 +28,7 @@ import (
 
 	"github.com/withObsrvr/stellar-ingest/internal/app"
 	"github.com/withObsrvr/stellar-ingest/internal/cli"
-	"github.com/withObsrvr/stellar-ingest/internal/ingest"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 )
 
 func main() {
@@ -83,7 +83,7 @@ func runFlatForm(ctx context.Context) {
 
 	if values.ShowVersion {
 		// stdout: this is the result, not a diagnostic.
-		fmt.Println(ingest.Version)
+		fmt.Println(domain.Version)
 		return
 	}
 

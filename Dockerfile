@@ -17,7 +17,7 @@ COPY . .
 # Build binary with version from build arg. The legacy executable name is the
 # same program under a transitional alias; see docs/compatibility.md.
 ARG VERSION=dev
-RUN CGO_ENABLED=1 GOWORK=off go build -ldflags "-X github.com/withObsrvr/stellar-ingest/internal/ingest.Version=${VERSION}" -o stellar-ingest ./cmd/stellar-ingest && \
+RUN CGO_ENABLED=1 GOWORK=off go build -ldflags "-X github.com/withObsrvr/stellar-ingest/internal/domain.Version=${VERSION}" -o stellar-ingest ./cmd/stellar-ingest && \
     cp stellar-ingest stellar-history-loader
 
 FROM debian:bookworm-slim
@@ -38,11 +38,11 @@ COPY --from=builder /build/stellar-ingest /usr/local/bin/stellar-ingest
 COPY --from=builder /build/stellar-history-loader /usr/local/bin/stellar-history-loader
 
 # Bronze DDL, referenced by --ducklake-schema-sql
-# Both SQL files, from internal/ingest where they live beside the code that
+# Both SQL files, from internal/adapters where they live beside the code that
 # embeds them. The views file was never copied here; it is needed for the same
 # reason the schema is.
-COPY --from=builder /build/internal/ingest/v3_bronze_schema.sql /app/v3_bronze_schema.sql
-COPY --from=builder /build/internal/ingest/v3_bronze_views.sql /app/v3_bronze_views.sql
+COPY --from=builder /build/internal/adapters/v3_bronze_schema.sql /app/v3_bronze_schema.sql
+COPY --from=builder /build/internal/adapters/v3_bronze_views.sql /app/v3_bronze_views.sql
 
 # Create output directory
 RUN mkdir -p /data/output && chown -R stellar:stellar /app /data
