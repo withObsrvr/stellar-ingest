@@ -386,30 +386,72 @@ everything else commented — so it pipes into a dispatch loop. `--chunk-size`
 and `--chunk-concurrency` then control how much of that one process takes on
 at a time.
 
-Memory scales with concurrency, not range size: peak is roughly
-`chunks x workers x prefetch-buffer x ledger size`, because each worker reads
-ahead that many decoded ledgers. A 64-million-ledger range costs the same RAM
-as a 2,000-ledger one at equal concurrency.
+Memory scales with concurrency, not range size: a 64-million-ledger range
+costs the same RAM as a 2,000-ledger one at equal concurrency. Each worker
+holds **two** buffers, and they are not the same size:
 
-`--prefetch-buffer` is the third term, and it defaults to 200. That number is
-sized for genesis-era ledgers; a recent ledger is roughly 17x heavier, so the
-same worker count costs about 17x the RAM at the front of the chain as it does
-at the back. One setting does not fit the whole range — the backfill is
-memory-bound before it is CPU-bound, and the bound tightens as the range moves
-forward in time:
-
-```sh
-# Genesis to ~50M: small ledgers, spend the RAM on parallelism.
-./bin/stellar-ingest --start 1 --end 50000000 --workers 16 ...
-
-# The Soroban tail: heavy ledgers, buy the workers back with a smaller buffer.
-./bin/stellar-ingest --start 50000000 --end 64000000 \
-  --workers 16 --prefetch-buffer 25 ...
+```
+peak  ~=  workers x ( batch-size    x bytes of extracted rows per ledger
+                    + prefetch-buffer x bytes of raw LedgerCloseMeta per ledger
+                    + ~54 MB of Parquet table writers )
 ```
 
-Dropping the buffer from 200 to 25 cuts per-worker memory about 8x, which is
-what makes a worker count affordable on the dense end. Chunk children inherit
-the flag, so a `--chunk-size` dispatch keeps the ceiling it was given.
+`--batch-size` is the dominant term, by more than an order of magnitude. A
+worker accumulates extracted rows for that many ledgers before flushing to
+Parquet, and extracted rows are several times heavier than the raw ledger they
+came from. Measured on pubnet fixtures:
+
+| era                   | raw LCM / ledger | extracted rows / batched ledger |
+| --------------------- | ---------------: | ------------------------------: |
+| genesis (p1)          |            412 B |                      negligible |
+| classic ~50M (p19)    |          1.07 MB |                         ~3.8 MB |
+| Soroban ~64M, archive |          ~2.3 MB |                          ~32 MB |
+
+The last row is measured against the live GCS archive at ledger 64,000,000;
+the committed fixtures understate it by about half, so size a run from the
+archive figure rather than from a fixture.
+
+So the defaults — 1000 batched ledgers, 200 buffered — are sized for genesis,
+where a ledger is 412 bytes. At the Soroban end those same defaults ask for
+roughly `workers x 32 GB`, which on a 16-core machine is several hundred
+gigabytes. The backfill is memory-bound long before it is CPU-bound, and the
+bound tightens as the range moves forward in time.
+
+Measured peaks at ledger 64,000,000 on a 16-core machine, GCS source:
+
+| workers | `--batch-size` | `--prefetch-buffer` | peak RSS |
+| ------: | -------------: | ------------------: | -------: |
+|       4 |             50 |                  25 |   7.2 GB |
+|       8 |             50 |                  25 |  18.2 GB |
+|       8 |             25 |                  25 |  11.7 GB |
+|      16 |             25 |                  25 |  21.8 GB |
+
+Peak does not grow with range length — the buffers are bounded, so a
+100,000-ledger run peaks where a 2,400-ledger one does.
+
+Lowering `--batch-size` does not fragment the output: Parquet files are keyed
+by `ledger_range` partition, not by batch, so a smaller batch writes more row
+groups into the same files. Reach for it first, and `--prefetch-buffer`
+second:
+
+```sh
+# Genesis to ~20M: tiny ledgers, the defaults are already fine.
+./bin/stellar-ingest --start 1 --end 20000000 --workers 16 ...
+
+# Classic mid-range.
+./bin/stellar-ingest --start 20000000 --end 55000000 \
+  --workers 16 --batch-size 200 --prefetch-buffer 50 ...
+
+# The Soroban tail: heaviest ledgers, smallest buffers.
+./bin/stellar-ingest --start 55000000 --end 64000000 \
+  --workers 16 --batch-size 25 --prefetch-buffer 25 ...
+```
+
+Chunk children inherit both flags, so a `--chunk-size` dispatch keeps the
+ceiling it was given. On a machine with no swap, cap the job rather than
+trusting the estimate — `systemd-run --user --scope -p MemoryMax=24G -p
+MemorySwapMax=0 ./bin/stellar-ingest ...` kills the run instead of the
+desktop.
 
 ## Program status
 

@@ -8,7 +8,7 @@ Usage of stellar-ingest:
   -b2-region string
     	B2/S3 region (default "us-west-004")
   -batch-size int
-    	Ledgers per extraction batch (default 1000)
+    	Ledgers of extracted rows each worker holds before flushing to Parquet. The dominant memory term: ~3.8 MB/ledger at classic-era ledgers and ~32 MB at Soroban-era ones, times --workers (default 1000)
   -bucket string
     	Storage bucket/path for ledger data (required)
   -chunk-concurrency int
@@ -90,7 +90,7 @@ Usage of stellar-ingest:
   -plan
     	Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)
   -prefetch-buffer int
-    	Decoded ledgers each worker reads ahead. Peak memory is roughly --chunk-concurrency x --workers x this x ledger size, so lower it to afford more workers on recent ledgers (default 200)
+    	Raw ledgers each worker reads ahead (the smaller of its two buffers; --batch-size is the bigger one). Lower both to afford more workers on recent ledgers (default 200)
   -program-status string
     	Report OSC 7501 program status on stderr: auto|always|never (default "auto")
   -quiet

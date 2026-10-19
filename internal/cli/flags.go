@@ -146,7 +146,7 @@ var flagSpecs = []flagSpec{
 		Target: func(v *Values) any { return &v.Output },
 	},
 	{
-		Name: "batch-size", Usage: "Ledgers per extraction batch",
+		Name: "batch-size", Usage: "Ledgers of extracted rows each worker holds before flushing to Parquet. The dominant memory term: ~3.8 MB/ledger at classic-era ledgers and ~32 MB at Soroban-era ones, times --workers",
 		Kind: kindInt, DefInt: 1000,
 		Target: func(v *Values) any { return &v.BatchSize },
 	},
@@ -266,11 +266,14 @@ var flagSpecs = []flagSpec{
 		Target: func(v *Values) any { return &v.ChunkConcurrency },
 	},
 	{
-		// The third term in the memory product the other two flags name.
-		// 200 is sized for genesis-era ledgers; a recent ledger is roughly
-		// 17x heavier, so the dense end of history wants a smaller buffer
-		// and spends the RAM on workers instead.
-		Name: "prefetch-buffer", Usage: "Decoded ledgers each worker reads ahead. Peak memory is roughly --chunk-concurrency x --workers x this x ledger size, so lower it to afford more workers on recent ledgers",
+		// The smaller of a worker's two buffers. 200 is sized for
+		// genesis-era ledgers, where one is 412 bytes; at the Soroban end a
+		// raw ledger is ~2.3 MB. Measured against --batch-size, which holds
+		// extracted rows rather than raw bytes, this term is roughly 7x the
+		// cheaper -- so --batch-size is the first knob to reach for, and
+		// the usage text says so rather than letting this one take the
+		// credit.
+		Name: "prefetch-buffer", Usage: "Raw ledgers each worker reads ahead (the smaller of its two buffers; --batch-size is the bigger one). Lower both to afford more workers on recent ledgers",
 		Kind: kindInt, DefInt: domain.DefaultPrefetchBuffer,
 		Target: func(v *Values) any { return &v.PrefetchBuffer },
 	},
