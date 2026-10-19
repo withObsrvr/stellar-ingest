@@ -265,15 +265,37 @@ fail-closed: registration failure aborts the run.
 
 ## Credentials
 
-`--b2-key-secret`, `--pg-password`, and the DSN in `--ducklake-catalog` are
-currently accepted as command-line arguments, which exposes them in process
-listings and shell history. Environment fallbacks are a known gap, recorded in
-[`docs/phase0-inventory.md`](docs/phase0-inventory.md) §2.
+Pass credentials through the environment, or through a file:
 
-This is a named violation of the CLI standard's "no secrets in arguments,
-diagnostics, logs, or inspect output", and it is tracked as such in
-[`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) rather than
-left implicit.
+| Credential | Variable | File form |
+|---|---|---|
+| DuckLake catalog DSN | `DUCKLAKE_CATALOG_DSN` | `DUCKLAKE_CATALOG_DSN_FILE` |
+| B2/S3 access key ID | `B2_KEY_ID` | `B2_KEY_ID_FILE` |
+| B2/S3 secret key | `B2_KEY_SECRET` | `B2_KEY_SECRET_FILE` |
+| PostgreSQL password | `PG_PASSWORD` | `PG_PASSWORD_FILE` |
+
+```sh
+export DUCKLAKE_CATALOG_DSN="postgresql://obsrvr:...@127.0.0.1:5432/catalog"
+export B2_KEY_SECRET_FILE=/run/secrets/b2            # Nomad, Kubernetes, Docker
+./bin/stellar-ingest --ducklake ...                  # no credential on the command line
+```
+
+The `_FILE` form wins over the plain variable, and a file that is named but
+unreadable is an error rather than a fallthrough — a misconfigured secret
+mount should fail where it is wrong, not as an authentication error somewhere
+further away. A trailing newline is trimmed, because that is how every editor
+and `echo` writes a file and a credential with one appended fails for a reason
+nobody can see.
+
+The matching flags — `--ducklake-catalog`, `--b2-key-id`, `--b2-key-secret`,
+`--pg-password` — still work and now warn. An argument is visible in `ps` to
+every user on the box, recorded in shell history, and **inherited by child
+processes**: this loader re-invokes itself per chunk, so a secret on the
+parent's command line is on every child's too. Passing it through the
+environment fixes the children for free, because a child inherits the
+environment rather than the argument list.
+
+The warning names the flag and the variables, never the value.
 
 ## Documentation
 

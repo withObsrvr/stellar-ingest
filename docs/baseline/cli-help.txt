@@ -2,9 +2,9 @@ Usage of stellar-ingest:
   -b2-endpoint string
     	B2/S3 endpoint (default "s3.us-west-004.backblazeb2.com")
   -b2-key-id string
-    	B2/S3 access key ID
+    	B2/S3 access key ID (deprecated: set B2_KEY_ID or B2_KEY_ID_FILE)
   -b2-key-secret string
-    	B2/S3 secret access key
+    	B2/S3 secret access key (deprecated: set B2_KEY_SECRET or B2_KEY_SECRET_FILE)
   -b2-region string
     	B2/S3 region (default "us-west-004")
   -batch-size int
@@ -18,7 +18,7 @@ Usage of stellar-ingest:
   -ducklake
     	Push bronze Parquet to DuckLake (B2 + catalog)
   -ducklake-catalog string
-    	PostgreSQL catalog DSN for DuckLake
+    	PostgreSQL catalog DSN for DuckLake (deprecated: set DUCKLAKE_CATALOG_DSN or DUCKLAKE_CATALOG_DSN_FILE)
   -ducklake-data-path string
     	S3/B2 bucket path (e.g., s3://obsrvr-lake-testnet/)
   -ducklake-metadata-schema string
@@ -64,7 +64,7 @@ Usage of stellar-ingest:
   -pg-host string
     	PostgreSQL host for hot buffer (enables hot buffer loading)
   -pg-password string
-    	PostgreSQL password
+    	PostgreSQL password (deprecated: set PG_PASSWORD or PG_PASSWORD_FILE)
   -pg-port int
     	PostgreSQL port (default 25060)
   -pg-sslmode string

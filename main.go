@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/withObsrvr/stellar-ingest/internal/credential"
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 	"log"
 	"os"
@@ -60,7 +61,7 @@ func main() {
 	runValidate := flag.Bool("validate", false, "Run quality validation checks after extraction")
 	runDuckLake := flag.Bool("ducklake", false, "Push bronze Parquet to DuckLake (B2 + catalog)")
 	onlyTables := flag.String("only-tables", "", "Comma-separated extractor/source/DuckLake table names to extract; empty extracts all")
-	dlCatalog := flag.String("ducklake-catalog", "", "PostgreSQL catalog DSN for DuckLake")
+	dlCatalog := flag.String("ducklake-catalog", "", "PostgreSQL catalog DSN for DuckLake (deprecated: set DUCKLAKE_CATALOG_DSN or DUCKLAKE_CATALOG_DSN_FILE)")
 	dlDataPath := flag.String("ducklake-data-path", "", "S3/B2 bucket path (e.g., s3://obsrvr-lake-testnet/)")
 	dlMetaSchema := flag.String("ducklake-metadata-schema", "bronze_meta", "DuckLake metadata schema")
 	// The storage layer and the presentation layer live in different schemas:
@@ -83,15 +84,15 @@ func main() {
 	rangeStateTable := flag.String("range-state-table", "public.ingest_range_state", "Table holding range state")
 	planOnly := flag.Bool("plan", false, "Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)")
 	chunkConcurrency := flag.Int("chunk-concurrency", 1, "Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers")
-	b2KeyID := flag.String("b2-key-id", "", "B2/S3 access key ID")
-	b2KeySecret := flag.String("b2-key-secret", "", "B2/S3 secret access key")
+	b2KeyID := flag.String("b2-key-id", "", "B2/S3 access key ID (deprecated: set B2_KEY_ID or B2_KEY_ID_FILE)")
+	b2KeySecret := flag.String("b2-key-secret", "", "B2/S3 secret access key (deprecated: set B2_KEY_SECRET or B2_KEY_SECRET_FILE)")
 	b2Endpoint := flag.String("b2-endpoint", "s3.us-west-004.backblazeb2.com", "B2/S3 endpoint")
 	b2Region := flag.String("b2-region", "us-west-004", "B2/S3 region")
 	pgHost := flag.String("pg-host", "", "PostgreSQL host for hot buffer (enables hot buffer loading)")
 	pgPort := flag.Int("pg-port", 25060, "PostgreSQL port")
 	pgDB := flag.String("pg-database", "stellar_hot", "PostgreSQL database")
 	pgUser := flag.String("pg-user", "", "PostgreSQL user")
-	pgPassword := flag.String("pg-password", "", "PostgreSQL password")
+	pgPassword := flag.String("pg-password", "", "PostgreSQL password (deprecated: set PG_PASSWORD or PG_PASSWORD_FILE)")
 	pgSSL := flag.String("pg-sslmode", "require", "PostgreSQL SSL mode")
 	tailLedgers := flag.Uint("tail-ledgers", 100000, "Number of recent ledgers to load into hot buffer")
 	eraID := flag.String("era-id", "", "Era identifier for DuckLake partitioning (optional)")
@@ -108,6 +109,16 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	creds, err := resolveCredentials(*dlCatalog, *b2KeyID, *b2KeySecret, *pgPassword)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, notice := range creds.Notices() {
+		// stderr, and never the value: the point of the warning is to get the
+		// secret out of places like this one.
+		log.Print(notice)
+	}
 	if *enrichContractBalances {
 		if *start == 0 || *end == 0 || *end < *start {
 			log.Fatalf("--enrich-contract-balances requires a valid inclusive --start/--end range")
@@ -115,7 +126,7 @@ func main() {
 		if *enrichmentChunkSize == 0 {
 			log.Fatal("--enrichment-chunk-size must be greater than zero")
 		}
-		if *dlCatalog == "" || *dlDataPath == "" || *b2KeyID == "" || *b2KeySecret == "" {
+		if creds.CatalogDSN.Value == "" || *dlDataPath == "" || creds.B2KeyID.Value == "" || creds.B2KeySecret.Value == "" {
 			log.Fatal("--enrich-contract-balances requires --ducklake-catalog, --ducklake-data-path, --b2-key-id, and --b2-key-secret")
 		}
 		if !*enrichmentDryRun && strings.TrimSpace(*enrichmentRunID) == "" {
@@ -125,11 +136,11 @@ func main() {
 		ctx := context.Background()
 		enricher, err := NewContractBalanceEnricher(ContractBalanceEnricherConfig{
 			DuckLake: DuckLakeConfig{
-				CatalogDSN:     *dlCatalog,
+				CatalogDSN:     creds.CatalogDSN.Value,
 				DataPath:       *dlDataPath,
 				MetadataSchema: *dlMetaSchema,
-				S3KeyID:        *b2KeyID,
-				S3KeySecret:    *b2KeySecret,
+				S3KeyID:        creds.B2KeyID.Value,
+				S3KeySecret:    creds.B2KeySecret.Value,
 				S3Endpoint:     *b2Endpoint,
 				S3Region:       *b2Region,
 			},
@@ -240,7 +251,7 @@ func main() {
 	// hand is what made a multi-day backfill depend on an operator's notes;
 	// here the catalog is asked instead.
 	if *planOnly {
-		if *dlCatalog == "" {
+		if creds.CatalogDSN.Value == "" {
 			log.Fatal("--plan requires --ducklake-catalog")
 		}
 		size := uint32(*chunkSize)
@@ -249,7 +260,7 @@ func main() {
 			// plain --start/--end run would claim.
 			size = endLedger - startLedger + 1
 		}
-		store, err := NewRangeStateStore(context.Background(), *dlCatalog, *rangeStateTable, *eraID)
+		store, err := NewRangeStateStore(context.Background(), creds.CatalogDSN.Value, *rangeStateTable, *eraID)
 		if err != nil {
 			log.Fatalf("range state: %v", err)
 		}
@@ -340,7 +351,7 @@ func main() {
 	thisRange := LedgerRange{Start: startLedger, End: endLedger}
 	rangeAttemptID := newAttemptID()
 	if *rangeState {
-		if *dlCatalog == "" {
+		if creds.CatalogDSN.Value == "" {
 			log.Fatal("--range-state requires --ducklake-catalog")
 		}
 		// frozen means "pushed to DuckLake". Claiming a range this run can
@@ -349,7 +360,7 @@ func main() {
 			log.Fatal("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
 		}
 		var err error
-		rangeStore, err = NewRangeStateStore(context.Background(), *dlCatalog, *rangeStateTable, *eraID)
+		rangeStore, err = NewRangeStateStore(context.Background(), creds.CatalogDSN.Value, *rangeStateTable, *eraID)
 		if err != nil {
 			log.Fatalf("range state: %v", err)
 		}
@@ -453,7 +464,7 @@ func main() {
 
 	// Push to DuckLake if configured
 	if *runDuckLake {
-		if *dlCatalog == "" || *dlDataPath == "" || *b2KeyID == "" || *b2KeySecret == "" {
+		if creds.CatalogDSN.Value == "" || *dlDataPath == "" || creds.B2KeyID.Value == "" || creds.B2KeySecret.Value == "" {
 			log.Fatal("--ducklake requires --ducklake-catalog, --ducklake-data-path, --b2-key-id, --b2-key-secret")
 		}
 
@@ -471,13 +482,13 @@ func main() {
 		}
 
 		pusher, err := NewDuckLakePusher(DuckLakeConfig{
-			CatalogDSN:      *dlCatalog,
+			CatalogDSN:      creds.CatalogDSN.Value,
 			DataPath:        *dlDataPath,
 			MetadataSchema:  *dlMetaSchema,
 			SchemaName:      *dlSchema,
 			ViewSchemaName:  *dlViewSchema,
-			S3KeyID:         *b2KeyID,
-			S3KeySecret:     *b2KeySecret,
+			S3KeyID:         creds.B2KeyID.Value,
+			S3KeySecret:     creds.B2KeySecret.Value,
 			S3Endpoint:      *b2Endpoint,
 			S3Region:        *b2Region,
 			BronzeSchemaSQL: *dlSchemaSQL,
@@ -529,7 +540,7 @@ func main() {
 			Port:        *pgPort,
 			Database:    *pgDB,
 			User:        *pgUser,
-			Password:    *pgPassword,
+			Password:    creds.PGPassword.Value,
 			SSLMode:     *pgSSL,
 			TailLedgers: uint32(*tailLedgers),
 		})
@@ -624,4 +635,66 @@ func newStatusEmitter(mode string) (*status.Emitter, error) {
 		return nil, fmt.Errorf("--program-status must be auto, always or never, got %q", mode)
 	}
 	return status.NewEmitter(os.Stderr, "stellar-ingest", enabled), nil
+}
+
+// credentialSet is every credential this run needs, resolved.
+type credentialSet struct {
+	CatalogDSN  credential.Resolution
+	B2KeyID     credential.Resolution
+	B2KeySecret credential.Resolution
+	PGPassword  credential.Resolution
+}
+
+// credentialSpecs names the four credentials and the variables that supply
+// them. Unprefixed SCREAMING_SNAKE matches the house convention already used
+// by RPC_AUTH_HEADER, S3_ENDPOINT_URL and STELLAR_CORE_BINARY_PATH.
+//
+// DUCKLAKE_CATALOG_DSN rather than DUCKLAKE_CATALOG because that is the name
+// the README's own examples already pass to --ducklake-catalog.
+var credentialSpecs = struct {
+	CatalogDSN  credential.Spec
+	B2KeyID     credential.Spec
+	B2KeySecret credential.Spec
+	PGPassword  credential.Spec
+}{
+	CatalogDSN:  credential.Spec{Flag: "ducklake-catalog", EnvVar: "DUCKLAKE_CATALOG_DSN"},
+	B2KeyID:     credential.Spec{Flag: "b2-key-id", EnvVar: "B2_KEY_ID"},
+	B2KeySecret: credential.Spec{Flag: "b2-key-secret", EnvVar: "B2_KEY_SECRET"},
+	PGPassword:  credential.Spec{Flag: "pg-password", EnvVar: "PG_PASSWORD"},
+}
+
+// resolveCredentials resolves all four, from flag, file or environment.
+func resolveCredentials(catalogDSN, b2KeyID, b2KeySecret, pgPassword string) (credentialSet, error) {
+	env := credential.Environment{Getenv: os.Getenv, ReadFile: os.ReadFile}
+
+	var set credentialSet
+	for _, item := range []struct {
+		spec  credential.Spec
+		value string
+		into  *credential.Resolution
+	}{
+		{credentialSpecs.CatalogDSN, catalogDSN, &set.CatalogDSN},
+		{credentialSpecs.B2KeyID, b2KeyID, &set.B2KeyID},
+		{credentialSpecs.B2KeySecret, b2KeySecret, &set.B2KeySecret},
+		{credentialSpecs.PGPassword, pgPassword, &set.PGPassword},
+	} {
+		resolved, err := credential.Resolve(item.spec, item.value, env)
+		if err != nil {
+			return credentialSet{}, err
+		}
+		*item.into = resolved
+	}
+	return set, nil
+}
+
+// Notices lists the warnings for credentials that arrived on the command
+// line, in a stable order so output is comparable.
+func (c credentialSet) Notices() []string {
+	var out []string
+	for _, r := range []credential.Resolution{c.CatalogDSN, c.B2KeyID, c.B2KeySecret, c.PGPassword} {
+		if notice := r.DeprecationNotice(); notice != "" {
+			out = append(out, notice)
+		}
+	}
+	return out
 }
