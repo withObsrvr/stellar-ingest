@@ -189,3 +189,71 @@ func TestCredentialErrorIsNilWhenAllPresent(t *testing.T) {
 		t.Errorf("complete credentials rejected: %v", err)
 	}
 }
+
+// A validate-only run reads a directory that already exists. It needs no
+// source, no destination and no ledger range.
+//
+// The validate verb's preset clears Bucket and RunDuckLake, which tripped
+// the "--bucket is required" rule on every invocation -- so the verb could
+// never run at all. Found by running it against a real extraction, not by
+// reading the code.
+func TestValidateOnlyNeedsNeitherSourceNorRange(t *testing.T) {
+	// A directory with no bronze/ subdirectory: validation setup fails and
+	// is only warned about, so the run still succeeds. What matters here is
+	// that it gets past the input rules at all.
+	dir := t.TempDir()
+
+	req := RunRequest{
+		Operation:        "validate",
+		OutputDir:        dir,
+		RunValidate:      true,
+		StorageType:      "FS",
+		Workers:          1,
+		BatchSize:        1,
+		ChunkConcurrency: 1,
+	}
+
+	// The directory is empty, so the quality checks themselves fail. That is
+	// fine and is not what is under test: the bug was that the request never
+	// reached them, because it was rejected as invalid input first.
+	_, err := Run(context.Background(), req, Deps{})
+	if got := exit.ClassOf(err); got == exit.Usage {
+		t.Errorf("a validate-only run was rejected as invalid input (%v). The validate verb "+
+			"clears Bucket and RunDuckLake, so this rule made the verb impossible to run.", err)
+	}
+	if err != nil && !strings.Contains(err.Error(), "validation failed") {
+		t.Errorf("expected the failure to come from the checks, got: %v", err)
+	}
+}
+
+// The rules must still apply to everything that is not validate-only, or
+// this exemption becomes a hole.
+func TestTheValidateExemptionIsNarrow(t *testing.T) {
+	base := func() RunRequest {
+		return RunRequest{
+			OutputDir: t.TempDir(), RunValidate: true, StorageType: "FS",
+			Workers: 1, BatchSize: 1, ChunkConcurrency: 1,
+		}
+	}
+	cases := []struct {
+		name   string
+		mutate func(*RunRequest)
+	}{
+		{"validate plus extraction still needs a range", func(r *RunRequest) { r.Bucket = "testdata" }},
+		{"validate plus ducklake still needs a range", func(r *RunRequest) { r.RunDuckLake = true }},
+		{"validate plus hot buffer still needs a range", func(r *RunRequest) { r.PgHost = "db.example" }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := base()
+			c.mutate(&req)
+			_, err := Run(context.Background(), req, Deps{})
+			if err == nil {
+				t.Fatal("accepted a run with work to do and no ledger range")
+			}
+			if got := exit.ClassOf(err); got != exit.Usage {
+				t.Errorf("exit class = %v, want %v: %v", got, exit.Usage, err)
+			}
+		})
+	}
+}
