@@ -85,13 +85,23 @@ func (v *Validator) RunAll(ctx context.Context) (passedCount, failedCount int, e
 
 // checkMonotonicSequence verifies ledger sequences have no gaps in transactions.
 func (v *Validator) checkMonotonicSequence(ctx context.Context) (bool, string, error) {
-	glob := filepath.Join(v.bronzeDir, "transactions", "**", "*.parquet")
+	// The ledgers table, not transactions.
+	//
+	// Contiguity is only an invariant where there is one row per ledger.
+	// This read transactions and demanded a gapless sequence, which holds
+	// on Soroban-era data because every ledger there carries transactions --
+	// and is simply false for early history. A 100,000-ledger slice from
+	// ledger 3 has 52 ledgers with any transactions at all, so the check
+	// reported "51 sequence gap(s)": exactly the 51 discontinuities between
+	// those 52 ledgers. The data was perfectly contiguous; the check was
+	// looking at the wrong table.
+	glob := filepath.Join(v.bronzeDir, "ledgers", "**", "*.parquet")
 	query := fmt.Sprintf(`
 		SELECT COUNT(*) as gaps FROM (
-			SELECT ledger_sequence,
-				LAG(ledger_sequence) OVER (ORDER BY ledger_sequence) as prev_seq
-			FROM (SELECT DISTINCT ledger_sequence FROM read_parquet('%s'))
-		) WHERE prev_seq IS NOT NULL AND ledger_sequence != prev_seq + 1
+			SELECT sequence,
+				LAG(sequence) OVER (ORDER BY sequence) as prev_seq
+			FROM (SELECT DISTINCT sequence FROM read_parquet('%s'))
+		) WHERE prev_seq IS NOT NULL AND sequence != prev_seq + 1
 	`, glob)
 
 	var gaps int64
@@ -133,12 +143,20 @@ func (v *Validator) checkTxOpConsistency(ctx context.Context) (bool, string, err
 	txGlob := filepath.Join(v.bronzeDir, "transactions", "**", "*.parquet")
 	opGlob := filepath.Join(v.bronzeDir, "operations", "**", "*.parquet")
 
+	// Joined on transaction_id, not transaction_hash.
+	//
+	// The storage contract dropped operations.transaction_hash -- 714 GB of
+	// hex for an identity transaction_id already carries in 8 bytes -- and
+	// this check kept joining on the column that no longer exists. DuckDB
+	// reported it as a binder error, which the harness counts as a failed
+	// check, so --validate has been failing on every run since that change
+	// and nothing noticed: the Nomad validation job never passes --validate.
 	query := fmt.Sprintf(`
 		SELECT COUNT(*) FROM (
-			SELECT DISTINCT o.transaction_hash
+			SELECT DISTINCT o.transaction_id
 			FROM read_parquet('%s') o
-			LEFT JOIN read_parquet('%s') t ON o.transaction_hash = t.transaction_hash
-			WHERE t.transaction_hash IS NULL
+			LEFT JOIN read_parquet('%s') t ON o.transaction_id = t.transaction_id
+			WHERE t.transaction_id IS NULL
 		)
 	`, opGlob, txGlob)
 
@@ -150,7 +168,7 @@ func (v *Validator) checkTxOpConsistency(ctx context.Context) (bool, string, err
 	if orphans == 0 {
 		return true, "all operations reference valid transactions", nil
 	}
-	return false, fmt.Sprintf("%d orphaned operation transaction hashes", orphans), nil
+	return false, fmt.Sprintf("%d orphaned operation transaction ids", orphans), nil
 }
 
 // checkPipelineVersion verifies version_label is populated. (Column was

@@ -79,19 +79,29 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 		return runEnrichment(ctx, req, deps, operation, started)
 	}
 
+	extractRequested := domain.ExtractionRequested(req.StorageType, req.Bucket)
+
+	// A validate-only run reads a directory that already exists. It needs no
+	// source, no destination and no ledger range, and demanding them made
+	// the validate verb impossible to run at all: the preset clears Bucket
+	// and RunDuckLake, which tripped the --bucket rule below on every
+	// invocation. Found by running it.
+	validateOnly := req.RunValidate && !extractRequested && !req.RunDuckLake && req.PgHost == ""
+
 	// Validate required flags
-	if req.Start == 0 {
-		return nil, exit.Usagef("--start is required and must be > 0")
-	}
-	if req.End == 0 {
-		return nil, exit.Usagef("--end is required and must be > 0")
-	}
 	if req.OutputDir == "" {
 		return nil, exit.Usagef("--output-dir is required")
 	}
-	extractRequested := domain.ExtractionRequested(req.StorageType, req.Bucket)
-	if !extractRequested && !req.RunDuckLake {
-		return nil, exit.Usagef("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
+	if !validateOnly {
+		if req.Start == 0 {
+			return nil, exit.Usagef("--start is required and must be > 0")
+		}
+		if req.End == 0 {
+			return nil, exit.Usagef("--end is required and must be > 0")
+		}
+		if !extractRequested && !req.RunDuckLake {
+			return nil, exit.Usagef("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
+		}
 	}
 
 	startLedger := uint32(req.Start)
@@ -210,7 +220,12 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 
 	result := newRunResult(operation, domain.Version, started)
 	result.JobID = jobID
-	result.Range = &RangeResult{Start: startLedger, End: endLedger, Ledgers: endLedger - startLedger + 1}
+	// Omitted for a validate-only run, which has no range. Reporting
+	// start 0, end 0 and "1 ledger" would be a number a consumer reads as
+	// real.
+	if !validateOnly {
+		result.Range = &RangeResult{Start: startLedger, End: endLedger, Ledgers: endLedger - startLedger + 1}
+	}
 
 	// Emission errors are ignored throughout: a full disk on the event
 	// stream must not fail an ingestion that is otherwise working.
