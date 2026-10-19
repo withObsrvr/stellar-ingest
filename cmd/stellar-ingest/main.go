@@ -23,8 +23,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/withObsrvr/stellar-ingest/internal/app"
 	"github.com/withObsrvr/stellar-ingest/internal/cli"
@@ -33,7 +34,21 @@ import (
 )
 
 func main() {
-	err := run(context.Background())
+	// §5: "Gracefully handle SIGINT/SIGTERM." A cancelled context reaches
+	// every blocking layer now that the operation threads it through, so a
+	// stopped Nomad allocation unwinds its defers -- closing the pusher,
+	// releasing the range claim -- instead of being killed mid-push.
+	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+
+	err := run(ctx)
+	if err != nil && ctx.Err() != nil {
+		// The run failed because it was stopped. Reporting the operation's
+		// own error class here would call a deliberate shutdown an internal
+		// failure, and a scheduler would retry it as though something were
+		// broken.
+		err = fmt.Errorf("%w (run was interrupted: %v)", ctx.Err(), err)
+	}
 	if err != nil {
 		// stderr: this is a diagnostic. One line, no timestamp, no stack --
 		// the message says what to fix and the exit code says what kind of
@@ -55,6 +70,14 @@ func run(ctx context.Context) error {
 	if verb, ok := subcommand(os.Args); ok {
 		root := cli.NewRootCommand(os.Stdout, os.Stderr)
 		if err := root.ExecuteContext(ctx); err != nil {
+			// A verb that is not a verb is a typo, which is invalid input.
+			// subcommand hands anything non-flag to Cobra so the error names
+			// the problem, but the class has to be set here: Cobra reports
+			// "unknown command" as a plain error and exit 1 would tell a
+			// scheduler to retry the typo.
+			if verb != "" && !cli.IsCommand(verb) {
+				err = exit.Wrap(exit.Usage, err)
+			}
 			// Cobra's own usage output is silenced so the message is not
 			// buried under a flag list.
 			if verb == "" {
@@ -85,10 +108,8 @@ func subcommand(args []string) (string, bool) {
 	if candidate == "" || candidate[0] == '-' {
 		return "", false
 	}
-	for _, name := range cli.CommandNames() {
-		if candidate == name {
-			return candidate, true
-		}
+	if cli.IsCommand(candidate) {
+		return candidate, true
 	}
 	// Not a known verb, but not a flag either. Hand it to Cobra so the error
 	// names the problem.
@@ -111,12 +132,17 @@ func runFlatForm(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	log, err := cli.ResolveLogging(values, os.Stderr)
+	if err != nil {
+		return err
+	}
 	for _, notice := range notices {
 		// stderr, and never a credential's value.
-		log.Print(notice)
+		log.Warn("%s", notice)
 	}
 
-	log.Printf("stellar-ingest was invoked without a command. The verbs -- extract, " +
+	log.Warn("stellar-ingest was invoked without a command. The verbs -- extract, " +
 		"validate, load, repair, run -- call the same operations and will become the " +
 		"documented surface; `stellar-ingest run` is this invocation. The flag-only " +
 		"form keeps working.")
@@ -126,8 +152,11 @@ func runFlatForm(ctx context.Context) error {
 		return err
 	}
 
+	ctx, cancel := cli.WithTimeout(ctx, values.Timeout)
+	defer cancel()
+
 	// Everything the command line had to decide is decided. From here the
 	// request is data, and the operation behind it has no idea a terminal
 	// exists.
-	return app.Run(ctx, req, emitter)
+	return app.Run(ctx, req, app.Deps{Out: os.Stdout, Log: log, Status: emitter})
 }

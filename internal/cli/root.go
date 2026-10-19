@@ -19,12 +19,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/withObsrvr/stellar-ingest/internal/app"
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
-	"github.com/withObsrvr/stellar-ingest/internal/status"
+	"github.com/withObsrvr/stellar-ingest/internal/exit"
 )
 
 // operation is one of the application's use cases. It returns an error
 // carrying an exit class; the composition root turns that into an exit code.
-type operation func(context.Context, app.RunRequest, *status.Emitter) error
+type operation func(context.Context, app.RunRequest, app.Deps) error
 
 // CommandNames are the verbs the root command accepts. The flat-form
 // dispatcher needs this list to tell a verb from a flag.
@@ -56,6 +56,13 @@ each with a _FILE form naming a file to read instead.`,
 	}
 	root.SetOut(out)
 	root.SetErr(errOut)
+	// A rejected flag value is invalid input, which §3 gives its own exit
+	// class. Without this it arrived at the composition root unclassified
+	// and became exit 1 -- the same code as a bug in the pusher, so a
+	// scheduler would retry a typo forever.
+	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		return exit.Wrap(exit.Usage, err)
+	})
 
 	root.AddCommand(
 		newOperationCommand("extract", "Acquire ledgers and write Bronze Parquet",
@@ -64,21 +71,21 @@ hot buffer, so it is the operation to use when the destination is decided
 later, or not at all.`,
 			[]string{
 				"stellar-ingest extract --network mainnet --start 64000000 --end 64001000 --output-dir ./bronze",
-			}, app.Extract, errOut),
+			}, app.Extract, out, errOut),
 
 		newOperationCommand("validate", "Check an existing output directory",
 			`Validate reads an output directory and reports on it. It writes nothing and
 pushes nowhere.`,
 			[]string{
 				"stellar-ingest validate --output-dir ./bronze --output json",
-			}, app.Validate, errOut),
+			}, app.Validate, out, errOut),
 
 		newOperationCommand("load", "Push an existing output directory into DuckLake",
 			`Load skips extraction and ingests Parquet that is already on disk, using the
 manifest the extraction wrote.`,
 			[]string{
 				"stellar-ingest load --output-dir ./bronze --ducklake --ducklake-data-path s3://bucket/",
-			}, app.Load, errOut),
+			}, app.Load, out, errOut),
 
 		newOperationCommand("repair", "Backfill missing Bronze contract balance fields",
 			`Repair rewrites contract balance_holder and balance in place and returns
@@ -86,7 +93,7 @@ without extracting. It needs a durable --enrichment-run-id unless
 --enrichment-dry-run is set.`,
 			[]string{
 				"stellar-ingest repair --start 61790000 --end 61891000 --enrichment-dry-run",
-			}, app.Repair, errOut),
+			}, app.Repair, out, errOut),
 
 		newOperationCommand("run", "Extract, load and populate in one pass",
 			`Run performs the whole sequence the flat flag form has always performed:
@@ -94,7 +101,7 @@ acquire, extract to Parquet, push to DuckLake, populate the hot buffer. Which
 phases happen is still decided by the flags.`,
 			[]string{
 				"stellar-ingest run --start 64000000 --end 64001000 --output-dir ./bronze --ducklake",
-			}, app.Run, errOut),
+			}, app.Run, out, errOut),
 
 		newVersionCommand(out),
 	)
@@ -102,7 +109,7 @@ phases happen is still decided by the flags.`,
 }
 
 // newOperationCommand builds one verb over one application operation.
-func newOperationCommand(use, short, long string, examples []string, op operation, errOut io.Writer) *cobra.Command {
+func newOperationCommand(use, short, long string, examples []string, op operation, out, errOut io.Writer) *cobra.Command {
 	values := &Values{}
 	cmd := &cobra.Command{
 		Use:     use,
@@ -121,7 +128,15 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			if err != nil {
 				return err
 			}
-			return op(cmd.Context(), req, emitter)
+			log, err := ResolveLogging(values, errOut)
+			if err != nil {
+				return err
+			}
+			// --timeout bounds the operation. Zero is no limit, which is
+			// what every deployed invocation relies on.
+			ctx, cancel := WithTimeout(cmd.Context(), values.Timeout)
+			defer cancel()
+			return op(ctx, req, app.Deps{Out: out, Log: log, Status: emitter})
 		},
 	}
 	values.RegisterPFlags(cmd.Flags())
@@ -148,4 +163,16 @@ func joinExamples(examples []string) string {
 		out += e
 	}
 	return out
+}
+
+// IsCommand reports whether name is one of the verbs. The composition root
+// uses it to classify an unknown command as invalid input rather than
+// matching on Cobra's message text, which changes between releases.
+func IsCommand(name string) bool {
+	for _, candidate := range CommandNames() {
+		if name == candidate {
+			return true
+		}
+	}
+	return false
 }

@@ -98,7 +98,7 @@ func TestInvalidInputIsRejectedAsUsage(t *testing.T) {
 			req := valid(dir)
 			c.mutate(&req)
 
-			err := Run(context.Background(), req, nil)
+			err := Run(context.Background(), req, Deps{})
 			if err == nil {
 				t.Fatal("accepted invalid input")
 			}
@@ -128,7 +128,7 @@ func TestNonInputFailureIsNotUsage(t *testing.T) {
 	}
 	req := valid(filepath.Join(parent, "out"))
 
-	err := Run(context.Background(), req, nil)
+	err := Run(context.Background(), req, Deps{})
 	if err == nil {
 		t.Fatal("expected the unwritable output directory to fail")
 	}

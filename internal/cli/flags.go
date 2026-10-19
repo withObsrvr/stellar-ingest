@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"runtime"
+	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/withObsrvr/stellar-ingest/internal/app"
@@ -69,6 +70,15 @@ type Values struct {
 	EnrichmentDryRun         bool
 	EnrichmentResume         bool
 	EnrichmentManifestSchema string
+
+	// The global options §3 standardises. Quiet, Verbose and NoColor are
+	// presentation and never reach RunRequest: an operation does not know
+	// whether anybody is watching. Timeout is applied by the adapter, which
+	// hands the operation a context that is already bounded.
+	Quiet   bool
+	Verbose bool
+	NoColor bool
+	Timeout time.Duration
 }
 
 // flagKind is how a flag is registered.
@@ -80,6 +90,7 @@ const (
 	kindUint
 	kindInt
 	kindInt64
+	kindDuration
 )
 
 // flagSpec is one flag: its name, its help text, its default, and where its
@@ -90,12 +101,13 @@ type flagSpec struct {
 	Kind  flagKind
 	// Target returns a pointer into a Values for this flag, so one table can
 	// drive both registrations without reflection.
-	Target    func(*Values) any
-	DefString string
-	DefBool   bool
-	DefUint   uint
-	DefInt    int
-	DefInt64  int64
+	Target      func(*Values) any
+	DefString   string
+	DefBool     bool
+	DefUint     uint
+	DefInt      int
+	DefInt64    int64
+	DefDuration time.Duration
 }
 
 // flagSpecs is the single source of truth for the flag surface.
@@ -335,6 +347,26 @@ var flagSpecs = []flagSpec{
 		Kind: kindString, DefString: "bronze_operations",
 		Target: func(v *Values) any { return &v.EnrichmentManifestSchema },
 	},
+	{
+		Name: "quiet", Usage: "Suppress progress on stderr; warnings and errors are still reported",
+		Kind: kindBool, DefBool: false,
+		Target: func(v *Values) any { return &v.Quiet },
+	},
+	{
+		Name: "verbose", Usage: "Report per-step detail and structured attributes on stderr",
+		Kind: kindBool, DefBool: false,
+		Target: func(v *Values) any { return &v.Verbose },
+	},
+	{
+		Name: "no-color", Usage: "Disable ANSI colour on stderr (also honoured: NO_COLOR, a non-terminal stderr)",
+		Kind: kindBool, DefBool: false,
+		Target: func(v *Values) any { return &v.NoColor },
+	},
+	{
+		Name: "timeout", Usage: "Abandon the run after this long, e.g. 30m or 4h; 0 means no limit",
+		Kind: kindDuration, DefDuration: 0,
+		Target: func(v *Values) any { return &v.Timeout },
+	},
 }
 
 // RegisterGoFlags registers every flag on a standard-library FlagSet. This is
@@ -352,6 +384,8 @@ func (v *Values) RegisterGoFlags(fs *flag.FlagSet) {
 			fs.IntVar(target, spec.Name, spec.DefInt, spec.Usage)
 		case *int64:
 			fs.Int64Var(target, spec.Name, spec.DefInt64, spec.Usage)
+		case *time.Duration:
+			fs.DurationVar(target, spec.Name, spec.DefDuration, spec.Usage)
 		default:
 			panic(fmt.Sprintf("flag %s has an unhandled target type %T", spec.Name, target))
 		}
@@ -373,6 +407,8 @@ func (v *Values) RegisterPFlags(fs *pflag.FlagSet) {
 			fs.IntVar(target, spec.Name, spec.DefInt, spec.Usage)
 		case *int64:
 			fs.Int64Var(target, spec.Name, spec.DefInt64, spec.Usage)
+		case *time.Duration:
+			fs.DurationVar(target, spec.Name, spec.DefDuration, spec.Usage)
 		default:
 			panic(fmt.Sprintf("flag %s has an unhandled target type %T", spec.Name, target))
 		}

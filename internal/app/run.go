@@ -38,7 +38,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,7 +51,6 @@ import (
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"github.com/withObsrvr/stellar-ingest/internal/exit"
 	"github.com/withObsrvr/stellar-ingest/internal/jobs"
-	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
 // freezeGrace is how long a range freeze may take after the push has landed,
@@ -61,9 +59,11 @@ const freezeGrace = 30 * time.Second
 
 // Run executes the request, returning an error whose exit class the adapter
 // turns into a process exit code.
-func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) error {
+func Run(ctx context.Context, req RunRequest, deps Deps) error {
+	log := deps.log()
+
 	if req.EnrichContractBalances {
-		return runEnrichment(ctx, req)
+		return runEnrichment(ctx, req, deps)
 	}
 
 	// Validate required flags
@@ -173,7 +173,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 	// hand is what made a multi-day backfill depend on an operator's notes;
 	// here the catalog is asked instead.
 	if req.PlanOnly {
-		return runPlan(ctx, req, startLedger, endLedger)
+		return runPlan(ctx, req, deps, startLedger, endLedger)
 	}
 
 	if req.ChunkSize > 0 {
@@ -182,6 +182,24 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 		}
 		return nil
 	}
+
+	totalLedgers := endLedger - startLedger + 1
+
+	log.Section("Stellar History Loader")
+	log.Field("Ledger range", "%d - %d (%d ledgers)", startLedger, endLedger, totalLedgers)
+	log.Field("Workers", "%d", req.Workers)
+	log.Field("Batch size", "%d", req.BatchSize)
+	log.Field("Output directory", "%s", req.OutputDir)
+	log.Field("Storage type", "%s", req.StorageType)
+	log.Field("Bucket", "%s", req.Bucket)
+	log.Field("Network", "%s", req.NetworkPassphrase)
+	if len(extractOnlySet) > 0 {
+		log.Field("Extract tables", "%s", domain.TableSetKey(extractOnlySet))
+	}
+	if len(duckLakeOnlySet) > 0 {
+		log.Field("DuckLake tables", "%s", domain.TableSetKey(duckLakeOnlySet))
+	}
+	log.Line()
 
 	// Ensure output directory exists
 	if err := os.MkdirAll(req.OutputDir, 0o755); err != nil {
@@ -226,24 +244,6 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 		return fmt.Errorf("%s failed: %w", phase, err)
 	}
 
-	totalLedgers := endLedger - startLedger + 1
-
-	fmt.Println("=== Stellar History Loader ===")
-	fmt.Printf("Ledger range:      %d - %d (%d ledgers)\n", startLedger, endLedger, totalLedgers)
-	fmt.Printf("Workers:           %d\n", req.Workers)
-	fmt.Printf("Batch size:        %d\n", req.BatchSize)
-	fmt.Printf("Output directory:  %s\n", req.OutputDir)
-	fmt.Printf("Storage type:      %s\n", req.StorageType)
-	fmt.Printf("Bucket:            %s\n", req.Bucket)
-	fmt.Printf("Network:           %s\n", req.NetworkPassphrase)
-	if len(extractOnlySet) > 0 {
-		fmt.Printf("Extract tables:    %s\n", domain.TableSetKey(extractOnlySet))
-	}
-	if len(duckLakeOnlySet) > 0 {
-		fmt.Printf("DuckLake tables:   %s\n", domain.TableSetKey(duckLakeOnlySet))
-	}
-	fmt.Println()
-
 	// Durable range state. Claimed before any work and frozen only after the
 	// DuckLake push returns, because a range is not done when its Parquet
 	// exists -- it is done when the push lands.
@@ -273,17 +273,17 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 			// walking a range it already finished must not fail the run.
 			// The marker is for the chunk runner; the sentence is for a
 			// human reading a single-range dispatch.
-			fmt.Printf("%s Range %s is already frozen or claimed by another run; nothing to do.\n",
+			log.Info("%s Range %s is already frozen or claimed by another run; nothing to do.",
 				jobs.RangeSkippedMarker, thisRange)
 			return nil
 		}
-		fmt.Printf("Range %s claimed (freezing)\n", thisRange)
+		log.Info("Range %s claimed (freezing)", thisRange)
 	}
 
 	// Skip extraction if only doing DuckLake push on existing output
 	if extractRequested {
 		config := domain.OrchestratorConfig{
-			StatusEmitter:     statusEmitter,
+			StatusEmitter:     deps.Status,
 			StartLedger:       startLedger,
 			EndLedger:         endLedger,
 			NumWorkers:        req.Workers,
@@ -305,52 +305,52 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 		if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "extract", nil, map[string]string{
 			"output_dir": req.OutputDir,
 		}); err != nil {
-			log.Printf("Flowctl progress report failed: %v", err)
+			log.Warn("flowctl progress report failed: %v", err)
 		}
 
-		_ = statusEmitter.Working("", fmt.Sprintf("Extracting %d-%d", startLedger, endLedger), 0)
+		_ = deps.Status.Working("", fmt.Sprintf("Extracting %d-%d", startLedger, endLedger), 0)
 		if err := orchestrator.Run(); err != nil {
 			// Reported before returning, so a watcher sees why rather than
 			// seeing the record simply stop. error and done both survive
 			// process exit by design.
-			_ = statusEmitter.Failed("", fmt.Sprintf("extract %d-%d: %v", startLedger, endLedger, err))
+			_ = deps.Status.Failed("", fmt.Sprintf("extract %d-%d: %v", startLedger, endLedger, err))
 			return chunkFailed("extract", err, "rerun_chunk")
 		}
 		effectiveOutput = orchestrator.OutputDir()
 		manifestPath = orchestrator.ManifestPath()
-		fmt.Printf("Published attempt:    %s\n", effectiveOutput)
+		log.Field("Published attempt", "%s", effectiveOutput)
 
 		if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "extract_complete", map[string]int64{
 			"ledgers": int64(totalLedgers),
 		}, nil); err != nil {
-			log.Printf("Flowctl progress report failed: %v", err)
+			log.Warn("flowctl progress report failed: %v", err)
 		}
 
 		elapsed := time.Since(startTime)
 		throughput := float64(totalLedgers) / elapsed.Seconds()
 
-		fmt.Println()
-		fmt.Println("=== Summary ===")
-		fmt.Printf("Total ledgers processed: %d\n", totalLedgers)
-		fmt.Printf("Elapsed time:           %s\n", elapsed.Round(time.Millisecond))
-		fmt.Printf("Throughput:             %.1f ledgers/sec\n", throughput)
+		log.Line()
+		log.Section("Summary")
+		log.Field("Total ledgers", "%d", totalLedgers)
+		log.Field("Elapsed time", "%s", elapsed.Round(time.Millisecond))
+		log.Field("Throughput", "%.1f ledgers/sec", throughput)
 		if skipped := extract.CallGraphSkippedEdges(); skipped > 0 {
-			fmt.Printf("Call-graph edges skipped (non-contract/unencodable address): %d\n", skipped)
+			log.Field("Call-graph edges skipped", "%d (non-contract/unencodable address)", skipped)
 		}
 	} else {
-		fmt.Println("Skipping extraction (no --bucket specified, using existing output)")
+		log.Info("Skipping extraction (no --bucket specified, using existing output)")
 	}
 
 	// Run quality validation if requested
 	if req.RunValidate {
-		fmt.Println()
+		log.Line()
 		validator, err := adapters.NewValidator(effectiveOutput)
 		if err != nil {
-			log.Printf("Validation setup failed: %v", err)
+			log.Warn("validation setup failed: %v", err)
 		} else {
 			defer validator.Close()
 			if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "validation", nil, nil); err != nil {
-				log.Printf("Flowctl progress report failed: %v", err)
+				log.Warn("flowctl progress report failed: %v", err)
 			}
 			if err := validator.RunAll(ctx); err != nil {
 				_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), "validation", flowctlpb.FailureClass_FAILURE_CLASS_VERIFICATION, err.Error(), "inspect_output")
@@ -361,8 +361,8 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 
 	// Push to DuckLake if configured
 	if req.RunDuckLake {
-		fmt.Println()
-		fmt.Println("=== DuckLake Push ===")
+		log.Line()
+		log.Section("DuckLake Push")
 		dlStart := time.Now()
 
 		if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "ducklake_setup", nil, map[string]string{
@@ -371,7 +371,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 			"ducklake_view_schema":     req.DlViewSchema,
 			"ducklake_data_path":       req.DlDataPath,
 		}); err != nil {
-			log.Printf("Flowctl progress report failed: %v", err)
+			log.Warn("flowctl progress report failed: %v", err)
 		}
 
 		pusher, err := adapters.NewDuckLakePusher(adapters.DuckLakeConfig{
@@ -397,14 +397,14 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 		defer pusher.Close()
 
 		if err := reporter.ReportChunkProgress(ctx, int64(startLedger), int64(endLedger), "ducklake_push", nil, nil); err != nil {
-			log.Printf("Flowctl progress report failed: %v", err)
+			log.Warn("flowctl progress report failed: %v", err)
 		}
 		pushResult, err := pusher.Push(ctx, effectiveOutput)
 		if err != nil {
 			return chunkFailed("ducklake_push", err, "retry_chunk")
 		}
 
-		fmt.Printf("DuckLake push completed in %s\n", time.Since(dlStart).Round(time.Millisecond))
+		log.Info("DuckLake push completed in %s", time.Since(dlStart).Round(time.Millisecond))
 
 		// Frozen only now. Anything earlier would mark a range done whose
 		// rows had not reached cold, and a resumed plan would skip it.
@@ -412,20 +412,20 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 			if err := freezeRange(ctx, rangeStore, thisRange, rangeAttemptID, pushResult.TotalRows); err != nil {
 				return fmt.Errorf("range state: %w", err)
 			}
-			fmt.Printf("Range %s frozen (%d rows)\n", thisRange, pushResult.TotalRows)
+			log.Info("Range %s frozen (%d rows)", thisRange, pushResult.TotalRows)
 		}
 		if err := reporter.ReportChunkCompleted(ctx, int64(startLedger), int64(endLedger), true, pushResult.RowCounts, map[string]string{
 			"gate":   "ducklake-push",
 			"passed": "true",
 		}); err != nil {
-			log.Printf("Flowctl completion report failed: %v", err)
+			log.Warn("flowctl completion report failed: %v", err)
 		}
 	}
 
 	// Load hot buffer if PostgreSQL is configured
 	if req.PgHost != "" {
-		fmt.Println()
-		fmt.Println("=== Hot Buffer Population ===")
+		log.Line()
+		log.Section("Hot Buffer Population")
 		hotStart := time.Now()
 
 		loader, err := adapters.NewHotBufferLoader(effectiveOutput, adapters.HotBufferConfig{
@@ -438,19 +438,19 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 			TailLedgers: uint32(req.TailLedgers),
 		})
 		if err != nil {
-			log.Printf("Hot buffer connection failed: %v", err)
+			log.Warn("hot buffer connection failed: %v", err)
 		} else {
 			defer loader.Close()
 			if err := loader.LoadTail(ctx, uint32(req.TailLedgers), endLedger); err != nil {
-				log.Printf("Hot buffer load had errors: %v", err)
+				log.Warn("hot buffer load had errors: %v", err)
 			}
-			fmt.Printf("Hot buffer populated in %s\n", time.Since(hotStart).Round(time.Millisecond))
+			log.Info("Hot buffer populated in %s", time.Since(hotStart).Round(time.Millisecond))
 		}
 	}
 
-	fmt.Println()
+	log.Line()
 	if err := adapters.GenerateCatalogReport(effectiveOutput); err != nil {
-		log.Printf("Warning: catalog report failed: %v", err)
+		log.Warn("catalog report failed: %v", err)
 	}
 
 	// The terminal report, and the one a watcher is actually waiting for.
@@ -458,7 +458,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 	// outcome after the run is gone. Emitted here rather than earlier because
 	// everything above -- extract, push, hot buffer, catalog report -- is part
 	// of the run finishing.
-	_ = statusEmitter.Done("", fmt.Sprintf("Ingested ledgers %d-%d", startLedger, endLedger))
+	_ = deps.Status.Done("", fmt.Sprintf("Ingested ledgers %d-%d", startLedger, endLedger))
 
 	if !req.RunDuckLake {
 		if err := reporter.ReportChunkCompleted(ctx, int64(startLedger), int64(endLedger), false, map[string]int64{
@@ -467,7 +467,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) err
 			"gate":   "extract-only",
 			"passed": "true",
 		}); err != nil {
-			log.Printf("Flowctl completion report failed: %v", err)
+			log.Warn("flowctl completion report failed: %v", err)
 		}
 	}
 	return nil
@@ -524,7 +524,7 @@ func freezeContext(ctx context.Context) (context.Context, func()) {
 }
 
 // runPlan reports which ranges still need building, taking no claim.
-func runPlan(ctx context.Context, req RunRequest, startLedger, endLedger uint32) error {
+func runPlan(ctx context.Context, req RunRequest, deps Deps, startLedger, endLedger uint32) error {
 	if req.DlCatalog == "" {
 		return exit.Usagef("--plan requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
 	}
@@ -544,14 +544,14 @@ func runPlan(ctx context.Context, req RunRequest, startLedger, endLedger uint32)
 	if err != nil {
 		return fmt.Errorf("range state: %w", err)
 	}
-	fmt.Print(jobs.FormatPlan(plan))
+	fmt.Fprint(deps.out(), jobs.FormatPlan(plan))
 	return nil
 }
 
 // runEnrichment repairs missing Bronze contract balance fields in place. It
 // is the one operation that was already a mode switch rather than a phase,
 // and it returns without extracting.
-func runEnrichment(ctx context.Context, req RunRequest) error {
+func runEnrichment(ctx context.Context, req RunRequest, deps Deps) error {
 	if req.Start == 0 || req.End == 0 || req.End < req.Start {
 		return exit.Usagef("--enrich-contract-balances requires a valid inclusive --start/--end range")
 	}
@@ -593,7 +593,7 @@ func runEnrichment(ctx context.Context, req RunRequest) error {
 	if err != nil {
 		return fmt.Errorf("contract-balance enrichment failed: %w", err)
 	}
-	fmt.Printf(
+	fmt.Fprintf(deps.out(),
 		"Contract-balance enrichment complete: dry_run=%t candidates=%d decoded=%d updated=%d skipped=%d\n",
 		req.EnrichmentDryRun, result.CandidateRows, result.DecodedRows, result.UpdatedRows, result.SkippedRows,
 	)
