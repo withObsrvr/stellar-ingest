@@ -49,10 +49,10 @@ func NewHotBufferLoader(outputDir string, pgConfig HotBufferConfig) (*HotBufferL
 		return nil, fmt.Errorf("ping postgres: %w", err)
 	}
 
-	duckDB, err := sql.Open("duckdb", "")
+	duckDB, err := openDuckDB()
 	if err != nil {
 		pgDB.Close()
-		return nil, fmt.Errorf("open duckdb: %w", err)
+		return nil, err
 	}
 
 	return &HotBufferLoader{

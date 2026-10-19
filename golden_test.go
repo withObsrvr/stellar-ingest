@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -167,7 +166,7 @@ func goldenPath(name string) string {
 func TestGoldenBronzeOutputs(t *testing.T) {
 	scrubEnv(t)
 
-	db, err := sql.Open("duckdb", "")
+	db, err := openDuckDB()
 	if err != nil {
 		t.Fatalf("open duckdb: %v", err)
 	}
@@ -408,7 +407,7 @@ func uniqueOutputDirs() []string {
 func TestExtractionIsDeterministic(t *testing.T) {
 	scrubEnv(t)
 
-	db, err := sql.Open("duckdb", "")
+	db, err := openDuckDB()
 	if err != nil {
 		t.Fatalf("open duckdb: %v", err)
 	}

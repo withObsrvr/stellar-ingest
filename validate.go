@@ -16,7 +16,7 @@ type Validator struct {
 }
 
 func NewValidator(outputDir string) (*Validator, error) {
-	db, err := sql.Open("duckdb", "")
+	db, err := openDuckDB()
 	if err != nil {
 		return nil, fmt.Errorf("open duckdb for validation: %w", err)
 	}
