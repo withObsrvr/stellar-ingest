@@ -36,9 +36,9 @@ catalog makes a multi-day backfill resumable. What is missing is **structured
 errors with stable codes**, and `classifyFlowctlFailure` is the obvious seed
 for them — it already classifies failures, but only for flowctl reporting.
 
-Against §5 security: **secrets are passed as arguments** — `--b2-key-secret`,
-`--pg-password`, and the DSN in `--ducklake-catalog`. The standard prohibits
-this outright. It is the most serious single gap in this table.
+Against §5 security: **closed.** All four credentials now resolve from the
+environment or a file, the flags warn, and the warning never echoes a value.
+See *Done* below.
 
 Against §6 (layout): the standard's layout is `cmd/`, `internal/cli`,
 `internal/app`, `internal/domain`, `internal/jobs`, `internal/events`,
@@ -100,10 +100,6 @@ Each stage is independently shippable and leaves the tool working.
 schema agreement; examples in `--help`. All additive. The CLI baseline records
 each flag as it lands.
 
-**Stage 2 — secrets out of argv.** Environment and file fallbacks for every
-credential, with the flags kept and warned on. Closes the §5 security gap and
-is the stage with real operational value independent of any restructure.
-
 **Stage 3 — machine-readable output.** A typed run summary rendered as a human
 table by default and as JSON on request, with a versioned schema and golden
 tests. Resolves the `--output` question above, because it is the first thing
@@ -151,7 +147,7 @@ Current status, so a reader can see what a PR here still has to earn.
 | JSON and NDJSON covered by golden tests | No — no JSON output yet |
 | stdout/stderr separation; noninteractive verified | Partial — progress fixed, results still mixed |
 | Cancellation, timeout, retries, interrupted runs exercised | Partial — retries and resume are tested; no timeout flag |
-| No secrets in arguments, diagnostics, logs | **No** — Stage 2 |
+| No secrets in arguments, diagnostics, logs | Yes — environment and file routes, flags warn |
 | Resource IDs, event types, states, error codes documented | No — Stage 6 |
 | Compatibility and migration documented for flag/config/schema changes | Yes — `docs/compatibility.md` and the CLI baseline |
 | CLI and API/UI adapters invoke the same operation | Not applicable yet — Stage 4 creates the operation |
