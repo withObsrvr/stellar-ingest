@@ -205,7 +205,13 @@ func rewriteChunkArgs(args []string, chunk ledgerChunk, outputDir string) []stri
 	// chunk and must not re-chunk or re-parallelise. Leaving it set gave every
 	// child "--chunk-concurrency 2" with no --chunk-size, which the loader's
 	// own guard rejects -- all five chunks failed in 62ms.
-	remove := map[string]bool{"start": true, "end": true, "output": true,
+	// Both spellings of the directory flag are stripped. A child that
+	// inherited the parent's --output-dir would write every chunk into the
+	// same place and the per-chunk manifests would overwrite each other;
+	// --output is stripped too because a path there still resolves to the
+	// directory for one more release.
+	remove := map[string]bool{"start": true, "end": true,
+		"output": true, "output-dir": true,
 		"chunk-size": true, "chunk-concurrency": true}
 	result := make([]string, 0, len(args)+4)
 	for index := 0; index < len(args); index++ {
@@ -234,7 +240,7 @@ func rewriteChunkArgs(args []string, chunk ledgerChunk, outputDir string) []stri
 	return append(result,
 		"--start", strconv.FormatUint(uint64(chunk.Start), 10),
 		"--end", strconv.FormatUint(uint64(chunk.End), 10),
-		"--output", outputDir,
+		"--output-dir", outputDir,
 		"--chunk-size", "0",
 	)
 }
