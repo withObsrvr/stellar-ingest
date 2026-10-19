@@ -29,22 +29,42 @@ import (
 	"github.com/withObsrvr/stellar-ingest/internal/app"
 	"github.com/withObsrvr/stellar-ingest/internal/cli"
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/exit"
 )
 
 func main() {
-	ctx := context.Background()
+	err := run(context.Background())
+	if err != nil {
+		// stderr: this is a diagnostic. One line, no timestamp, no stack --
+		// the message says what to fix and the exit code says what kind of
+		// problem it is.
+		fmt.Fprintf(os.Stderr, "stellar-ingest: %v\n", err)
+	}
+	// The exit code is the error's class. Every failure used to be log.Fatal,
+	// so every failure was 1; see internal/exit for the table. os.Exit runs
+	// no deferred functions, which is why the operation returns here rather
+	// than exiting in place: its own defers -- closing the pusher, the range
+	// store, the enricher -- have already run by the time we get here. Under
+	// log.Fatal they never ran at all.
+	exit.Exit(err)
+}
 
+// run dispatches to whichever surface the invocation used and returns the
+// failure rather than ending the process, so one place owns the exit code.
+func run(ctx context.Context) error {
 	if verb, ok := subcommand(os.Args); ok {
 		root := cli.NewRootCommand(os.Stdout, os.Stderr)
 		if err := root.ExecuteContext(ctx); err != nil {
 			// Cobra's own usage output is silenced so the message is not
 			// buried under a flag list.
-			log.Fatalf("%s: %v", verb, err)
+			if verb == "" {
+				return err
+			}
+			return fmt.Errorf("%s: %w", verb, err)
 		}
-		return
+		return nil
 	}
-
-	runFlatForm(ctx)
+	return runFlatForm(ctx)
 }
 
 // subcommand reports the verb, if the invocation names one.
@@ -76,7 +96,7 @@ func subcommand(args []string) (string, bool) {
 }
 
 // runFlatForm is the original interface: flags, no verb.
-func runFlatForm(ctx context.Context) {
+func runFlatForm(ctx context.Context) error {
 	values := &cli.Values{}
 	values.RegisterGoFlags(flag.CommandLine)
 	flag.Parse()
@@ -84,12 +104,12 @@ func runFlatForm(ctx context.Context) {
 	if values.ShowVersion {
 		// stdout: this is the result, not a diagnostic.
 		fmt.Println(domain.Version)
-		return
+		return nil
 	}
 
 	req, notices, err := values.Resolve()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	for _, notice := range notices {
 		// stderr, and never a credential's value.
@@ -103,11 +123,11 @@ func runFlatForm(ctx context.Context) {
 
 	emitter, err := cli.NewStatusEmitter(values.ProgramStatus)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// Everything the command line had to decide is decided. From here the
 	// request is data, and the operation behind it has no idea a terminal
 	// exists.
-	app.Run(ctx, req, emitter)
+	return app.Run(ctx, req, emitter)
 }

@@ -22,8 +22,9 @@ import (
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
-// operation is one of the application's use cases.
-type operation func(context.Context, app.RunRequest, *status.Emitter)
+// operation is one of the application's use cases. It returns an error
+// carrying an exit class; the composition root turns that into an exit code.
+type operation func(context.Context, app.RunRequest, *status.Emitter) error
 
 // CommandNames are the verbs the root command accepts. The flat-form
 // dispatcher needs this list to tell a verb from a flag.
@@ -120,8 +121,7 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			if err != nil {
 				return err
 			}
-			op(cmd.Context(), req, emitter)
-			return nil
+			return op(cmd.Context(), req, emitter)
 		},
 	}
 	values.RegisterPFlags(cmd.Flags())

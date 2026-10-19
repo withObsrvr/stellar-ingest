@@ -9,19 +9,31 @@ package app
 // standard: an API, a UI or a test can run an ingestion without a process
 // boundary or a flag parser.
 //
-// ONE THING IT STILL DOES WRONG, deliberately left for its own change: it
-// calls log.Fatal on failure, 38 times, 18 of them inside closures including
-// fatalChunk. An application operation should return an error and let the
-// adapter decide the exit code -- which is also what makes it testable, per
-// §10's first gate. Converting them is a control-flow rewrite rather than a
-// move, and doing it in the same change as relocating 69 files would make a
-// move bug indistinguishable from a rewrite bug. It pairs naturally with
-// documented exit classes, which the standard also wants and which this tool
-// also lacks.
+// It returns an error rather than calling log.Fatal, which it did 39 times.
+// Two things follow from that. The adapter chooses the exit code, so a
+// scheduler can tell invalid input from an internal failure instead of
+// receiving 1 for both. And the operation became testable: a function that
+// terminates the process cannot be asserted on, which is why §10's first
+// release gate is "core business logic testable without terminal or network
+// transport".
 //
-// So the signature returns nothing today. That is honest rather than
-// aspirational: a function that cannot fail gracefully should not claim an
-// error.
+// Returning also fixed latent bugs that log.Fatal was hiding. Several sites
+// read like this:
+//
+//	pusher, err := adapters.NewDuckLakePusher(...)
+//	if err != nil {
+//		fatalChunk("ducklake_setup", err, "retry_chunk")
+//	}
+//	defer pusher.Close()
+//
+// That was only correct because fatalChunk never came back. Any future reader
+// who made it return would have had a nil-pointer panic on the next line.
+//
+// CONTEXT NOW REACHES THE BLOCKING CALLS. Range-state claims, plans, chunked
+// backfills and the hot-buffer load each used context.Background(), so no
+// deadline or signal could reach them -- §5 asks for the opposite: "Pass
+// context.Context through every blocking layer." Freeze is the one deliberate
+// exception and says why at its call site.
 
 import (
 	"context"
@@ -38,75 +50,35 @@ import (
 
 	"github.com/withObsrvr/stellar-ingest/internal/adapters"
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/exit"
 	"github.com/withObsrvr/stellar-ingest/internal/jobs"
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
-// Run executes the request. It exits the process on failure; see above.
-func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
-	if req.EnrichContractBalances {
-		if req.Start == 0 || req.End == 0 || req.End < req.Start {
-			log.Fatalf("--enrich-contract-balances requires a valid inclusive --start/--end range")
-		}
-		if req.EnrichmentChunkSize == 0 {
-			log.Fatal("--enrichment-chunk-size must be greater than zero")
-		}
-		if req.DlCatalog == "" || req.DlDataPath == "" || req.B2KeyID == "" || req.B2KeySecret == "" {
-			log.Fatal("--enrich-contract-balances requires --ducklake-catalog, --ducklake-data-path, --b2-key-id, and --b2-key-secret")
-		}
-		if !req.EnrichmentDryRun && strings.TrimSpace(req.EnrichmentRunID) == "" {
-			log.Fatal("--enrichment-run-id is required unless --enrichment-dry-run is set")
-		}
+// freezeGrace is how long a range freeze may take after the push has landed,
+// even when the run is being cancelled.
+const freezeGrace = 30 * time.Second
 
-		ctx := context.Background()
-		enricher, err := adapters.NewContractBalanceEnricher(adapters.ContractBalanceEnricherConfig{
-			DuckLake: adapters.DuckLakeConfig{
-				CatalogDSN:     req.DlCatalog,
-				DataPath:       req.DlDataPath,
-				MetadataSchema: req.DlMetaSchema,
-				S3KeyID:        req.B2KeyID,
-				S3KeySecret:    req.B2KeySecret,
-				S3Endpoint:     req.B2Endpoint,
-				S3Region:       req.B2Region,
-			},
-			StartLedger:    int64(req.Start),
-			EndLedger:      int64(req.End),
-			ChunkSize:      int64(req.EnrichmentChunkSize),
-			RunID:          req.EnrichmentRunID,
-			Network:        req.NetworkPassphrase,
-			VersionLabel:   domain.Version,
-			ManifestSchema: req.EnrichmentManifestSchema,
-			DryRun:         req.EnrichmentDryRun,
-			Resume:         req.EnrichmentResume,
-		})
-		if err != nil {
-			log.Fatalf("contract-balance enrichment setup failed: %v", err)
-		}
-		defer enricher.Close()
-		result, err := enricher.Run(ctx)
-		if err != nil {
-			log.Fatalf("contract-balance enrichment failed: %v", err)
-		}
-		fmt.Printf(
-			"Contract-balance enrichment complete: dry_run=%t candidates=%d decoded=%d updated=%d skipped=%d\n",
-			req.EnrichmentDryRun, result.CandidateRows, result.DecodedRows, result.UpdatedRows, result.SkippedRows,
-		)
-		return
+// Run executes the request, returning an error whose exit class the adapter
+// turns into a process exit code.
+func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) error {
+	if req.EnrichContractBalances {
+		return runEnrichment(ctx, req)
 	}
 
 	// Validate required flags
 	if req.Start == 0 {
-		log.Fatal("--start is required and must be > 0")
+		return exit.Usagef("--start is required and must be > 0")
 	}
 	if req.End == 0 {
-		log.Fatal("--end is required and must be > 0")
+		return exit.Usagef("--end is required and must be > 0")
 	}
 	if req.OutputDir == "" {
-		log.Fatal("--output is required")
+		return exit.Usagef("--output-dir is required")
 	}
 	extractRequested := domain.ExtractionRequested(req.StorageType, req.Bucket)
 	if !extractRequested && !req.RunDuckLake {
-		log.Fatal("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
+		return exit.Usagef("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
 	}
 
 	startLedger := uint32(req.Start)
@@ -119,53 +91,78 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	duckLakeSkipSet := domain.ParseCSVSet(req.DlSkipTables)
 
 	if err := domain.ValidateLedgerRange(startLedger, endLedger); err != nil {
-		log.Fatal(err)
+		return exit.Wrap(exit.Usage, err)
 	}
 
 	if req.Workers < 1 {
-		log.Fatal("--workers must be >= 1")
+		return exit.Usagef("--workers must be >= 1")
 	}
 
 	if req.BatchSize < 1 {
-		log.Fatal("--batch-size must be >= 1")
+		return exit.Usagef("--batch-size must be >= 1")
 	}
 	if req.ChunkSize > 0 && !extractRequested {
-		log.Fatal("--chunk-size requires an extraction source")
+		return exit.Usagef("--chunk-size requires an extraction source")
 	}
 	if req.ChunkConcurrency < 1 {
-		log.Fatal("--chunk-concurrency must be at least 1")
+		return exit.Usagef("--chunk-concurrency must be at least 1")
 	}
 	if req.ChunkConcurrency > 1 && req.ChunkSize == 0 {
-		log.Fatal("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
+		return exit.Usagef("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
 	}
 	if req.ChunkConcurrency > 1 && !req.RangeState {
 		// Concurrent chunks are separate processes writing the same DuckLake
 		// tables. Without the range catalog nothing stops two runs taking the
 		// same chunk, and a crashed chunk leaves no record that it needs
 		// redoing -- which is most of what makes concurrency safe here.
-		log.Fatal("--chunk-concurrency above 1 requires --range-state")
+		return exit.Usagef("--chunk-concurrency above 1 requires --range-state")
 	}
 	if uint64(req.ChunkSize) > uint64(^uint32(0)) {
-		log.Fatal("--chunk-size exceeds the supported uint32 ledger range")
+		return exit.Usagef("--chunk-size exceeds the supported uint32 ledger range")
 	}
 	if req.ChunkSize > 0 && req.PgHost != "" {
-		log.Fatal("--chunk-size cannot currently be combined with --pg-host; populate the hot buffer after the chunked backfill")
+		return exit.Usagef("--chunk-size cannot currently be combined with --pg-host; populate the hot buffer after the chunked backfill")
 	}
 
 	switch req.StorageType {
 	case "GCS", "S3", "FS", "XDR", "RPC", "CAPTIVE_CORE":
 		// valid
 	default:
-		log.Fatalf("--storage-type must be one of: GCS, S3, FS, XDR, RPC, CAPTIVE_CORE (got %q)", req.StorageType)
+		return exit.Usagef("--storage-type must be one of: GCS, S3, FS, XDR, RPC, CAPTIVE_CORE (got %q)", req.StorageType)
 	}
 	if err := domain.ValidateTableSelection(extractOnlySet, "only-tables"); err != nil {
-		log.Fatal(err)
+		return exit.Wrap(exit.Usage, err)
 	}
 	if err := domain.ValidateTableSelection(duckLakeOnlySet, "ducklake-only-tables"); err != nil {
-		log.Fatal(err)
+		return exit.Wrap(exit.Usage, err)
 	}
 	if err := domain.ValidateTableSelection(duckLakeSkipSet, "ducklake-skip-tables"); err != nil {
-		log.Fatal(err)
+		return exit.Wrap(exit.Usage, err)
+	}
+
+	// Credentials and range-state coherence are input rules, so they are
+	// enforced here rather than where they are first used.
+	//
+	// They used to be checked at the point of use, which for the DuckLake
+	// credentials was AFTER extraction: a run with --ducklake and no
+	// B2_KEY_SECRET extracted the whole range to Parquet and then discovered
+	// it could not push. On a 10,000-ledger chunk that is an hour of work
+	// thrown away to report a missing environment variable. A test caught it
+	// by asserting that a rejected run creates no output directory.
+	if req.RangeState {
+		if req.DlCatalog == "" {
+			return exit.Usagef("--range-state requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
+		}
+		// frozen means "pushed to DuckLake". Claiming a range this run can
+		// never push would leave it freezing until the lease expired.
+		if !req.RunDuckLake {
+			return exit.Usagef("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
+		}
+	}
+	if req.RunDuckLake {
+		if err := requireDuckLakeCredentials(req); err != nil {
+			return err
+		}
 	}
 
 	// --plan answers "what is left" without doing anything. Read-only: it
@@ -176,39 +173,22 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	// hand is what made a multi-day backfill depend on an operator's notes;
 	// here the catalog is asked instead.
 	if req.PlanOnly {
-		if req.DlCatalog == "" {
-			log.Fatal("--plan requires --ducklake-catalog")
-		}
-		size := uint32(req.ChunkSize)
-		if size == 0 {
-			// No chunking means the whole span is one range, matching what a
-			// plain --start/--end run would claim.
-			size = endLedger - startLedger + 1
-		}
-		store, err := jobs.NewRangeStateStore(context.Background(), req.DlCatalog, req.RangeStateTable, req.EraID)
-		if err != nil {
-			log.Fatalf("range state: %v", err)
-		}
-		defer store.Close()
-
-		plan, err := store.Plan(context.Background(), jobs.EnumerateRanges(startLedger, endLedger, size), jobs.DefaultClaimLease)
-		if err != nil {
-			log.Fatalf("range state: %v", err)
-		}
-		fmt.Print(jobs.FormatPlan(plan))
-		return
+		return runPlan(ctx, req, startLedger, endLedger)
 	}
 
 	if req.ChunkSize > 0 {
-		if err := jobs.RunChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency); err != nil {
-			log.Fatalf("chunked backfill failed: %v", err)
+		if err := jobs.RunChunkedCommand(ctx, os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency); err != nil {
+			return fmt.Errorf("chunked backfill failed: %w", err)
 		}
-		return
+		return nil
 	}
 
 	// Ensure output directory exists
 	if err := os.MkdirAll(req.OutputDir, 0o755); err != nil {
-		log.Fatalf("Failed to create output directory %q: %v", req.OutputDir, err)
+		// Not classified here: a missing parent and a permission denial are
+		// both common and ClassOf reads the sentinel the filesystem already
+		// attached.
+		return fmt.Errorf("failed to create output directory %q: %w", req.OutputDir, err)
 	}
 	effectiveOutput := req.OutputDir
 	manifestPath := ""
@@ -221,7 +201,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 
 	reporter, err := flowcomponent.NewReporter(ctx, flowcomponent.ConfigFromEnv())
 	if err != nil {
-		log.Fatalf("Flowctl setup failed: %v", err)
+		return fmt.Errorf("flowctl setup failed: %w", err)
 	}
 	defer reporter.Close()
 	if err := reporter.Register(ctx, flowctlpb.ServiceType_SERVICE_TYPE_SOURCE, map[string]string{
@@ -232,17 +212,18 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 		"range_start":  fmt.Sprintf("%d", startLedger),
 		"range_end":    fmt.Sprintf("%d", endLedger),
 	}); err != nil {
-		log.Fatalf("Flowctl registration failed: %v", err)
+		return fmt.Errorf("flowctl registration failed: %w", err)
 	}
 	heartbeatCtx, stopHeartbeat := context.WithCancel(ctx)
 	defer stopHeartbeat()
 	go reporter.StartHeartbeatLoop(heartbeatCtx, nil, nil)
 
-	fatalChunk := func(phase string, err error, action string) {
-		if err != nil {
-			_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), phase, domain.ClassifyFlowctlFailure(err), err.Error(), action)
-			log.Fatalf("%s failed: %v", phase, err)
-		}
+	// chunkFailed records the failure against the chunk before returning it,
+	// so a watcher sees why rather than seeing the record stop. It replaces a
+	// closure named fatalChunk that called log.Fatalf.
+	chunkFailed := func(phase string, err error, action string) error {
+		_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), phase, domain.ClassifyFlowctlFailure(err), err.Error(), action)
+		return fmt.Errorf("%s failed: %w", phase, err)
 	}
 
 	totalLedgers := endLedger - startLedger + 1
@@ -275,24 +256,16 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	thisRange := jobs.LedgerRange{Start: startLedger, End: endLedger}
 	rangeAttemptID := jobs.NewAttemptID()
 	if req.RangeState {
-		if req.DlCatalog == "" {
-			log.Fatal("--range-state requires --ducklake-catalog")
-		}
-		// frozen means "pushed to DuckLake". Claiming a range this run can
-		// never push would leave it freezing until the lease expired.
-		if !req.RunDuckLake {
-			log.Fatal("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
-		}
 		var err error
-		rangeStore, err = jobs.NewRangeStateStore(context.Background(), req.DlCatalog, req.RangeStateTable, req.EraID)
+		rangeStore, err = jobs.NewRangeStateStore(ctx, req.DlCatalog, req.RangeStateTable, req.EraID)
 		if err != nil {
-			log.Fatalf("range state: %v", err)
+			return fmt.Errorf("range state: %w", err)
 		}
 		defer rangeStore.Close()
 
-		claimed, err := rangeStore.Claim(context.Background(), thisRange, rangeAttemptID, domain.Version, jobs.DefaultClaimLease)
+		claimed, err := rangeStore.Claim(ctx, thisRange, rangeAttemptID, domain.Version, jobs.DefaultClaimLease)
 		if err != nil {
-			log.Fatalf("range state: %v", err)
+			return fmt.Errorf("range state: %w", err)
 		}
 		if !claimed {
 			// Either already frozen, or held by a live claim. Both mean there
@@ -302,7 +275,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			// human reading a single-range dispatch.
 			fmt.Printf("%s Range %s is already frozen or claimed by another run; nothing to do.\n",
 				jobs.RangeSkippedMarker, thisRange)
-			return
+			return nil
 		}
 		fmt.Printf("Range %s claimed (freezing)\n", thisRange)
 	}
@@ -337,11 +310,11 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 
 		_ = statusEmitter.Working("", fmt.Sprintf("Extracting %d-%d", startLedger, endLedger), 0)
 		if err := orchestrator.Run(); err != nil {
-			// Reported before exiting, so a watcher sees why rather than
+			// Reported before returning, so a watcher sees why rather than
 			// seeing the record simply stop. error and done both survive
 			// process exit by design.
 			_ = statusEmitter.Failed("", fmt.Sprintf("extract %d-%d: %v", startLedger, endLedger, err))
-			fatalChunk("extract", err, "rerun_chunk")
+			return chunkFailed("extract", err, "rerun_chunk")
 		}
 		effectiveOutput = orchestrator.OutputDir()
 		manifestPath = orchestrator.ManifestPath()
@@ -381,17 +354,13 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			}
 			if err := validator.RunAll(ctx); err != nil {
 				_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), "validation", flowctlpb.FailureClass_FAILURE_CLASS_VERIFICATION, err.Error(), "inspect_output")
-				log.Fatalf("Validation failed: %v", err)
+				return fmt.Errorf("validation failed: %w", err)
 			}
 		}
 	}
 
 	// Push to DuckLake if configured
 	if req.RunDuckLake {
-		if req.DlCatalog == "" || req.DlDataPath == "" || req.B2KeyID == "" || req.B2KeySecret == "" {
-			log.Fatal("--ducklake requires --ducklake-catalog, --ducklake-data-path, --b2-key-id, --b2-key-secret")
-		}
-
 		fmt.Println()
 		fmt.Println("=== DuckLake Push ===")
 		dlStart := time.Now()
@@ -423,7 +392,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			ManifestPath:    manifestPath,
 		})
 		if err != nil {
-			fatalChunk("ducklake_setup", err, "retry_chunk")
+			return chunkFailed("ducklake_setup", err, "retry_chunk")
 		}
 		defer pusher.Close()
 
@@ -432,7 +401,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 		}
 		pushResult, err := pusher.Push(ctx, effectiveOutput)
 		if err != nil {
-			fatalChunk("ducklake_push", err, "retry_chunk")
+			return chunkFailed("ducklake_push", err, "retry_chunk")
 		}
 
 		fmt.Printf("DuckLake push completed in %s\n", time.Since(dlStart).Round(time.Millisecond))
@@ -440,8 +409,8 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 		// Frozen only now. Anything earlier would mark a range done whose
 		// rows had not reached cold, and a resumed plan would skip it.
 		if rangeStore != nil {
-			if err := rangeStore.Freeze(context.Background(), thisRange, rangeAttemptID, pushResult.TotalRows); err != nil {
-				log.Fatalf("range state: %v", err)
+			if err := freezeRange(ctx, rangeStore, thisRange, rangeAttemptID, pushResult.TotalRows); err != nil {
+				return fmt.Errorf("range state: %w", err)
 			}
 			fmt.Printf("Range %s frozen (%d rows)\n", thisRange, pushResult.TotalRows)
 		}
@@ -472,7 +441,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			log.Printf("Hot buffer connection failed: %v", err)
 		} else {
 			defer loader.Close()
-			if err := loader.LoadTail(context.Background(), uint32(req.TailLedgers), endLedger); err != nil {
+			if err := loader.LoadTail(ctx, uint32(req.TailLedgers), endLedger); err != nil {
 				log.Printf("Hot buffer load had errors: %v", err)
 			}
 			fmt.Printf("Hot buffer populated in %s\n", time.Since(hotStart).Round(time.Millisecond))
@@ -501,4 +470,132 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			log.Printf("Flowctl completion report failed: %v", err)
 		}
 	}
+	return nil
+}
+
+// requireDuckLakeCredentials reports what is missing by the name the operator
+// should now set.
+//
+// The old message named --ducklake-catalog, --b2-key-id and --b2-key-secret,
+// which is the advice that makes the tool warn at you: those flags are
+// deprecated precisely because they put secrets in argv. Naming the
+// environment variables instead means following the error leaves you in the
+// supported state.
+func requireDuckLakeCredentials(req RunRequest) error {
+	var missing []string
+	if req.DlCatalog == "" {
+		missing = append(missing, "DUCKLAKE_CATALOG_DSN")
+	}
+	if req.DlDataPath == "" {
+		missing = append(missing, "--ducklake-data-path")
+	}
+	if req.B2KeyID == "" {
+		missing = append(missing, "B2_KEY_ID")
+	}
+	if req.B2KeySecret == "" {
+		missing = append(missing, "B2_KEY_SECRET")
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return exit.Usagef("--ducklake requires %s (each credential also accepts a _FILE form naming a file to read)",
+		strings.Join(missing, ", "))
+}
+
+// freezeRange records a landed push even when the run is being cancelled.
+//
+// The push has already committed by the time this is called, so the rows are
+// in DuckLake whatever happens next. Freezing under the run's own context
+// would mean a SIGTERM arriving in this window leaves the range "freezing"
+// with its data present: the next plan would wait out the lease and then redo
+// work that was already done. A short uncancellable window is the lesser
+// evil, and it is bounded so a hung catalog cannot keep the process alive.
+func freezeRange(ctx context.Context, store *jobs.RangeStateStore, r jobs.LedgerRange, attemptID string, rows int64) error {
+	freezeCtx, cancel := freezeContext(ctx)
+	defer cancel()
+	return store.Freeze(freezeCtx, r, attemptID, rows)
+}
+
+// freezeContext is split out so the property above can be asserted without a
+// catalog: the returned context must outlive its parent's cancellation, and
+// must still have a deadline.
+func freezeContext(ctx context.Context) (context.Context, func()) {
+	return context.WithTimeout(context.WithoutCancel(ctx), freezeGrace)
+}
+
+// runPlan reports which ranges still need building, taking no claim.
+func runPlan(ctx context.Context, req RunRequest, startLedger, endLedger uint32) error {
+	if req.DlCatalog == "" {
+		return exit.Usagef("--plan requires a catalog DSN (DUCKLAKE_CATALOG_DSN)")
+	}
+	size := uint32(req.ChunkSize)
+	if size == 0 {
+		// No chunking means the whole span is one range, matching what a
+		// plain --start/--end run would claim.
+		size = endLedger - startLedger + 1
+	}
+	store, err := jobs.NewRangeStateStore(ctx, req.DlCatalog, req.RangeStateTable, req.EraID)
+	if err != nil {
+		return fmt.Errorf("range state: %w", err)
+	}
+	defer store.Close()
+
+	plan, err := store.Plan(ctx, jobs.EnumerateRanges(startLedger, endLedger, size), jobs.DefaultClaimLease)
+	if err != nil {
+		return fmt.Errorf("range state: %w", err)
+	}
+	fmt.Print(jobs.FormatPlan(plan))
+	return nil
+}
+
+// runEnrichment repairs missing Bronze contract balance fields in place. It
+// is the one operation that was already a mode switch rather than a phase,
+// and it returns without extracting.
+func runEnrichment(ctx context.Context, req RunRequest) error {
+	if req.Start == 0 || req.End == 0 || req.End < req.Start {
+		return exit.Usagef("--enrich-contract-balances requires a valid inclusive --start/--end range")
+	}
+	if req.EnrichmentChunkSize == 0 {
+		return exit.Usagef("--enrichment-chunk-size must be greater than zero")
+	}
+	if err := requireDuckLakeCredentials(req); err != nil {
+		return fmt.Errorf("--enrich-contract-balances: %w", err)
+	}
+	if !req.EnrichmentDryRun && strings.TrimSpace(req.EnrichmentRunID) == "" {
+		return exit.Usagef("--enrichment-run-id is required unless --enrichment-dry-run is set")
+	}
+
+	enricher, err := adapters.NewContractBalanceEnricher(adapters.ContractBalanceEnricherConfig{
+		DuckLake: adapters.DuckLakeConfig{
+			CatalogDSN:     req.DlCatalog,
+			DataPath:       req.DlDataPath,
+			MetadataSchema: req.DlMetaSchema,
+			S3KeyID:        req.B2KeyID,
+			S3KeySecret:    req.B2KeySecret,
+			S3Endpoint:     req.B2Endpoint,
+			S3Region:       req.B2Region,
+		},
+		StartLedger:    int64(req.Start),
+		EndLedger:      int64(req.End),
+		ChunkSize:      int64(req.EnrichmentChunkSize),
+		RunID:          req.EnrichmentRunID,
+		Network:        req.NetworkPassphrase,
+		VersionLabel:   domain.Version,
+		ManifestSchema: req.EnrichmentManifestSchema,
+		DryRun:         req.EnrichmentDryRun,
+		Resume:         req.EnrichmentResume,
+	})
+	if err != nil {
+		return fmt.Errorf("contract-balance enrichment setup failed: %w", err)
+	}
+	defer enricher.Close()
+	result, err := enricher.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("contract-balance enrichment failed: %w", err)
+	}
+	fmt.Printf(
+		"Contract-balance enrichment complete: dry_run=%t candidates=%d decoded=%d updated=%d skipped=%d\n",
+		req.EnrichmentDryRun, result.CandidateRows, result.DecodedRows, result.UpdatedRows, result.SkippedRows,
+	)
+	return nil
 }
