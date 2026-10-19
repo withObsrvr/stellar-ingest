@@ -194,3 +194,42 @@ func RenderDoctor(w io.Writer, format OutputFormat, result *app.DoctorResult) er
 		return exit.Usagef("unknown output format %q; want one of %s", format, OutputFormatNames())
 	}
 }
+
+// RenderInspect writes a lifecycle query result.
+func RenderInspect(w io.Writer, format OutputFormat, result *app.InspectResult) error {
+	if result == nil {
+		return nil
+	}
+	switch format {
+	case FormatJSON:
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	case FormatNDJSON:
+		// One line per range: here the ranges are the stream.
+		encoder := json.NewEncoder(w)
+		for _, r := range result.Ranges {
+			if err := encoder.Encode(r); err != nil {
+				return err
+			}
+		}
+		return nil
+	case FormatTable:
+		var b strings.Builder
+		fmt.Fprintf(&b, "%-22s %-10s %-12s %s\n", "RANGE", "LIFECYCLE", "ROWS", "JOB")
+		for _, r := range result.Ranges {
+			rows := ""
+			if r.Rows > 0 {
+				rows = fmt.Sprintf("%d", r.Rows)
+			}
+			fmt.Fprintf(&b, "%-22s %-10s %-12s %s\n",
+				fmt.Sprintf("%d-%d", r.Start, r.End), r.Lifecycle, rows, r.JobID)
+		}
+		fmt.Fprintf(&b, "\n%d ranges: %d queued, %d running, %d succeeded, %d failed\n",
+			len(result.Ranges), result.Queued, result.Running, result.Succeeded, result.Failed)
+		_, err := io.WriteString(w, b.String())
+		return err
+	default:
+		return exit.Usagef("unknown output format %q; want one of %s", format, OutputFormatNames())
+	}
+}

@@ -15,6 +15,7 @@ package app
 import (
 	"io"
 
+	"github.com/withObsrvr/stellar-ingest/internal/events"
 	"github.com/withObsrvr/stellar-ingest/internal/logging"
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
@@ -31,6 +32,9 @@ type Deps struct {
 	// Status reports OSC 7501 program status, for a terminal or a UI that
 	// renders it.
 	Status *status.Emitter
+	// Events receives §4's immutable notifications. Nil is safe and is the
+	// default: most callers do not want an event stream.
+	Events *events.Emitter
 }
 
 // log returns a usable logger, discarding when none was supplied.

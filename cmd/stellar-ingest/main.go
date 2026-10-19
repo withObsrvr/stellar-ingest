@@ -171,7 +171,16 @@ func runFlatForm(ctx context.Context) error {
 	// Everything the command line had to decide is decided. From here the
 	// request is data, and the operation behind it has no idea a terminal
 	// exists.
-	result, err := app.Run(ctx, req, app.Deps{Out: os.Stdout, Log: log, Status: emitter})
+	jobID := cli.NewJobID()
+	eventStream, closeEvents, err := cli.OpenEventStream(values.EventsPath, jobID, os.Stdout)
+	if err != nil {
+		return err
+	}
+	defer closeEvents()
+
+	result, err := app.Run(ctx, req, app.Deps{
+		Out: os.Stdout, Log: log, Status: emitter, Events: eventStream,
+	})
 	if err != nil {
 		return err
 	}

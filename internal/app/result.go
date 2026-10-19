@@ -45,8 +45,11 @@ const (
 
 // RunResult is what an operation produces.
 type RunResult struct {
-	Schema    string    `json:"schema"`
-	Operation string    `json:"operation"`
+	Schema    string `json:"schema"`
+	Operation string `json:"operation"`
+	// JobID correlates this result with the event stream and with the
+	// range catalog, which stores the same value as attempt_id.
+	JobID     string    `json:"job_id,omitempty"`
 	Outcome   Outcome   `json:"outcome"`
 	Version   string    `json:"version"`
 	StartedAt time.Time `json:"started_at"`

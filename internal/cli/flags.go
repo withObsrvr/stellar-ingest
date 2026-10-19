@@ -75,11 +75,13 @@ type Values struct {
 	// presentation and never reach RunRequest: an operation does not know
 	// whether anybody is watching. Timeout is applied by the adapter, which
 	// hands the operation a context that is already bounded.
-	Doctor  bool
-	Quiet   bool
-	Verbose bool
-	NoColor bool
-	Timeout time.Duration
+	EventsPath string
+	WaitFor    string
+	Doctor     bool
+	Quiet      bool
+	Verbose    bool
+	NoColor    bool
+	Timeout    time.Duration
 }
 
 // flagKind is how a flag is registered.
@@ -347,6 +349,16 @@ var flagSpecs = []flagSpec{
 		Name: "enrichment-manifest-schema", Usage: "DuckLake schema for the enrichment audit manifest",
 		Kind: kindString, DefString: "bronze_operations",
 		Target: func(v *Values) any { return &v.EnrichmentManifestSchema },
+	},
+	{
+		Name: "events", Usage: "Write the NDJSON event stream to this path; - for stdout. Empty emits nothing",
+		Kind: kindString, DefString: "",
+		Target: func(v *Values) any { return &v.EventsPath },
+	},
+	{
+		Name: "for", Usage: "Condition wait blocks on: succeeded|settled",
+		Kind: kindString, DefString: "succeeded",
+		Target: func(v *Values) any { return &v.WaitFor },
 	},
 	{
 		Name: "doctor", Usage: "Check credentials, DuckDB extensions and catalog reachability, then exit without ingesting",

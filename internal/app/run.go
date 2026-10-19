@@ -49,6 +49,7 @@ import (
 
 	"github.com/withObsrvr/stellar-ingest/internal/adapters"
 	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/events"
 	"github.com/withObsrvr/stellar-ingest/internal/exit"
 	"github.com/withObsrvr/stellar-ingest/internal/jobs"
 )
@@ -62,6 +63,13 @@ const freezeGrace = 30 * time.Second
 func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 	log := deps.log()
 	started := time.Now()
+	// One identity for the run. The event stream's job id and the range
+	// catalog's attempt_id are the same value, so a consumer joins them
+	// directly instead of matching on timestamps.
+	jobID := deps.Events.JobID()
+	if jobID == "" {
+		jobID = jobs.NewAttemptID()
+	}
 	operation := req.Operation
 	if operation == "" {
 		operation = "run"
@@ -201,7 +209,18 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 	}
 
 	result := newRunResult(operation, domain.Version, started)
+	result.JobID = jobID
 	result.Range = &RangeResult{Start: startLedger, End: endLedger, Ledgers: endLedger - startLedger + 1}
+
+	// Emission errors are ignored throughout: a full disk on the event
+	// stream must not fail an ingestion that is otherwise working.
+	resource := "range/" + thisRangeLabel(startLedger, endLedger)
+	_ = deps.Events.Emit(events.TypeRunStarted, resource, map[string]any{
+		"operation": operation,
+		"start":     startLedger,
+		"end":       endLedger,
+		"version":   domain.Version,
+	})
 
 	totalLedgers := endLedger - startLedger + 1
 
@@ -274,7 +293,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 	// one-range Nomad dispatch.
 	var rangeStore *jobs.RangeStateStore
 	thisRange := jobs.LedgerRange{Start: startLedger, End: endLedger}
-	rangeAttemptID := jobs.NewAttemptID()
+	rangeAttemptID := jobID
 	if req.RangeState {
 		var err error
 		rangeStore, err = jobs.NewRangeStateStore(ctx, req.DlCatalog, req.RangeStateTable, req.EraID)
@@ -296,9 +315,11 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 			log.Info("%s Range %s is already frozen or claimed by another run; nothing to do.",
 				jobs.RangeSkippedMarker, thisRange)
 			result.Outcome = OutcomeSkipped
+			_ = deps.Events.Emit(events.TypeRunSkipped, resource, nil)
 			return result.finish(started), nil
 		}
 		log.Info("Range %s claimed (freezing)", thisRange)
+		_ = deps.Events.Emit(events.TypeRangeClaimed, resource, map[string]any{"attempt_id": rangeAttemptID})
 	}
 
 	// Skip extraction if only doing DuckLake push on existing output
@@ -363,6 +384,12 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 		log.Field("Total ledgers", "%d", totalLedgers)
 		log.Field("Elapsed time", "%s", elapsed.Round(time.Millisecond))
 		log.Field("Throughput", "%.1f ledgers/sec", throughput)
+		_ = deps.Events.Emit(events.TypeExtractCompleted, resource, map[string]any{
+			"ledgers":            totalLedgers,
+			"duration_ms":        elapsed.Milliseconds(),
+			"ledgers_per_second": throughput,
+			"output_dir":         effectiveOutput,
+		})
 		if skipped := extract.CallGraphSkippedEdges(); skipped > 0 {
 			log.Field("Call-graph edges skipped", "%d (non-contract/unencodable address)", skipped)
 		}
@@ -383,6 +410,9 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 			}
 			passed, failed, err := validator.RunAll(ctx)
 			result.Validate = &ValidateResult{Passed: passed, Failed: failed}
+			_ = deps.Events.Emit(events.TypeValidateCompleted, resource, map[string]any{
+				"passed": passed, "failed": failed,
+			})
 			if err != nil {
 				_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), "validation", flowctlpb.FailureClass_FAILURE_CLASS_VERIFICATION, err.Error(), "inspect_output")
 				return nil, fmt.Errorf("validation failed: %w", err)
@@ -436,6 +466,11 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 		}
 
 		log.Info("DuckLake push completed in %s", time.Since(dlStart).Round(time.Millisecond))
+		_ = deps.Events.Emit(events.TypePushCompleted, resource, map[string]any{
+			"total_rows":  pushResult.TotalRows,
+			"duration_ms": time.Since(dlStart).Milliseconds(),
+			"data_path":   req.DlDataPath,
+		})
 		result.DuckLake = &DuckLakeResult{
 			DataPath:   req.DlDataPath,
 			TotalRows:  pushResult.TotalRows,
@@ -452,6 +487,9 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 			log.Info("Range %s frozen (%d rows)", thisRange, pushResult.TotalRows)
 			result.Range.Frozen = true
 			result.Range.Rows = pushResult.TotalRows
+			_ = deps.Events.Emit(events.TypeRangeFrozen, resource, map[string]any{
+				"rows": pushResult.TotalRows, "attempt_id": rangeAttemptID,
+			})
 		}
 		if err := reporter.ReportChunkCompleted(ctx, int64(startLedger), int64(endLedger), true, pushResult.RowCounts, map[string]string{
 			"gate":   "ducklake-push",
@@ -514,7 +552,15 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 			log.Warn("flowctl completion report failed: %v", err)
 		}
 	}
+	_ = deps.Events.Emit(events.TypeRunSucceeded, resource, map[string]any{
+		"duration_ms": time.Since(started).Milliseconds(),
+	})
 	return result.finish(started), nil
+}
+
+// thisRangeLabel names the resource an event is about.
+func thisRangeLabel(start, end uint32) string {
+	return fmt.Sprintf("%d-%d", start, end)
 }
 
 // requireDuckLakeCredentials reports what is missing by the name the operator

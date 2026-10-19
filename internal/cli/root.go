@@ -29,7 +29,7 @@ type operation func(context.Context, app.RunRequest, app.Deps) (*app.RunResult, 
 // CommandNames are the verbs the root command accepts. The flat-form
 // dispatcher needs this list to tell a verb from a flag.
 func CommandNames() []string {
-	return []string{"extract", "validate", "load", "repair", "run", "doctor", "version", "help", "completion"}
+	return []string{"extract", "validate", "load", "repair", "run", "doctor", "inspect", "wait", "version", "help", "completion"}
 }
 
 // NewRootCommand builds the command tree.
@@ -104,6 +104,8 @@ phases happen is still decided by the flags.`,
 			}, app.Run, out, errOut),
 
 		newDoctorCommand(out, errOut),
+		newQueryCommand("inspect", out, errOut),
+		newQueryCommand("wait", out, errOut),
 		newVersionCommand(out),
 	)
 	return root
@@ -142,7 +144,16 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 			ctx, cancel := WithTimeout(cmd.Context(), values.Timeout)
 			defer cancel()
 
-			result, err := op(ctx, req, app.Deps{Out: out, Log: log, Status: emitter})
+			jobID := NewJobID()
+			eventStream, closeEvents, err := OpenEventStream(values.EventsPath, jobID, out)
+			if err != nil {
+				return err
+			}
+			defer closeEvents()
+
+			result, err := op(ctx, req, app.Deps{
+				Out: out, Log: log, Status: emitter, Events: eventStream,
+			})
 			if err != nil {
 				return err
 			}
@@ -259,4 +270,78 @@ func RunDoctor(ctx context.Context, req app.RunRequest, deps app.Deps, format Ou
 		return exit.Usagef("%d diagnostic check(s) failed", result.Failed)
 	}
 	return nil
+}
+
+// newQueryCommand builds inspect and wait, §4's query and synchronisation
+// primitives.
+//
+// One constructor for both because they differ only in whether they return
+// the first answer or block for a condition, and splitting them would mean
+// two copies of the same flag wiring drifting apart.
+func newQueryCommand(verb string, out, errOut io.Writer) *cobra.Command {
+	values := &Values{}
+	cmd := &cobra.Command{Use: verb}
+
+	switch verb {
+	case "inspect":
+		cmd.Short = "Report the lifecycle state of each range in the catalog"
+		cmd.Long = `Inspect reads the range catalog and reports where each range in the
+requested span stands: queued, running, succeeded or failed.
+
+It is a query. It takes no claim and changes nothing, so running it while a
+backfill is in flight is safe and shows that backfill's live claims.`
+		cmd.Example = "  " + joinExamples([]string{
+			"stellar-ingest inspect --start 64000000 --end 64010000 --chunk-size 1000",
+			"stellar-ingest inspect --start 64000000 --end 64010000 --output json",
+		})
+	case "wait":
+		cmd.Short = "Block until every range in the span reaches a condition"
+		cmd.Long = `Wait polls the range catalog until the condition holds, the run is
+cancelled, or --timeout elapses.
+
+  --for succeeded   every range is frozen
+  --for settled     no range is still queued or running
+
+Exit status is 5 when the deadline passes, so CI can tell a timeout from a
+failure.`
+		cmd.Example = "  " + joinExamples([]string{
+			"stellar-ingest wait --start 64000000 --end 64010000 --chunk-size 1000 --for succeeded --timeout 6h",
+		})
+	}
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		req, notices, err := values.Resolve()
+		if err != nil {
+			return err
+		}
+		outputs, err := ResolveOutput(values.OutputDir, values.Output)
+		if err != nil {
+			return err
+		}
+		log, err := ResolveLogging(values, errOut)
+		if err != nil {
+			return err
+		}
+		for _, notice := range notices {
+			log.Warn("%s", notice)
+		}
+		ctx, cancel := WithTimeout(cmd.Context(), values.Timeout)
+		defer cancel()
+
+		deps := app.Deps{Out: out, Log: log}
+		var result *app.InspectResult
+		if verb == "wait" {
+			result, err = app.Wait(ctx, req, deps, app.WaitCondition(values.WaitFor))
+		} else {
+			result, err = app.Inspect(ctx, req, deps)
+		}
+		// A timed-out wait still renders what it last saw: "it did not
+		// finish" is more useful with the state attached than without.
+		if renderErr := RenderInspect(out, outputs.Format, result); renderErr != nil && err == nil {
+			return renderErr
+		}
+		return err
+	}
+	values.RegisterPFlags(cmd.Flags())
+	return cmd
 }

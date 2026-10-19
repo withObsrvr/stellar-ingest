@@ -62,6 +62,15 @@ const (
 	rangeFrozen   = "frozen"
 )
 
+// StateFreezing and StateFrozen expose the same two words to the
+// application layer, which maps them onto §4's lifecycle vocabulary.
+// Exported as aliases rather than by renaming the originals so every use
+// inside this package still reads in the archive node's terms.
+const (
+	StateFreezing = rangeFreezing
+	StateFrozen   = rangeFrozen
+)
+
 // DefaultClaimLease is how long a `freezing` claim is honoured before the
 // range is treated as abandoned.
 //
