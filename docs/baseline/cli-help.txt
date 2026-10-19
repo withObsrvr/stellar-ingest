@@ -89,5 +89,7 @@ Usage of stellar-ingest:
     	Number of recent ledgers to load into hot buffer (default 100000)
   -validate
     	Run quality validation checks after extraction
+  -version
+    	Print the build version and exit
   -workers int
     	Number of parallel workers (default <NumCPU>)

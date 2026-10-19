@@ -26,7 +26,7 @@
           # notice, because it never runs nix.
           #
           # Regenerate with `make nix-vendor-hash`.
-          vendorHash = "sha256-yCKtbQq1EiuoXPbhRlF54cBldNgWWtxhZ+CNhly0zQc=";
+          vendorHash = "sha256-kmOLacGMhbcrTrXM+E68KUArEaO0EhEk6/2G95SlDEg=";
 
           # duckdb-go/v2 is cgo and bundles its own DuckDB, so unlike the other
           # Obsrvr services this cannot be built with CGO_ENABLED=0.
@@ -34,10 +34,10 @@
 
           nativeBuildInputs = [ pkgs.pkg-config ];
 
-          ldflags = [ "-X" "main.Version=${revision}" ];
+          ldflags = [ "-X" "github.com/withObsrvr/stellar-ingest/internal/ingest.Version=${revision}" ];
 
           # The module is a single flat package main at the repository root.
-          subPackages = [ "." ];
+          subPackages = [ "cmd/stellar-ingest" ];
 
           # The golden Bronze suite is hermetic — fixtures are committed and it
           # needs no network or credentials — so it runs as part of the build.
@@ -58,7 +58,8 @@
           # program, kept so existing operational scripts keep working.
           postInstall = ''
             ln -s stellar-ingest $out/bin/stellar-history-loader
-            install -Dm444 v3_bronze_schema.sql $out/share/stellar-ingest/v3_bronze_schema.sql
+            install -Dm444 internal/ingest/v3_bronze_schema.sql $out/share/stellar-ingest/v3_bronze_schema.sql
+            install -Dm444 internal/ingest/v3_bronze_views.sql $out/share/stellar-ingest/v3_bronze_views.sql
           '';
 
           meta = with pkgs.lib; {

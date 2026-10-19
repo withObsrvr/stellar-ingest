@@ -6,12 +6,15 @@ require (
 	github.com/duckdb/duckdb-go/v2 v2.10504.0
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/parquet-go/parquet-go v0.29.0
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.9
 	github.com/stellar/go-stellar-sdk v0.7.3
 	github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5
 	github.com/withobsrvr/flowctl v0.0.10
 )
 
 require (
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 )

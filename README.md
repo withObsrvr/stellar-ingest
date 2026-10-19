@@ -26,9 +26,21 @@ It is **behaviour-identical** to that application — same flags, same defaults,
 same output, same exit codes. See [`PROVENANCE.md`](PROVENANCE.md) for exactly
 what changed and what parity was verified.
 
-Incremental refactoring now includes a private worker/Parquet boundary and
-the `internal/bronze/restored` mapper. Most code remains in `package main`;
-no public 21-table Bronze API is claimed. See
+The code is now layered, per §2 and §6 of the
+[CLI Engineering Standard](docs/cli-standard-adoption.md):
+
+```
+cmd/stellar-ingest/     composition root: flags in, typed request out
+internal/cli/           flag resolution and rendering only
+internal/app/           the operations: a run, callable without a terminal
+internal/ingest/        the engine, importable
+internal/credential/    where a secret came from
+internal/status/        OSC 7501 program status
+```
+
+`internal/ingest` is importable, which is the point: an API, a UI or a test
+can run an ingestion without a process boundary or a flag parser. No public
+21-table Bronze API is claimed — `internal/` is private by construction. See
 [`docs/module-boundaries.md`](docs/module-boundaries.md),
 [`docs/target-architecture.md`](docs/target-architecture.md), and
 [`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).
@@ -62,16 +74,35 @@ Flakes only see git-tracked files, so `git add` a new file before building it.
 ## Build
 
 ```sh
-make build-all     # bin/stellar-ingest and bin/stellar-history-loader
-make build         # stellar-ingest only
+make build-all      # bin/stellar-ingest and bin/stellar-history-loader
+make build          # stellar-ingest only
 make test
-make ci-build      # deps, vet, build, test, CLI parity gate
+make version-stamp  # assert the build stamp reached the binary
+make ci-build       # deps, vet, build, test, CLI parity gate, build stamp
 ```
 
 `stellar-history-loader` is a transitional alias for the same program so
 existing scripts keep working. See [`docs/compatibility.md`](docs/compatibility.md).
 
 ## Usage
+
+```sh
+stellar-ingest extract   --start 64000000 --end 64001000 --output-dir ./bronze
+stellar-ingest validate  --output-dir ./bronze --output json
+stellar-ingest load      --output-dir ./bronze --ducklake --ducklake-data-path s3://bucket/
+stellar-ingest repair    --start 61790000 --end 61891000 --enrichment-dry-run
+stellar-ingest run       --start 64000000 --end 64001000 --output-dir ./bronze --ducklake
+stellar-ingest version
+```
+
+The flag-only form — no verb — keeps working and is equivalent to `run`. It
+warns once per invocation. Deployed jobs pass about twenty flags with no verb,
+so breaking them to gain a noun was not worth it.
+
+The two surfaces are parsed by different libraries, which matters in one
+visible way: the verb form requires `--flag`, while the flag-only form also
+accepts `-flag`. pflag, which Cobra uses, reads a single dash followed by
+several characters as a cluster of shorthands.
 
 The binary takes flags, not a config file. Forty-six flags; `--help` is the
 full list and `docs/baseline/cli-help.txt` is the recorded contract, enforced
