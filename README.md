@@ -30,17 +30,22 @@ The code is now layered, per §2 and §6 of the
 [CLI Engineering Standard](docs/cli-standard-adoption.md):
 
 ```
-cmd/stellar-ingest/     composition root: flags in, typed request out
-internal/cli/           flag resolution and rendering only
+cmd/stellar-ingest/     composition root and surface dispatch
+internal/cli/           flags, resolution, Cobra commands
 internal/app/           the operations: a run, callable without a terminal
-internal/ingest/        the engine, importable
+internal/domain/        value objects, configuration, validation
+internal/adapters/      sources and sinks: Parquet, DuckLake, hot buffer
+internal/jobs/          orchestration: worker, checkpoint, chunks, lineage
+internal/fixtures/      the committed fixtures, shared by every layer's tests
 internal/credential/    where a secret came from
 internal/status/        OSC 7501 program status
 ```
 
-`internal/ingest` is importable, which is the point: an API, a UI or a test
-can run an ingestion without a process boundary or a flag parser. No public
-21-table Bronze API is claimed — `internal/` is private by construction. See
+The dependency direction is enforced by the compiler, not by intention:
+`domain` depends on nothing in this repository, `adapters` on `domain`, and
+`jobs` on both. An API, a UI or a test can run an ingestion without a process
+boundary or a flag parser. No public 21-table Bronze API is claimed —
+`internal/` is private by construction. See
 [`docs/module-boundaries.md`](docs/module-boundaries.md),
 [`docs/target-architecture.md`](docs/target-architecture.md), and
 [`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).

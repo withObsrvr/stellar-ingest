@@ -40,60 +40,69 @@ Against §5 security: **closed.** All four credentials now resolve from the
 environment or a file, the flags warn, and the warning never echoes a value.
 See *Done* below.
 
-Against §6 (layout): **done for the layers that matter now.**
+Against §6 (layout): **done.**
 
 ```
-cmd/stellar-ingest/     composition root
-internal/cli/           flags, resolution, rendering
-internal/app/           the operations
-internal/ingest/        the engine, importable
+cmd/stellar-ingest/   composition root and surface dispatch
+internal/cli/         flags, resolution, Cobra commands
+internal/app/         the operations
+internal/domain/      value objects, configuration, validation
+internal/adapters/    sources and sinks: Parquet, DuckLake, hot buffer
+internal/jobs/        orchestration: worker, checkpoint, chunks, lineage
+internal/fixtures/    the committed fixtures, shared by every layer's tests
+internal/credential/  where a secret came from
+internal/status/      OSC 7501 program status
 ```
 
-`internal/domain`, `internal/jobs` and `internal/adapters` are not split out
-yet. `internal/events` has nothing to hold until Stage 6.
-
-The split has been analysed rather than assumed, and a clean layering does
-exist — but not the obvious one. Counting every cross-file reference in the
-engine against a proposed assignment gives:
+The dependency direction is now enforced by the compiler rather than by
+intention:
 
 ```
-jobs      -> domain    34      the expected direction
-adapters  -> jobs      28      a back-edge
-jobs      -> adapters   7      the expected direction
-adapters  -> domain     6      the expected direction
-domain    -> jobs       1      a back-edge
-domain    -> adapters   1      a back-edge
+domain    -> status
+adapters  -> domain
+jobs      -> adapters, domain, parity, status
 ```
 
-Three cycles, each caused by a value object sitting in the wrong file rather
-than by genuine entanglement:
+`internal/events` is still empty, because it has nothing to hold until
+Stage 6 gives jobs an event stream.
 
-| back-edge | cause | where it belongs |
-|---|---|---|
-| `domain -> jobs` | `types.go` uses `LedgerRange`, defined in `range_state.go` | `LedgerRange` is a value object: domain |
-| `domain -> adapters` | `table_selection.go` uses `mapToDuckLakeTable` from `ducklake.go` | the 21-table name map is pure data: domain |
-| `adapters -> jobs` | `ducklake.go` and others use the attempt manifest | `AttemptManifest` is a value object: domain |
+Three cycles had to be broken first, each caused by a value object sitting in
+the wrong file rather than by real entanglement. `LedgerRange` and
+`RangeState` lived in the range catalog, `OrchestratorConfig` in the
+orchestrator, `LineageRecord` in the lineage writer, `BatchData` and
+`PrefetchedLedger` in the worker, `DefaultPrefetchBuffer` in the worker, and
+the DuckLake table-name map in the pusher. All of them are shapes two layers
+agree on, so all of them are domain.
 
-And one finding worth keeping: `jobs -> adapters` is the *correct* direction —
-an orchestrator writes through a sink — so the first draft of the layering had
-it backwards. `worker.go` needing the Parquet writer and the stream source is
-not a cycle, it is the shape.
+Two findings the compiler produced that no amount of reading would have:
 
-What makes this its own change rather than part of Stage 4: the 75 cross-layer
-references are all lowercase today, because they are within one package.
-Splitting means exporting most of them, which is a large API churn on top of
-the 128 files Stage 4 already moved — and it would rewrite the same golden and
-parity files whose `R100` rename status is the evidence that Stage 4 changed
-nothing. Doing both at once would destroy that proof.
+- `jobs -> adapters` is the **correct** direction. The first draft of this
+  layering had it backwards, on the assumption that a sink is lower than an
+  orchestrator. A worker writes through a writer; that is the shape.
+- `BatchData` is not a pure value object. It has a method, `MergeLedger`,
+  which was defined in `worker.go` -- and a type cannot have methods outside
+  its own package, so the split made that visible immediately.
 
-Two places this tool is **ahead** of the standard, worth not regressing:
+`XDRStreamSource` moved out of `worker.go` as well. A source living in the
+orchestration layer was invisible while everything shared a package; once an
+adapters test could not reach it without importing jobs, it was obvious.
 
-- `docs/baseline/cli-help.txt` is a reviewed, CI-enforced record of the flag
-  surface. A flag change that does not update it fails the build. The standard
-  asks for compatibility regression tests; this is one, and it already works.
-- Golden and parity suites pin extractor output per column, which is the §6
-  testing pyramid's "golden JSON/NDJSON and exit-code tests" rung for the data
-  rather than the CLI.
+### What it cost, honestly
+
+Eleven symbols needed exporting, not the seventy-five estimated before the
+work. That earlier figure counted cross-layer *references*; the distinct
+symbols were forty-seven, and thirty-six were already exported.
+
+The real cost was test placement. A Go test can only reach a package's
+unexported internals from inside that package, so each of the forty-four test
+files had to go where its subject lives -- and three files tested internals of
+two packages at once and had to be split. The shared fixture helpers could not
+move at all, because a test helper cannot cross a package boundary either;
+they became `internal/fixtures`, which is a normal package rather than a test
+file so that any layer can import it.
+
+`testdata` moved to the repository root, above all three layers, because all
+three read the same eight fixtures.
 
 ## The `--output` collision — resolved
 

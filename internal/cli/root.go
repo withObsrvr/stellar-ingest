@@ -18,7 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/withObsrvr/stellar-ingest/internal/app"
-	"github.com/withObsrvr/stellar-ingest/internal/ingest"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
@@ -133,7 +133,7 @@ func newVersionCommand(out io.Writer) *cobra.Command {
 		Use:   "version",
 		Short: "Print the build version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(out, ingest.Version)
+			fmt.Fprintln(out, domain.Version)
 			return nil
 		},
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 func TestExtractAutomaticRestoreWithoutRestoreFootprint(t *testing.T) {
-	path := filepath.Join("..", "..", "ingest", "testdata", "fixtures", "pubnet-auto-restore-p25", "ledgers.xdr.zst")
+	path := filepath.Join("..", "..", "..", "testdata", "fixtures", "pubnet-auto-restore-p25", "ledgers.xdr.zst")
 	compressed, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

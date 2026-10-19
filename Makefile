@@ -48,10 +48,10 @@ GOENV      := GOWORK=off CGO_ENABLED=1
 GOBUILD    := $(GOENV) $(GOCMD) build
 GOTEST     := $(GOENV) $(GOCMD) test
 GOCLEAN    := $(GOCMD) clean
-# Version lives in internal/ingest, which is what stamps it into manifests,
+# Version lives in internal/domain, which is what stamps it into manifests,
 # lineage rows and parity records. The linker path moved with it; a build that
 # still said main.Version would silently stamp "dev".
-LDFLAGS    := -X github.com/withObsrvr/stellar-ingest/internal/ingest.Version=$(GIT_SHA)
+LDFLAGS    := -X github.com/withObsrvr/stellar-ingest/internal/domain.Version=$(GIT_SHA)
 
 all: build-all
 
@@ -104,7 +104,7 @@ INTEGRATION_PG_NAME ?= ingest-catalog
 INTEGRATION_DATA_PATH ?= $(CURDIR)/build/lakedata/
 # CONTAINER_CLI is already defined above; the integration targets reuse it.
 
-# The build stamp must actually land. Version lives in internal/ingest and is
+# The build stamp must actually land. Version lives in internal/domain and is
 # set by a linker flag naming that package, from three build paths -- this
 # Makefile, the Dockerfile and flake.nix. A build that misses it stamps "dev"
 # into every manifest, lineage row and parity record, which is precisely the
@@ -138,7 +138,7 @@ integration-ducklake:
 	DUCKLAKE_INGESTION_TEST_POSTGRES="postgresql://ingest:ingest@localhost:$(INTEGRATION_PG_PORT)/ducklake_catalog?sslmode=disable" \
 	DUCKLAKE_INGESTION_TEST_EXTENSION_DIR="$(HOME)/.duckdb/extensions" \
 	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_DATA_PATH)" \
-	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' ./internal/ingest
+	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' ./internal/adapters
 
 # The same two tests against a DuckDB file catalog instead of PostgreSQL.
 # Needs no container and no credentials, so this is the one to reach for while
@@ -151,7 +151,7 @@ integration-ducklake-file:
 	DUCKLAKE_INGESTION_TEST_POSTGRES="$(INTEGRATION_FILE_CATALOG)/catalog.ducklake" \
 	DUCKLAKE_INGESTION_TEST_EXTENSION_DIR="$(HOME)/.duckdb/extensions" \
 	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_FILE_CATALOG)/data/" \
-	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' ./internal/ingest
+	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' ./internal/adapters
 
 integration: integration-up
 	$(MAKE) integration-ducklake; status=$$?; $(MAKE) integration-down; exit $$status
@@ -217,7 +217,7 @@ LIVE_INGESTER ?= ../ttp-processor-demo/obsrvr-lake/stellar-postgres-ingester/go
 # Historical side: decompress fixtures, extract twice (the second pass is the
 # non-determinism control), write digests and canonical rows.
 parity-export:
-	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityExportHistorical -timeout 30m -v ./internal/ingest
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityExportHistorical -timeout 30m -v ./internal/jobs
 
 # Live side: runs in the sibling repository against the XDR just exported.
 parity-live:
@@ -227,20 +227,20 @@ parity-live:
 
 # Comparison over both sides' artifacts, including the row-level drill-down.
 parity-report:
-	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityCompare -timeout 30m -v ./internal/ingest
+	PARITY_OUT=$(PARITY_DIR) $(GOTEST) -run TestParityCompare -timeout 30m -v ./internal/jobs
 	@echo "✓ report → $(PARITY_DIR)/report/summary.md"
 
 # Regenerate the reviewed matrix from the committed digests. Hermetic.
 parity-matrix:
-	$(GOTEST) -run TestParityMatrixUpdate -update ./internal/ingest
+	$(GOTEST) -run TestParityMatrixUpdate -update ./internal/jobs
 	@echo "✓ docs/ticket-04-parity-matrix.md regenerated — review the diff"
 
 # Promote a fresh export to the committed baselines. Never run this to make a
 # failing regression test pass: the baselines are the reviewed record of what
 # each side produced at a pinned revision.
 parity-baseline-update: parity-export
-	cp $(PARITY_DIR)/historical/*.digest.json internal/ingest/testdata/parity/historical/
-	@test -d $(PARITY_DIR)/live && cp $(PARITY_DIR)/live/*.digest.json internal/ingest/testdata/parity/live/ \
+	cp $(PARITY_DIR)/historical/*.digest.json testdata/parity/historical/
+	@test -d $(PARITY_DIR)/live && cp $(PARITY_DIR)/live/*.digest.json testdata/parity/live/ \
 	  || echo "note: no live digests in $(PARITY_DIR); run make parity-live first to refresh that side"
 	$(MAKE) parity-matrix
 	@echo "✓ baselines updated — review the diff before committing"

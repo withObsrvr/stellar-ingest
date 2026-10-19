@@ -36,7 +36,9 @@ import (
 	flowcomponent "github.com/withobsrvr/flowctl/pkg/component"
 	flowctlpb "github.com/withobsrvr/flowctl/proto"
 
-	"github.com/withObsrvr/stellar-ingest/internal/ingest"
+	"github.com/withObsrvr/stellar-ingest/internal/adapters"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
+	"github.com/withObsrvr/stellar-ingest/internal/jobs"
 	"github.com/withObsrvr/stellar-ingest/internal/status"
 )
 
@@ -57,8 +59,8 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 		}
 
 		ctx := context.Background()
-		enricher, err := ingest.NewContractBalanceEnricher(ingest.ContractBalanceEnricherConfig{
-			DuckLake: ingest.DuckLakeConfig{
+		enricher, err := adapters.NewContractBalanceEnricher(adapters.ContractBalanceEnricherConfig{
+			DuckLake: adapters.DuckLakeConfig{
 				CatalogDSN:     req.DlCatalog,
 				DataPath:       req.DlDataPath,
 				MetadataSchema: req.DlMetaSchema,
@@ -72,7 +74,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			ChunkSize:      int64(req.EnrichmentChunkSize),
 			RunID:          req.EnrichmentRunID,
 			Network:        req.NetworkPassphrase,
-			VersionLabel:   ingest.Version,
+			VersionLabel:   domain.Version,
 			ManifestSchema: req.EnrichmentManifestSchema,
 			DryRun:         req.EnrichmentDryRun,
 			Resume:         req.EnrichmentResume,
@@ -102,21 +104,21 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	if req.OutputDir == "" {
 		log.Fatal("--output is required")
 	}
-	extractRequested := ingest.ExtractionRequested(req.StorageType, req.Bucket)
+	extractRequested := domain.ExtractionRequested(req.StorageType, req.Bucket)
 	if !extractRequested && !req.RunDuckLake {
 		log.Fatal("--bucket is required (unless using CAPTIVE_CORE or --ducklake with existing output)")
 	}
 
 	startLedger := uint32(req.Start)
 	endLedger := uint32(req.End)
-	extractOnlySet := ingest.ParseCSVSet(req.OnlyTables)
-	duckLakeOnlySet := ingest.ParseCSVSet(req.DlOnlyTables)
+	extractOnlySet := domain.ParseCSVSet(req.OnlyTables)
+	duckLakeOnlySet := domain.ParseCSVSet(req.DlOnlyTables)
 	if len(duckLakeOnlySet) == 0 && len(extractOnlySet) > 0 {
 		duckLakeOnlySet = extractOnlySet
 	}
-	duckLakeSkipSet := ingest.ParseCSVSet(req.DlSkipTables)
+	duckLakeSkipSet := domain.ParseCSVSet(req.DlSkipTables)
 
-	if err := ingest.ValidateLedgerRange(startLedger, endLedger); err != nil {
+	if err := domain.ValidateLedgerRange(startLedger, endLedger); err != nil {
 		log.Fatal(err)
 	}
 
@@ -156,13 +158,13 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	default:
 		log.Fatalf("--storage-type must be one of: GCS, S3, FS, XDR, RPC, CAPTIVE_CORE (got %q)", req.StorageType)
 	}
-	if err := ingest.ValidateTableSelection(extractOnlySet, "only-tables"); err != nil {
+	if err := domain.ValidateTableSelection(extractOnlySet, "only-tables"); err != nil {
 		log.Fatal(err)
 	}
-	if err := ingest.ValidateTableSelection(duckLakeOnlySet, "ducklake-only-tables"); err != nil {
+	if err := domain.ValidateTableSelection(duckLakeOnlySet, "ducklake-only-tables"); err != nil {
 		log.Fatal(err)
 	}
-	if err := ingest.ValidateTableSelection(duckLakeSkipSet, "ducklake-skip-tables"); err != nil {
+	if err := domain.ValidateTableSelection(duckLakeSkipSet, "ducklake-skip-tables"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -183,22 +185,22 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			// plain --start/--end run would claim.
 			size = endLedger - startLedger + 1
 		}
-		store, err := ingest.NewRangeStateStore(context.Background(), req.DlCatalog, req.RangeStateTable, req.EraID)
+		store, err := jobs.NewRangeStateStore(context.Background(), req.DlCatalog, req.RangeStateTable, req.EraID)
 		if err != nil {
 			log.Fatalf("range state: %v", err)
 		}
 		defer store.Close()
 
-		plan, err := store.Plan(context.Background(), ingest.EnumerateRanges(startLedger, endLedger, size), ingest.DefaultClaimLease)
+		plan, err := store.Plan(context.Background(), jobs.EnumerateRanges(startLedger, endLedger, size), jobs.DefaultClaimLease)
 		if err != nil {
 			log.Fatalf("range state: %v", err)
 		}
-		fmt.Print(ingest.FormatPlan(plan))
+		fmt.Print(jobs.FormatPlan(plan))
 		return
 	}
 
 	if req.ChunkSize > 0 {
-		if err := ingest.RunChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency); err != nil {
+		if err := jobs.RunChunkedCommand(context.Background(), os.Args[1:], startLedger, endLedger, uint32(req.ChunkSize), req.OutputDir, req.ChunkConcurrency); err != nil {
 			log.Fatalf("chunked backfill failed: %v", err)
 		}
 		return
@@ -224,7 +226,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	defer reporter.Close()
 	if err := reporter.Register(ctx, flowctlpb.ServiceType_SERVICE_TYPE_SOURCE, map[string]string{
 		"component":    "stellar-history-loader",
-		"version":      ingest.Version,
+		"version":      domain.Version,
 		"network":      req.NetworkPassphrase,
 		"storage_type": req.StorageType,
 		"range_start":  fmt.Sprintf("%d", startLedger),
@@ -238,7 +240,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 
 	fatalChunk := func(phase string, err error, action string) {
 		if err != nil {
-			_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), phase, ingest.ClassifyFlowctlFailure(err), err.Error(), action)
+			_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), phase, domain.ClassifyFlowctlFailure(err), err.Error(), action)
 			log.Fatalf("%s failed: %v", phase, err)
 		}
 	}
@@ -254,10 +256,10 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	fmt.Printf("Bucket:            %s\n", req.Bucket)
 	fmt.Printf("Network:           %s\n", req.NetworkPassphrase)
 	if len(extractOnlySet) > 0 {
-		fmt.Printf("Extract tables:    %s\n", ingest.TableSetKey(extractOnlySet))
+		fmt.Printf("Extract tables:    %s\n", domain.TableSetKey(extractOnlySet))
 	}
 	if len(duckLakeOnlySet) > 0 {
-		fmt.Printf("DuckLake tables:   %s\n", ingest.TableSetKey(duckLakeOnlySet))
+		fmt.Printf("DuckLake tables:   %s\n", domain.TableSetKey(duckLakeOnlySet))
 	}
 	fmt.Println()
 
@@ -265,13 +267,13 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	// DuckLake push returns, because a range is not done when its Parquet
 	// exists -- it is done when the push lands.
 	//
-	// This sits on the single-range path deliberately: ingest.RunChunkedCommand
+	// This sits on the single-range path deliberately: jobs.RunChunkedCommand
 	// re-invokes this binary per chunk, so chunked backfills inherit it
 	// without the chunk runner knowing anything about it, and so does a
 	// one-range Nomad dispatch.
-	var rangeStore *ingest.RangeStateStore
-	thisRange := ingest.LedgerRange{Start: startLedger, End: endLedger}
-	rangeAttemptID := ingest.NewAttemptID()
+	var rangeStore *jobs.RangeStateStore
+	thisRange := jobs.LedgerRange{Start: startLedger, End: endLedger}
+	rangeAttemptID := jobs.NewAttemptID()
 	if req.RangeState {
 		if req.DlCatalog == "" {
 			log.Fatal("--range-state requires --ducklake-catalog")
@@ -282,13 +284,13 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			log.Fatal("--range-state requires --ducklake: a range is frozen when the push lands, not when extraction finishes")
 		}
 		var err error
-		rangeStore, err = ingest.NewRangeStateStore(context.Background(), req.DlCatalog, req.RangeStateTable, req.EraID)
+		rangeStore, err = jobs.NewRangeStateStore(context.Background(), req.DlCatalog, req.RangeStateTable, req.EraID)
 		if err != nil {
 			log.Fatalf("range state: %v", err)
 		}
 		defer rangeStore.Close()
 
-		claimed, err := rangeStore.Claim(context.Background(), thisRange, rangeAttemptID, ingest.Version, ingest.DefaultClaimLease)
+		claimed, err := rangeStore.Claim(context.Background(), thisRange, rangeAttemptID, domain.Version, jobs.DefaultClaimLease)
 		if err != nil {
 			log.Fatalf("range state: %v", err)
 		}
@@ -299,7 +301,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			// The marker is for the chunk runner; the sentence is for a
 			// human reading a single-range dispatch.
 			fmt.Printf("%s Range %s is already frozen or claimed by another run; nothing to do.\n",
-				ingest.RangeSkippedMarker, thisRange)
+				jobs.RangeSkippedMarker, thisRange)
 			return
 		}
 		fmt.Printf("Range %s claimed (freezing)\n", thisRange)
@@ -307,7 +309,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 
 	// Skip extraction if only doing DuckLake push on existing output
 	if extractRequested {
-		config := ingest.OrchestratorConfig{
+		config := domain.OrchestratorConfig{
 			StatusEmitter:     statusEmitter,
 			StartLedger:       startLedger,
 			EndLedger:         endLedger,
@@ -323,7 +325,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			OnlyTables:        extractOnlySet,
 		}
 
-		orchestrator := ingest.NewOrchestrator(config)
+		orchestrator := jobs.NewOrchestrator(config)
 
 		startTime := time.Now()
 
@@ -369,7 +371,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	// Run quality validation if requested
 	if req.RunValidate {
 		fmt.Println()
-		validator, err := ingest.NewValidator(effectiveOutput)
+		validator, err := adapters.NewValidator(effectiveOutput)
 		if err != nil {
 			log.Printf("Validation setup failed: %v", err)
 		} else {
@@ -403,7 +405,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 			log.Printf("Flowctl progress report failed: %v", err)
 		}
 
-		pusher, err := ingest.NewDuckLakePusher(ingest.DuckLakeConfig{
+		pusher, err := adapters.NewDuckLakePusher(adapters.DuckLakeConfig{
 			CatalogDSN:      req.DlCatalog,
 			DataPath:        req.DlDataPath,
 			MetadataSchema:  req.DlMetaSchema,
@@ -457,7 +459,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 		fmt.Println("=== Hot Buffer Population ===")
 		hotStart := time.Now()
 
-		loader, err := ingest.NewHotBufferLoader(effectiveOutput, ingest.HotBufferConfig{
+		loader, err := adapters.NewHotBufferLoader(effectiveOutput, adapters.HotBufferConfig{
 			Host:        req.PgHost,
 			Port:        req.PgPort,
 			Database:    req.PgDB,
@@ -478,7 +480,7 @@ func Run(ctx context.Context, req RunRequest, statusEmitter *status.Emitter) {
 	}
 
 	fmt.Println()
-	if err := ingest.GenerateCatalogReport(effectiveOutput); err != nil {
+	if err := adapters.GenerateCatalogReport(effectiveOutput); err != nil {
 		log.Printf("Warning: catalog report failed: %v", err)
 	}
 
