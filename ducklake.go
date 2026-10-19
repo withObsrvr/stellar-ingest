@@ -93,9 +93,9 @@ func NewDuckLakePusher(config DuckLakeConfig) (*DuckLakePusher, error) {
 		config.MetadataSchema = "bronze_meta"
 	}
 
-	db, err := sql.Open("duckdb", "")
+	db, err := openDuckDB()
 	if err != nil {
-		return nil, fmt.Errorf("open duckdb: %w", err)
+		return nil, err
 	}
 	// DuckDB connection state (attached catalogs, secrets, and temporary staging
 	// tables) is connection-local. Keep this process on one connection so a
