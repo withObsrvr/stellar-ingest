@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/withObsrvr/stellar-ingest/internal/status"
 	"log"
 	"os"
 	"path/filepath"
@@ -12,6 +13,10 @@ import (
 
 // OrchestratorConfig holds configuration for the orchestrator.
 type OrchestratorConfig struct {
+	// StatusEmitter publishes OSC 7501 program status so a terminal or UI can
+	// follow the run. Nil disables it, and every call is then a no-op.
+	StatusEmitter *status.Emitter
+
 	StartLedger       uint32
 	EndLedger         uint32
 	NumWorkers        int
@@ -51,6 +56,57 @@ type ProgressTracker struct {
 	processedByWorker map[int]uint64
 	startTime         time.Time
 	lastReport        time.Time
+
+	// What a UI watches. The same numbers this prints for a person are
+	// reported as OSC 7501 program status, so a terminal, dashboard or
+	// supervising tool reads the program's own account of its progress
+	// rather than scraping the line below.
+	statusEmitter *status.Emitter
+	// expectedLedgers is the size of the requested range, so progress can be
+	// a percentage. Zero means unknown, and no percentage is reported.
+	expectedLedgers uint64
+}
+
+// expectedLedgers is how many ledgers the requested range covers, used to
+// turn a count into a percentage. Zero when the range is not a sane pair,
+// in which case progress is reported without a percentage rather than with a
+// wrong one.
+func expectedLedgers(config OrchestratorConfig) uint64 {
+	if config.EndLedger < config.StartLedger {
+		return 0
+	}
+	return uint64(config.EndLedger-config.StartLedger) + 1
+}
+
+// reportStatus publishes the same progress as OSC 7501 program status.
+//
+// Errors are ignored on purpose: a status report that fails to write must
+// never fail or interrupt the work it describes.
+func (pt *ProgressTracker) reportStatus(throughput float64) {
+	if !pt.statusEmitter.Enabled() {
+		return
+	}
+	percent := -1
+	if pt.expectedLedgers > 0 {
+		percent = int(pt.totalLedgers * 100 / pt.expectedLedgers)
+		if percent > 100 {
+			percent = 100
+		}
+	}
+	_ = pt.statusEmitter.Report(status.Report{
+		State:    status.Working,
+		Title:    fmt.Sprintf("%d ledgers, %.0f/s", pt.totalLedgers, throughput),
+		Progress: progressPointer(percent),
+	})
+}
+
+// progressPointer returns nil for an unknown percentage, which omits the
+// field rather than reporting a value outside the protocol's range.
+func progressPointer(percent int) *int {
+	if percent < 0 {
+		return nil
+	}
+	return &percent
 }
 
 // NewOrchestrator creates a new Orchestrator with the given configuration.
@@ -69,6 +125,8 @@ func NewOrchestrator(config OrchestratorConfig) *Orchestrator {
 		attemptID:     attemptID,
 		progress: &ProgressTracker{
 			processedByWorker: make(map[int]uint64),
+			statusEmitter:     config.StatusEmitter,
+			expectedLedgers:   expectedLedgers(config),
 		},
 		checkpoint:    checkpoint,
 		checkpointErr: checkpointErr,
@@ -275,12 +333,16 @@ func (pt *ProgressTracker) PrintStatus() {
 
 	throughput := float64(pt.totalLedgers) / elapsed.Seconds()
 
-	fmt.Printf("[Progress] %d ledgers processed | %.1f ledgers/sec | elapsed %s",
+	// stderr, not stdout: stdout carries results so a pipeline keeps
+	// working, and progress is diagnostic by definition.
+	fmt.Fprintf(os.Stderr, "[Progress] %d ledgers processed | %.1f ledgers/sec | elapsed %s",
 		pt.totalLedgers, throughput, elapsed.Round(time.Second))
+
+	pt.reportStatus(throughput)
 
 	// Per-worker breakdown
 	if len(pt.processedByWorker) > 0 {
-		fmt.Print(" | per-worker: ")
+		fmt.Fprint(os.Stderr, " | per-worker: ")
 		first := true
 		for id := 0; id < len(pt.processedByWorker); id++ {
 			count, ok := pt.processedByWorker[id]
@@ -288,9 +350,9 @@ func (pt *ProgressTracker) PrintStatus() {
 				continue
 			}
 			if !first {
-				fmt.Print(", ")
+				fmt.Fprint(os.Stderr, ", ")
 			}
-			fmt.Printf("w%d=%d", id, count)
+			fmt.Fprintf(os.Stderr, "w%d=%d", id, count)
 			first = false
 		}
 	}
