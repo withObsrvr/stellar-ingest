@@ -151,3 +151,46 @@ func formatMS(ms int64) string {
 		return fmt.Sprintf("%dm%ds", ms/60_000, (ms%60_000)/1000)
 	}
 }
+
+// RenderDoctor writes a diagnostic result.
+//
+// Same three formats as a run result: a person reads the table, CI reads the
+// JSON. NDJSON emits one line per check rather than one line for the whole
+// document, because here the checks ARE the stream -- that is the shape
+// §3 means by "--output ndjson for event streams".
+func RenderDoctor(w io.Writer, format OutputFormat, result *app.DoctorResult) error {
+	if result == nil {
+		return nil
+	}
+	switch format {
+	case FormatJSON:
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(result)
+	case FormatNDJSON:
+		encoder := json.NewEncoder(w)
+		for _, check := range result.Checks {
+			if err := encoder.Encode(check); err != nil {
+				return err
+			}
+		}
+		return nil
+	case FormatTable:
+		var b strings.Builder
+		width := 0
+		for _, check := range result.Checks {
+			if len(check.Name) > width {
+				width = len(check.Name)
+			}
+		}
+		for _, check := range result.Checks {
+			fmt.Fprintf(&b, "%-7s %-*s  %s\n", check.Status, width, check.Name, check.Detail)
+		}
+		fmt.Fprintf(&b, "\n%d checks, %d failed, %d warnings\n",
+			len(result.Checks), result.Failed, result.Warned)
+		_, err := io.WriteString(w, b.String())
+		return err
+	default:
+		return exit.Usagef("unknown output format %q; want one of %s", format, OutputFormatNames())
+	}
+}

@@ -75,6 +75,7 @@ type Values struct {
 	// presentation and never reach RunRequest: an operation does not know
 	// whether anybody is watching. Timeout is applied by the adapter, which
 	// hands the operation a context that is already bounded.
+	Doctor  bool
 	Quiet   bool
 	Verbose bool
 	NoColor bool
@@ -346,6 +347,11 @@ var flagSpecs = []flagSpec{
 		Name: "enrichment-manifest-schema", Usage: "DuckLake schema for the enrichment audit manifest",
 		Kind: kindString, DefString: "bronze_operations",
 		Target: func(v *Values) any { return &v.EnrichmentManifestSchema },
+	},
+	{
+		Name: "doctor", Usage: "Check credentials, DuckDB extensions and catalog reachability, then exit without ingesting",
+		Kind: kindBool, DefBool: false,
+		Target: func(v *Values) any { return &v.Doctor },
 	},
 	{
 		Name: "quiet", Usage: "Suppress progress on stderr; warnings and errors are still reported",

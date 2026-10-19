@@ -160,6 +160,14 @@ func runFlatForm(ctx context.Context) error {
 		return err
 	}
 
+	// --doctor is a mode switch rather than a verb here, so the flat form
+	// can reach the diagnostic without growing a subcommand. Both surfaces
+	// call the same function, so they cannot disagree about what a failing
+	// check means.
+	if values.Doctor {
+		return cli.RunDoctor(ctx, req, app.Deps{Out: os.Stdout, Log: log}, outputs.Format)
+	}
+
 	// Everything the command line had to decide is decided. From here the
 	// request is data, and the operation behind it has no idea a terminal
 	// exists.

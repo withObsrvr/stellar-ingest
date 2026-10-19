@@ -29,7 +29,7 @@ type operation func(context.Context, app.RunRequest, app.Deps) (*app.RunResult, 
 // CommandNames are the verbs the root command accepts. The flat-form
 // dispatcher needs this list to tell a verb from a flag.
 func CommandNames() []string {
-	return []string{"extract", "validate", "load", "repair", "run", "version", "help", "completion"}
+	return []string{"extract", "validate", "load", "repair", "run", "doctor", "version", "help", "completion"}
 }
 
 // NewRootCommand builds the command tree.
@@ -103,6 +103,7 @@ phases happen is still decided by the flags.`,
 				"stellar-ingest run --start 64000000 --end 64001000 --output-dir ./bronze --ducklake",
 			}, app.Run, out, errOut),
 
+		newDoctorCommand(out, errOut),
 		newVersionCommand(out),
 	)
 	return root
@@ -187,4 +188,75 @@ func IsCommand(name string) bool {
 		}
 	}
 	return false
+}
+
+// newDoctorCommand builds the diagnostic §3 asks for under Discoverability.
+//
+// It is its own command rather than a mode of run because it answers a
+// different question -- "is this machine configured" rather than "ingest
+// this range" -- and because an operator wants to ask it before committing
+// to a multi-day backfill, not instead of one.
+func newDoctorCommand(out, errOut io.Writer) *cobra.Command {
+	values := &Values{}
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Check credentials, DuckDB extensions and catalog reachability",
+		Long: `Doctor reports whether this machine is configured to run an ingestion:
+whether each credential resolved and from where, whether DuckDB opens with
+the extensions a push needs, whether the session is pinned to UTC, and
+whether the catalog answers.
+
+It never prints a credential value. Presence and length only, and any DSN it
+reports is redacted.
+
+Exit status is 2 when any check fails, so CI can gate on it.`,
+		Example: "  " + joinExamples([]string{
+			"stellar-ingest doctor",
+			"stellar-ingest doctor --ducklake --output json",
+			"stellar-ingest doctor --output-dir ./bronze",
+		}),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			req, notices, err := values.Resolve()
+			if err != nil {
+				return err
+			}
+			outputs, err := ResolveOutput(values.OutputDir, values.Output)
+			if err != nil {
+				return err
+			}
+			log, err := ResolveLogging(values, errOut)
+			if err != nil {
+				return err
+			}
+			for _, notice := range notices {
+				log.Warn("%s", notice)
+			}
+			ctx, cancel := WithTimeout(cmd.Context(), values.Timeout)
+			defer cancel()
+			return RunDoctor(ctx, req, app.Deps{Out: out, Log: log}, outputs.Format)
+		},
+	}
+	values.RegisterPFlags(cmd.Flags())
+	return cmd
+}
+
+// RunDoctor runs the diagnostics and renders them, returning a usage-class
+// error when any check failed.
+//
+// Shared with the flat form's --doctor so the two surfaces cannot disagree
+// about what a failing check means.
+func RunDoctor(ctx context.Context, req app.RunRequest, deps app.Deps, format OutputFormat) error {
+	result, err := app.Doctor(ctx, req, deps)
+	if err != nil {
+		return err
+	}
+	if err := RenderDoctor(deps.Out, format, result); err != nil {
+		return err
+	}
+	if result.Failed > 0 {
+		// Usage class: the operator has to change something, and retrying
+		// the same invocation on the same machine cannot help.
+		return exit.Usagef("%d diagnostic check(s) failed", result.Failed)
+	}
+	return nil
 }
