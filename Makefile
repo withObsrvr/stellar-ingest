@@ -310,8 +310,14 @@ nix-shell:
 	nix develop
 
 # Builds the package, which runs the hermetic test suite in the sandbox.
+# Exactly what CI's nix job runs, both steps. Worth running after ANY change
+# to go.mod or go.sum: the flake pins a vendorHash over the whole module set,
+# so adding one dependency invalidates it, and that failure appears nowhere
+# else -- `go build`, `go test` and `make ci-build` all pass. Recompute with
+# `make nix-vendor-hash`.
 nix-check:
-	nix flake check
+	nix flake check --print-build-logs
+	nix build .#stellar-ingest --print-build-logs --no-link
 
 nix-docker:
 	nix build .#docker
@@ -383,6 +389,8 @@ help:
 	@echo ""
 	@echo "Quality:"
 	@echo "  test / test-race / test-coverage / fmt / vet / lint"
+	@echo "  nix-check                              Run CI's nix job: flake check and build"
+	@echo "  nix-vendor-hash                        Recompute vendorHash after a dependency change"
 	@echo "  parity-baseline                        Diff CLI surface vs committed baseline"
 	@echo "  golden / golden-update                 Bronze snapshot suite (hermetic)"
 	@echo ""
