@@ -25,11 +25,59 @@ until that gate is signed off.
 
 ## Flag compatibility
 
-Unchanged. All 41 flags keep their names, types, defaults, validation order,
-and error messages. `docs/baseline/cli-help.txt` records the surface and
-`make parity-baseline` fails CI on any drift — including drift from an
-unrelated change. An intentional flag change must update that file in the same
-commit, which makes every CLI contract change visible in review.
+**Additive only.** Every pre-existing flag keeps its name, type, default,
+validation order and error message. The standard-conformance work added ten:
+`--config`, `--context`, `--network`, `--events`, `--for`, `--doctor`,
+`--quiet`, `--verbose`, `--no-color`, `--timeout`. The baseline diff for that
+change is 20 insertions and 0 deletions, which is the machine-checkable form
+of that claim.
+
+`docs/baseline/cli-help.txt` records the surface and `make parity-baseline`
+fails CI on any drift — including drift from an unrelated change. An
+intentional flag change must update that file in the same commit, which makes
+every CLI contract change visible in review.
+
+## Exit codes — CHANGED
+
+Previously every failure was `log.Fatal`, so every failure was exit **1**.
+Failures now carry a documented class:
+
+| Code | Class |
+|---|---|
+| 0 | success |
+| 1 | internal failure |
+| 2 | invalid input |
+| 3 | missing resource |
+| 4 | permission |
+| 5 | timeout |
+| 6 | cancelled |
+
+**What this breaks:** nothing we can find, and the two consumers were
+checked rather than assumed. The chunk runner tests `err != nil` from
+`exec.Cmd.Run` and never reads the code. Nomad treats any nonzero as a
+failed allocation. Class 1 deliberately keeps the historical meaning of
+"something went wrong", so anything matching specifically on 1 still sees 1
+for a genuine internal failure.
+
+**What it gains:** a scheduler can tell "retry this" from "stop and ask
+someone". Retrying invalid input forever is how a broken flag becomes a
+quota bill.
+
+## Output streams — CHANGED
+
+The banner, phase headers and summaries used to go to **stdout**. They now
+go to stderr along with all other narration, and stdout carries only the
+rendered result, `--plan` output, or `--version`.
+
+**What this breaks:** anything parsing this tool's stdout for prose. We know
+of nothing that does; the Nomad jobs capture both streams and the validation
+checks read the catalog, not the logs.
+
+**What it gains:** `--output json | jq` works, which it could not before.
+
+A related fix: the progress line previously wrote its text to stderr and its
+terminating newline to stdout, so consecutive progress lines ran together on
+stderr. That is visible in the v4 mainnet logs and is now one write.
 
 ## Environment compatibility
 

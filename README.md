@@ -92,12 +92,16 @@ existing scripts keep working. See [`docs/compatibility.md`](docs/compatibility.
 ## Usage
 
 ```sh
+stellar-ingest doctor                                         # is this machine configured?
 stellar-ingest extract   --start 64000000 --end 64001000 --output-dir ./bronze
 stellar-ingest validate  --output-dir ./bronze --output json
 stellar-ingest load      --output-dir ./bronze --ducklake --ducklake-data-path s3://bucket/
 stellar-ingest repair    --start 61790000 --end 61891000 --enrichment-dry-run
 stellar-ingest run       --start 64000000 --end 64001000 --output-dir ./bronze --ducklake
+stellar-ingest inspect   --start 64000000 --end 64010000 --chunk-size 1000
+stellar-ingest wait      --start 64000000 --end 64010000 --chunk-size 1000 --for succeeded
 stellar-ingest version
+stellar-ingest completion bash                                # also zsh, fish
 ```
 
 The flag-only form — no verb — keeps working and is equivalent to `run`. It
@@ -109,9 +113,117 @@ visible way: the verb form requires `--flag`, while the flag-only form also
 accepts `-flag`. pflag, which Cobra uses, reads a single dash followed by
 several characters as a cluster of shorthands.
 
-The binary takes flags, not a config file. Forty-six flags; `--help` is the
-full list and `docs/baseline/cli-help.txt` is the recorded contract, enforced
-by `make parity-baseline` — a flag change that does not update it fails CI.
+`--help` is the full flag list, and `docs/baseline/cli-help.txt` is the
+recorded contract, enforced by `make parity-baseline` — a flag change that
+does not update it fails CI.
+
+### Global options
+
+| Flag | Meaning |
+|---|---|
+| `--output table\|json\|ndjson` | Response format. Default `table` |
+| `--output-dir` | Where Parquet goes. See the note below on `--output` |
+| `--config`, `--context` | A named set of defaults; see below |
+| `--network mainnet\|testnet\|futurenet` | Sets the passphrase |
+| `--timeout 30m` | Bounds the run. `0`, the default, is no limit |
+| `--quiet`, `--verbose` | Less or more narration on stderr |
+| `--no-color` | Also honoured: `NO_COLOR`, and a non-terminal stderr |
+| `--events <path>\|-` | Append an NDJSON event stream |
+| `--doctor` | Run the diagnostic instead of ingesting (flag-only form) |
+
+### Streams
+
+stdout carries the **result**: the rendered `RunResult`, `--plan` output, or
+`--version`. Everything else — the banner, progress, phase headers, warnings
+— goes to stderr. So this works:
+
+```sh
+stellar-ingest run --config ingest.yaml --start 64000000 --end 64001000 \
+  --output json --quiet | jq .ducklake.total_rows
+```
+
+The result schema is versioned as `stellar-ingest.run/v1` and carried in the
+payload, so a consumer can tell it is reading something newer rather than
+silently misreading a renamed field.
+
+### Exit codes
+
+`0` success, and documented classes for everything else, so a scheduler can
+tell "retry this" from "stop and ask someone":
+
+| Code | Class | Means |
+|---|---|---|
+| 0 | ok | |
+| 1 | internal | A bug, or a dependency behaving unexpectedly |
+| 2 | usage | Invalid input. Retrying the same invocation cannot help |
+| 3 | not-found | A resource the run needs is not there |
+| 4 | permission | A credential or authorisation failure |
+| 5 | timeout | `--timeout` elapsed |
+| 6 | cancelled | SIGINT or SIGTERM |
+
+### A config file
+
+A mainnet dispatch passes about twenty flags, the same twenty every time. A
+context is those flags under a name:
+
+```yaml
+# ingest.yaml
+default-context: mainnet
+contexts:
+  mainnet:
+    network: mainnet
+    storage-type: GCS
+    bucket: obsrvr-stellar-ledger-data-mainnet-data/landing/ledgers
+    ducklake-data-path: s3://obsrvr-lake-mainnet/
+    ducklake-metadata-schema: bronze_meta
+    workers: "12"
+    chunk-size: "10000"
+```
+
+```sh
+stellar-ingest run --config ingest.yaml --start 64000000 --end 64010000
+stellar-ingest run --config ingest.yaml --context testnet --start 1 --end 1000
+```
+
+A context sets **defaults**. An explicit flag always wins, and the tool says
+so when one shadows a context value rather than leaving you to debug a file
+that is being correctly ignored. Credentials are not accepted in this file —
+they stay in the environment.
+
+### Checking the machine first
+
+```sh
+stellar-ingest doctor --ducklake
+```
+
+Credentials and where each resolved, the output directory's writability,
+DuckDB opening with the `ducklake` and `httpfs` extensions and a UTC-pinned
+session, catalog reachability and whether the metadata schema has tables. It
+never prints a credential value — presence and length only, and any DSN it
+reports is redacted. Exit 2 if any check fails, so CI can gate on it.
+
+### Watching a backfill
+
+Every run carries a job ID, which is the same value the range catalog stores
+as `attempt_id`, so an event stream and the durable record join on one
+identifier.
+
+```sh
+stellar-ingest run ... --events ./events.ndjson     # append-only, one line per event
+stellar-ingest inspect --start 64000000 --end 64010000 --chunk-size 1000 --output json
+stellar-ingest wait    --start 64000000 --end 64010000 --chunk-size 1000 \
+  --for succeeded --timeout 6h
+```
+
+`inspect` reports each range as `queued`, `running`, `succeeded` or
+`failed`, derived from the range catalog. `wait --for settled` is a
+different question from `--for succeeded`: a span containing a failed range
+is settled but has not succeeded.
+
+Event delivery is **at-most-once**. There is no broker: a killed process
+loses what it had not written. The durable record is the range catalog —
+read it with `inspect` when you need a guarantee, and use events for
+liveness.
 
 ### Extract a mainnet range from a GCS archive
 
