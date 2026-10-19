@@ -125,6 +125,19 @@ integration-ducklake:
 	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_DATA_PATH)" \
 	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' .
 
+# The same two tests against a DuckDB file catalog instead of PostgreSQL.
+# Needs no container and no credentials, so this is the one to reach for while
+# iterating; `make integration` still covers the PostgreSQL path production
+# uses.
+INTEGRATION_FILE_CATALOG ?= $(CURDIR)/build/filecatalog
+integration-ducklake-file:
+	@rm -rf $(INTEGRATION_FILE_CATALOG)
+	@mkdir -p $(INTEGRATION_FILE_CATALOG)/data
+	DUCKLAKE_INGESTION_TEST_POSTGRES="$(INTEGRATION_FILE_CATALOG)/catalog.ducklake" \
+	DUCKLAKE_INGESTION_TEST_EXTENSION_DIR="$(HOME)/.duckdb/extensions" \
+	DUCKLAKE_INGESTION_TEST_DATA_PATH="$(INTEGRATION_FILE_CATALOG)/data/" \
+	$(GOTEST) -count=1 -v -run 'TestDuckLakeManifestIngestion|TestCompatViewsRenderIdentityFromRealDuckLake' .
+
 integration: integration-up
 	$(MAKE) integration-ducklake; status=$$?; $(MAKE) integration-down; exit $$status
 

@@ -145,7 +145,7 @@ func (p *DuckLakePusher) Setup(ctx context.Context) error {
 
 	// Step 3: Attach DuckLake catalog
 	log.Printf("[DuckLake] Attaching catalog: %s...", p.config.CatalogName)
-	catalogPath := fmt.Sprintf("ducklake:postgres:%s", p.config.CatalogDSN)
+	catalogPath := duckLakeCatalogTarget(p.config.CatalogDSN)
 
 	// Try attaching existing catalog first, then create if needed
 	attachSQL := fmt.Sprintf(
@@ -527,6 +527,49 @@ func describeColumns(ctx context.Context, db *sql.DB, query string) ([]string, e
 		cols = append(cols, col)
 	}
 	return cols, rows.Err()
+}
+
+// duckLakeCatalogTarget turns a catalog DSN into the target DuckLake ATTACHes.
+//
+// DuckLake can keep its catalog in several places and the prefix is how it
+// tells them apart: `postgres:` for PostgreSQL, `sqlite:` for SQLite, and a
+// bare path for a DuckDB database file. This was hardcoded to `postgres:`,
+// which meant the only supported catalog was PostgreSQL.
+//
+// A DuckDB file catalog is worth having for two different reasons. It removes
+// the PostgreSQL dependency from the integration tests, which otherwise need
+// a container to run at all; and it is a plausible long-term home for the
+// catalog, since the thing reading it is DuckDB either way.
+//
+// Note for anyone choosing one: a DuckDB catalog file is written in the
+// DuckDB storage format of whatever version created it, and 2.0.0's format is
+// not backward compatible with 1.5.x. A PostgreSQL catalog has no such
+// coupling -- every service reads it through SQL regardless of which DuckDB
+// it links. With six services on their own pins, that difference is the whole
+// decision.
+func duckLakeCatalogTarget(dsn string) string {
+	// Already explicit: the caller said exactly what it wants.
+	if strings.HasPrefix(dsn, "ducklake:") {
+		return dsn
+	}
+	for _, prefix := range []string{"postgres:", "postgresql:", "sqlite:", "mysql:"} {
+		if strings.HasPrefix(dsn, prefix) {
+			// postgres://host/db is a URL PostgreSQL understands; sqlite: and
+			// mysql: are DuckLake's own prefixes. Both pass through with the
+			// prefix DuckLake expects.
+			if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+				return "ducklake:postgres:" + dsn
+			}
+			return "ducklake:" + dsn
+		}
+	}
+	// A key=value PostgreSQL DSN -- "host=.. user=.. dbname=.." -- rather than
+	// a path. Distinguished by the "=" a filename does not have.
+	if strings.Contains(dsn, "=") && !strings.Contains(dsn, "/") {
+		return "ducklake:postgres:" + dsn
+	}
+	// Anything else is a path: a DuckDB database file.
+	return "ducklake:" + dsn
 }
 
 // qualifySchemaSQL rewrites the two schema placeholders to the configured
