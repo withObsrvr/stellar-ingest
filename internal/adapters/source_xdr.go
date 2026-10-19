@@ -25,18 +25,26 @@ import (
 // XDRStreamSource reads a framed XDR stream file (output of `nebu fetch`)
 // and indexes all ledgers into memory for random access by sequence.
 type XDRStreamSource struct {
-	ledgers map[uint32][]byte
+	ledgers        map[uint32][]byte
+	prefetchBuffer int
 }
 
 // NewXDRStreamSource reads a nebu-style framed XDR file and indexes all ledgers.
-func NewXDRStreamSource(filePath string) (*XDRStreamSource, error) {
+//
+// prefetchBuffer sizes the read-ahead channel StreamRange hands out; zero
+// takes domain.DefaultPrefetchBuffer, which is what a caller with no opinion
+// about memory passes.
+func NewXDRStreamSource(filePath string, prefetchBuffer int) (*XDRStreamSource, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("open xdr stream: %w", err)
 	}
 	defer f.Close()
 
-	source := &XDRStreamSource{ledgers: make(map[uint32][]byte)}
+	source := &XDRStreamSource{
+		ledgers:        make(map[uint32][]byte),
+		prefetchBuffer: prefetchBuffer,
+	}
 
 	for {
 		var lcm xdr.LedgerCloseMeta
@@ -77,7 +85,7 @@ func (s *XDRStreamSource) GetLedger(sequence uint32) ([]byte, error) {
 }
 
 func (s *XDRStreamSource) StreamRange(ctx context.Context, start, end uint32) <-chan domain.PrefetchedLedger {
-	return StreamSequentialRange(ctx, start, end, s.GetLedger)
+	return StreamSequentialRange(ctx, start, end, s.GetLedger, s.prefetchBuffer)
 }
 
 func (s *XDRStreamSource) Close() error { return nil }
@@ -86,9 +94,8 @@ func (s *XDRStreamSource) Close() error { return nil }
 // worker that drains the channel they fill.
 // StreamSequentialRange adapts random-access local inputs to the same bounded
 // stream contract used by the SDK acquisition sources.
-func StreamSequentialRange(ctx context.Context, start, end uint32, read func(uint32) ([]byte, error)) <-chan domain.PrefetchedLedger {
-	bufferSize := domain.DefaultPrefetchBuffer
-	ch := make(chan domain.PrefetchedLedger, bufferSize)
+func StreamSequentialRange(ctx context.Context, start, end uint32, read func(uint32) ([]byte, error), prefetchBuffer int) <-chan domain.PrefetchedLedger {
+	ch := make(chan domain.PrefetchedLedger, domain.PrefetchBufferOrDefault(prefetchBuffer))
 
 	go func() {
 		defer close(ch)

@@ -387,9 +387,29 @@ and `--chunk-concurrency` then control how much of that one process takes on
 at a time.
 
 Memory scales with concurrency, not range size: peak is roughly
-`chunks x workers x 200 x ledger size`, because each worker prefetches 200
-decoded ledgers. A 64-million-ledger range costs the same RAM as a
-2,000-ledger one at equal concurrency.
+`chunks x workers x prefetch-buffer x ledger size`, because each worker reads
+ahead that many decoded ledgers. A 64-million-ledger range costs the same RAM
+as a 2,000-ledger one at equal concurrency.
+
+`--prefetch-buffer` is the third term, and it defaults to 200. That number is
+sized for genesis-era ledgers; a recent ledger is roughly 17x heavier, so the
+same worker count costs about 17x the RAM at the front of the chain as it does
+at the back. One setting does not fit the whole range — the backfill is
+memory-bound before it is CPU-bound, and the bound tightens as the range moves
+forward in time:
+
+```sh
+# Genesis to ~50M: small ledgers, spend the RAM on parallelism.
+./bin/stellar-ingest --start 1 --end 50000000 --workers 16 ...
+
+# The Soroban tail: heavy ledgers, buy the workers back with a smaller buffer.
+./bin/stellar-ingest --start 50000000 --end 64000000 \
+  --workers 16 --prefetch-buffer 25 ...
+```
+
+Dropping the buffer from 200 to 25 cuts per-worker memory about 8x, which is
+what makes a worker count affordable on the dense end. Chunk children inherit
+the flag, so a `--chunk-size` dispatch keeps the ceiling it was given.
 
 ## Program status
 

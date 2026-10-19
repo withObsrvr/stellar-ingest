@@ -78,3 +78,23 @@ func TestRewriteChunkArgsKeepsNonDirectoryFlags(t *testing.T) {
 		}
 	}
 }
+
+// --prefetch-buffer must be inherited, not stripped. It is a per-worker
+// memory budget and the child is the process that actually spends it: a
+// parent told to buffer 25 ledgers per worker, whose children each buffer
+// the default 200, has had its memory ceiling raised 8x by the chunking it
+// asked for to stay under that ceiling.
+func TestRewriteChunkArgsKeepsPrefetchBuffer(t *testing.T) {
+	for _, spelling := range [][]string{
+		{"--prefetch-buffer", "25"},
+		{"--prefetch-buffer=25"},
+	} {
+		args := append([]string{"--start=3", "--end", "20005", "--output-dir", "/old",
+			"--chunk-size=10000"}, spelling...)
+		got := strings.Join(rewriteChunkArgs(args, ledgerChunk{10000, 19999}, "/new"), " ")
+
+		if !strings.Contains(got, "25") || !strings.Contains(got, "--prefetch-buffer") {
+			t.Errorf("%v did not survive into the child args: %s", spelling, got)
+		}
+	}
+}

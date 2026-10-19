@@ -99,7 +99,7 @@ func bronzeTables(d *domain.LedgerData) map[string]any {
 // anyway, and stamping a value here would only invite a reader to compare it
 // against whatever the live deployment happens to be configured with.
 func BuildHistoricalParityRecord(in ParityInput, ledgerPath string, pins map[string]string) (*parity.Record, *parity.RowSet, error) {
-	source, err := adapters.NewXDRStreamSource(ledgerPath)
+	source, err := adapters.NewXDRStreamSource(ledgerPath, 0)
 	if err != nil {
 		return nil, nil, fmt.Errorf("open fixture ledgers: %w", err)
 	}

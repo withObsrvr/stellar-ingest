@@ -130,6 +130,9 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 	if req.ChunkConcurrency < 1 {
 		return nil, exit.Usagef("--chunk-concurrency must be at least 1")
 	}
+	if req.PrefetchBuffer < 1 {
+		return nil, exit.Usagef("--prefetch-buffer must be at least 1")
+	}
 	if req.ChunkConcurrency > 1 && req.ChunkSize == 0 {
 		return nil, exit.Usagef("--chunk-concurrency requires --chunk-size: there is nothing to run concurrently without chunks")
 	}
@@ -242,6 +245,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 	log.Section("Stellar History Loader")
 	log.Field("Ledger range", "%d - %d (%d ledgers)", startLedger, endLedger, totalLedgers)
 	log.Field("Workers", "%d", req.Workers)
+	log.Field("Prefetch buffer", "%d ledgers/worker", req.PrefetchBuffer)
 	log.Field("Batch size", "%d", req.BatchSize)
 	log.Field("Output directory", "%s", req.OutputDir)
 	log.Field("Storage type", "%s", req.StorageType)
@@ -354,6 +358,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 			FilesPerPartition: uint32(req.FilesPerPartition),
 			EraID:             req.EraID,
 			OnlyTables:        extractOnlySet,
+			PrefetchBuffer:    req.PrefetchBuffer,
 		}
 
 		orchestrator := jobs.NewOrchestrator(config)

@@ -19,6 +19,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/withObsrvr/stellar-ingest/internal/app"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 )
 
 // Values holds every flag the tool accepts.
@@ -52,6 +53,7 @@ type Values struct {
 	RangeStateTable          string
 	PlanOnly                 bool
 	ChunkConcurrency         int
+	PrefetchBuffer           int
 	B2KeyID                  string
 	B2KeySecret              string
 	B2Endpoint               string
@@ -262,6 +264,15 @@ var flagSpecs = []flagSpec{
 		Name: "chunk-concurrency", Usage: "Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers",
 		Kind: kindInt, DefInt: 1,
 		Target: func(v *Values) any { return &v.ChunkConcurrency },
+	},
+	{
+		// The third term in the memory product the other two flags name.
+		// 200 is sized for genesis-era ledgers; a recent ledger is roughly
+		// 17x heavier, so the dense end of history wants a smaller buffer
+		// and spends the RAM on workers instead.
+		Name: "prefetch-buffer", Usage: "Decoded ledgers each worker reads ahead. Peak memory is roughly --chunk-concurrency x --workers x this x ledger size, so lower it to afford more workers on recent ledgers",
+		Kind: kindInt, DefInt: domain.DefaultPrefetchBuffer,
+		Target: func(v *Values) any { return &v.PrefetchBuffer },
 	},
 	{
 		Name: "b2-key-id", Usage: "B2/S3 access key ID (deprecated: set B2_KEY_ID or B2_KEY_ID_FILE)",
@@ -524,6 +535,7 @@ func (v *Values) request() app.RunRequest {
 		RangeStateTable:          v.RangeStateTable,
 		PlanOnly:                 v.PlanOnly,
 		ChunkConcurrency:         v.ChunkConcurrency,
+		PrefetchBuffer:           v.PrefetchBuffer,
 		B2KeyID:                  v.B2KeyID,
 		B2KeySecret:              v.B2KeySecret,
 		B2Endpoint:               v.B2Endpoint,

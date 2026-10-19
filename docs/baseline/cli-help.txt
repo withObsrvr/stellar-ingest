@@ -89,6 +89,8 @@ Usage of stellar-ingest:
     	PostgreSQL user
   -plan
     	Print which ledger ranges still need building, then exit without doing any work (requires --ducklake-catalog)
+  -prefetch-buffer int
+    	Decoded ledgers each worker reads ahead. Peak memory is roughly --chunk-concurrency x --workers x this x ledger size, so lower it to afford more workers on recent ledgers (default 200)
   -program-status string
     	Report OSC 7501 program status on stderr: auto|always|never (default "auto")
   -quiet

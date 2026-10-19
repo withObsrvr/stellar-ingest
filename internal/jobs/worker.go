@@ -30,10 +30,13 @@ type LedgerSource interface {
 // File layout expected: <basePath>/<sequence>.xdr
 type FilesystemSource struct {
 	basePath string
+	// prefetchBuffer sizes the read-ahead channel StreamRange hands out.
+	// Zero takes domain.DefaultPrefetchBuffer.
+	prefetchBuffer int
 }
 
 // NewFilesystemSource creates a new FilesystemSource.
-func NewFilesystemSource(basePath string) (*FilesystemSource, error) {
+func NewFilesystemSource(basePath string, prefetchBuffer int) (*FilesystemSource, error) {
 	info, err := os.Stat(basePath)
 	if err != nil {
 		return nil, fmt.Errorf("filesystem source: %w", err)
@@ -41,7 +44,7 @@ func NewFilesystemSource(basePath string) (*FilesystemSource, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("filesystem source: %q is not a directory", basePath)
 	}
-	return &FilesystemSource{basePath: basePath}, nil
+	return &FilesystemSource{basePath: basePath, prefetchBuffer: prefetchBuffer}, nil
 }
 
 // GetLedger reads the XDR bytes for a given ledger sequence from disk.
@@ -55,7 +58,7 @@ func (fs *FilesystemSource) GetLedger(sequence uint32) ([]byte, error) {
 }
 
 func (fs *FilesystemSource) StreamRange(ctx context.Context, start, end uint32) <-chan domain.PrefetchedLedger {
-	return adapters.StreamSequentialRange(ctx, start, end, fs.GetLedger)
+	return adapters.StreamSequentialRange(ctx, start, end, fs.GetLedger, fs.prefetchBuffer)
 }
 
 // Close is a no-op for the filesystem source.
@@ -67,9 +70,9 @@ func (fs *FilesystemSource) Close() error {
 func NewLedgerSourceFromConfig(config domain.OrchestratorConfig) (LedgerSource, error) {
 	switch config.StorageType {
 	case "FS":
-		return NewFilesystemSource(config.Bucket)
+		return NewFilesystemSource(config.Bucket, config.PrefetchBuffer)
 	case "XDR":
-		return adapters.NewXDRStreamSource(config.Bucket)
+		return adapters.NewXDRStreamSource(config.Bucket, config.PrefetchBuffer)
 	case "RPC", "CAPTIVE_CORE":
 		return adapters.NewSDKStreamSource(config)
 	case "GCS":

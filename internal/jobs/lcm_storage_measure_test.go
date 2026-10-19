@@ -101,7 +101,7 @@ func TestLCMVersusPerTransactionColumns(t *testing.T) {
 		fixtureDir := filepath.Join("..", "..", "testdata", "fixtures", name)
 		xdrPath := fixtures.Materialize(t, fixtureDir, dir)
 
-		src, err := adapters.NewXDRStreamSource(xdrPath)
+		src, err := adapters.NewXDRStreamSource(xdrPath, 0)
 		if err != nil {
 			t.Fatalf("%s: open stream: %v", name, err)
 		}

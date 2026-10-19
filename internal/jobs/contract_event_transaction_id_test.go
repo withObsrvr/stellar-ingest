@@ -30,7 +30,7 @@ func eventsWithTransactions(t *testing.T) (events []domain.ContractEventData, tx
 	for _, name := range fixtures.Names(t) {
 		meta, _ := fixtures.LoadMeta(t, name)
 		path := fixtures.Materialize(t, filepath.Join("..", "..", "testdata", "fixtures", name), t.TempDir())
-		source, err := adapters.NewXDRStreamSource(path)
+		source, err := adapters.NewXDRStreamSource(path, 0)
 		if err != nil {
 			t.Fatalf("%s: open stream: %v", name, err)
 		}

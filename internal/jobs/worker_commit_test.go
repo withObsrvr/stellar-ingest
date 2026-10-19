@@ -53,7 +53,7 @@ func TestWorkerCheckpointWaitsForParquetFinalization(t *testing.T) {
 			if err := checkpoint.Save(); err != nil {
 				t.Fatal(err)
 			}
-			source, err := adapters.NewXDRStreamSource(ledgerPath)
+			source, err := adapters.NewXDRStreamSource(ledgerPath, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -111,5 +111,27 @@ func TestWorkerCheckpointWaitsForParquetFinalization(t *testing.T) {
 				t.Fatal("completed shard was not skipped")
 			}
 		})
+	}
+}
+
+// The source factory must hand the configured prefetch buffer to the source
+// it builds. --prefetch-buffer is a memory budget, and a budget that stops
+// at the config struct is not a budget.
+func TestLedgerSourceFactoryAppliesThePrefetchBuffer(t *testing.T) {
+	source, err := NewLedgerSourceFromConfig(domain.OrchestratorConfig{
+		StorageType:    "FS",
+		Bucket:         t.TempDir(),
+		PrefetchBuffer: 25,
+	})
+	if err != nil {
+		t.Fatalf("NewLedgerSourceFromConfig: %v", err)
+	}
+	defer source.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if got := cap(source.StreamRange(ctx, 1, 10)); got != 25 {
+		t.Errorf("the source buffered %d ledgers, want the configured 25", got)
 	}
 }

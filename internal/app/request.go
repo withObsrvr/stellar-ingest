@@ -83,6 +83,8 @@ type RunRequest struct {
 	PlanOnly bool
 	// --chunk-concurrency: Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers
 	ChunkConcurrency int
+	// --prefetch-buffer: Decoded ledgers each worker reads ahead; the memory-per-worker knob
+	PrefetchBuffer int
 	// --b2-key-id, RESOLVED: resolved from B2_KEY_ID, its _FILE form, or the flag
 	B2KeyID string
 	// --b2-key-secret, RESOLVED: resolved from B2_KEY_SECRET, its _FILE form, or the flag
