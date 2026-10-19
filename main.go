@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/withObsrvr/stellar-ingest/internal/status"
 	"log"
 	"os"
 	"path/filepath"
@@ -70,6 +71,12 @@ func main() {
 	dlSchema := flag.String("ducklake-schema", "bronze_store", "DuckLake schema holding the physical tables")
 	dlViewSchema := flag.String("ducklake-view-schema", "bronze", "DuckLake schema holding the presentation views")
 	dlSchemaSQL := flag.String("ducklake-schema-sql", "", "Path to v3_bronze_schema.sql (optional)")
+	// OSC 7501 program status, so a terminal, dashboard or supervising tool
+	// can follow the run from the program's own account of its state instead
+	// of scraping its output. auto reports only when stderr is a terminal,
+	// because the escape sequence is noise in a log file or a pipe.
+	programStatus := flag.String("program-status", "auto",
+		"Report OSC 7501 program status on stderr: auto|always|never")
 	dlOnlyTables := flag.String("ducklake-only-tables", "", "Comma-separated source or DuckLake table names to push; defaults to --only-tables when set")
 	dlSkipTables := flag.String("ducklake-skip-tables", "", "Comma-separated source or DuckLake table names to skip during push")
 	rangeState := flag.Bool("range-state", false, "Record this ledger range as freezing/frozen in the catalog so an interrupted backfill can resume (requires --ducklake-catalog)")
@@ -96,6 +103,11 @@ func main() {
 	enrichmentManifestSchema := flag.String("enrichment-manifest-schema", "bronze_operations", "DuckLake schema for the enrichment audit manifest")
 
 	flag.Parse()
+
+	statusEmitter, err := newStatusEmitter(*programStatus)
+	if err != nil {
+		log.Fatal(err)
+	}
 	if *enrichContractBalances {
 		if *start == 0 || *end == 0 || *end < *start {
 			log.Fatalf("--enrich-contract-balances requires a valid inclusive --start/--end range")
@@ -363,6 +375,7 @@ func main() {
 	// Skip extraction if only doing DuckLake push on existing output
 	if extractRequested {
 		config := OrchestratorConfig{
+			StatusEmitter:     statusEmitter,
 			StartLedger:       startLedger,
 			EndLedger:         endLedger,
 			NumWorkers:        *workers,
@@ -387,7 +400,12 @@ func main() {
 			log.Printf("Flowctl progress report failed: %v", err)
 		}
 
+		_ = statusEmitter.Working("", fmt.Sprintf("Extracting %d-%d", startLedger, endLedger), 0)
 		if err := orchestrator.Run(); err != nil {
+			// Reported before exiting, so a watcher sees why rather than
+			// seeing the record simply stop. error and done both survive
+			// process exit by design.
+			_ = statusEmitter.Failed("", fmt.Sprintf("extract %d-%d: %v", startLedger, endLedger, err))
 			fatalChunk("extract", err, "rerun_chunk")
 		}
 		effectiveOutput = orchestrator.OutputDir()
@@ -531,6 +549,13 @@ func main() {
 		log.Printf("Warning: catalog report failed: %v", err)
 	}
 
+	// The terminal report, and the one a watcher is actually waiting for.
+	// done survives process exit by design, so a dashboard still shows the
+	// outcome after the run is gone. Emitted here rather than earlier because
+	// everything above -- extract, push, hot buffer, catalog report -- is part
+	// of the run finishing.
+	_ = statusEmitter.Done("", fmt.Sprintf("Ingested ledgers %d-%d", startLedger, endLedger))
+
 	if !*runDuckLake {
 		if err := reporter.ReportChunkCompleted(ctx, int64(startLedger), int64(endLedger), false, map[string]int64{
 			"ledgers": int64(totalLedgers),
@@ -575,4 +600,28 @@ func classifyFlowctlFailure(err error) flowctlpb.FailureClass {
 	default:
 		return flowctlpb.FailureClass_FAILURE_CLASS_UNKNOWN
 	}
+}
+
+// newStatusEmitter builds the OSC 7501 emitter from the --program-status mode.
+//
+// auto is the default and reports only when stderr is a terminal: the escape
+// sequence is meaningful to a terminal or a supervising tool and is noise in a
+// log file or a pipe. always is for a consumer that reads a captured stream;
+// never is for anyone who wants the stream clean.
+//
+// Reports go to stderr rather than stdout because stdout carries results, and
+// an escape sequence written into a result stream corrupts it.
+func newStatusEmitter(mode string) (*status.Emitter, error) {
+	var enabled bool
+	switch mode {
+	case "auto":
+		enabled = status.StderrIsTerminal()
+	case "always":
+		enabled = true
+	case "never":
+		enabled = false
+	default:
+		return nil, fmt.Errorf("--program-status must be auto, always or never, got %q", mode)
+	}
+	return status.NewEmitter(os.Stderr, "stellar-ingest", enabled), nil
 }

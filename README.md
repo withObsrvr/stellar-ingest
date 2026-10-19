@@ -33,6 +33,14 @@ no public 21-table Bronze API is claimed. See
 [`docs/target-architecture.md`](docs/target-architecture.md), and
 [`docs/ticket-03-progress.md`](docs/ticket-03-progress.md).
 
+Since then the cold storage layer changed shape, under
+[`docs/bronze-storage-contract.md`](docs/bronze-storage-contract.md):
+identity is stored compactly, the shapes consumers query are presentation
+views over it, and tables are partitioned by `ledger_range`. A backfill is
+resumable across restarts through a range catalog, and builds partitions
+concurrently. [`docs/bronze-presentation-views.md`](docs/bronze-presentation-views.md)
+has the measurements and what is deliberately deferred.
+
 ## Build with Nix
 
 ```sh
@@ -65,8 +73,9 @@ existing scripts keep working. See [`docs/compatibility.md`](docs/compatibility.
 
 ## Usage
 
-The binary takes flags, not a config file. Forty-one flags; `--help` is the
-full list and `docs/baseline/cli-help.txt` is the recorded contract.
+The binary takes flags, not a config file. Forty-five flags; `--help` is the
+full list and `docs/baseline/cli-help.txt` is the recorded contract, enforced
+by `make parity-baseline` — a flag change that does not update it fails CI.
 
 ### Extract a mainnet range from a GCS archive
 
@@ -118,13 +127,26 @@ duckdb -c "SELECT count(*) FROM read_parquet('/data/output/bronze/**/*.parquet')
 ## Tests
 
 ```sh
-make test     # unit suite
-make golden   # hermetic Bronze snapshot suite over 8 committed pubnet fixtures
+make test                        # unit suite
+make golden                      # Bronze snapshot suite over 8 committed pubnet fixtures
+make integration                 # DuckLake end to end, PostgreSQL catalog in a container
+make integration-ducklake-file   # the same, against a DuckDB file catalog
+make ci-build                    # everything CI runs
 ```
 
 The golden suite needs no network and no credentials — fixtures are committed
 raw pubnet XDR. It covers all 21 Bronze tables, including 22 automatic
-restorations in ledger 61,500,126.
+restorations in ledger 61,500,126. `make golden-update` regenerates the
+snapshots; review the diff, because they are the reviewed record of what the
+extractors produce.
+
+The integration suite is the only one that exercises the path a re-ingest
+actually runs: Parquet, through `read_parquet`, into a `BLOB` column, through a
+view that renders it back and joins a parent. `make integration` brings up a
+throwaway PostgreSQL catalog in podman or docker and tears it down after;
+`make integration-ducklake-file` needs no container and no credentials, so it
+is the one to reach for while iterating. Both skip cleanly when their
+environment is unset, so `go test ./...` is unaffected.
 
 ## Two things that will bite you
 
@@ -159,7 +181,64 @@ entirely through environment variables — see
 
 The 21 Bronze tables and their DuckLake names are listed in
 [`docs/phase0-inventory.md`](docs/phase0-inventory.md) §6. The DDL is
-`v3_bronze_schema.sql`.
+`v3_bronze_schema.sql` and the views are `v3_bronze_views.sql`.
+
+In DuckLake the two live in separate schemas:
+
+```
+bronze_store.transactions_row_v2   physical table, transaction_hash as 32 bytes
+bronze.transactions_row_v2         view, renders lower(hex(..)) as 64 chars
+```
+
+Writers target the store schema (`--ducklake-schema`, default `bronze_store`);
+readers use the view schema (`--ducklake-view-schema`, default `bronze`), which
+is the name consumers already query. That is what lets cold stop storing an
+identity three times without any reader changing. Tables are partitioned by
+`ledger_range`, so files land in `ledger_range=64000000/` directories.
+
+A column removal or type change only takes effect on files written afterwards,
+so these changes are observable on a catalog created after them — which is why
+a re-ingest is a re-ingest rather than a catch-up.
+
+## Backfilling a long range
+
+A multi-day backfill is interruptible. `--range-state` records each
+10,000-ledger range in a PostgreSQL catalog as it is claimed and completed, so
+a rerun skips finished work instead of starting over, and a range whose worker
+died is reclaimed after its lease expires.
+
+```sh
+./bin/stellar-ingest --plan --start 1 --end 64000000 \
+  --range-state --range-state-table public.ingest_range_state
+```
+
+`--plan` prints the ranges still to build, one `start end` pair per line, with
+everything else commented — so it pipes into a dispatch loop. `--chunk-size`
+and `--chunk-concurrency` then control how much of that one process takes on
+at a time.
+
+Memory scales with concurrency, not range size: peak is roughly
+`chunks x workers x 200 x ledger size`, because each worker prefetches 200
+decoded ledgers. A 64-million-ledger range costs the same RAM as a
+2,000-ledger one at equal concurrency.
+
+## Program status
+
+Long runs report their state as [OSC
+7501](https://mitchellh.com/writing/program-status-osc7501) program status on
+stderr, so a terminal, dashboard or supervising tool can follow a run from the
+program's own account of it rather than by scraping output:
+
+```
+ESC]7501;state=working:app=stellar-ingest:title=5 ledgers, 2284/s:progress=100ESC\
+ESC]7501;state=done:app=stellar-ingest:msg=<base64>ESC\
+```
+
+`--program-status` is `auto` by default, which reports only when stderr is a
+terminal, because the sequence is noise in a log file or a pipe. `always` is
+for a consumer reading a captured stream; `never` keeps the stream clean.
+Reports never go to stdout — that carries results, and an escape sequence in a
+result stream corrupts it.
 
 ## Repair
 
@@ -191,6 +270,11 @@ currently accepted as command-line arguments, which exposes them in process
 listings and shell history. Environment fallbacks are a known gap, recorded in
 [`docs/phase0-inventory.md`](docs/phase0-inventory.md) §2.
 
+This is a named violation of the CLI standard's "no secrets in arguments,
+diagnostics, logs, or inspect output", and it is tracked as such in
+[`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) rather than
+left implicit.
+
 ## Documentation
 
 | Document | Contents |
@@ -202,6 +286,11 @@ listings and shell history. Environment fallbacks are a known gap, recorded in
 | [`docs/target-architecture.md`](docs/target-architecture.md) | Ownership boundaries and the target package layout |
 | [`docs/roadmap.md`](docs/roadmap.md) | Phases, tickets, and current state |
 | [`docs/ticket-04-developer-handoff.md`](docs/ticket-04-developer-handoff.md) | Historical/live Bronze parity work plan and discrepancy-report acceptance gate |
+| [`docs/bronze-storage-contract.md`](docs/bronze-storage-contract.md) | What a Bronze row costs, measured, and the rules decided from it |
+| [`docs/bronze-presentation-views.md`](docs/bronze-presentation-views.md) | The compact-identity change: what moved, what it recovered, what is deferred |
+| [`docs/cold-authority-matrix.md`](docs/cold-authority-matrix.md) | Which producer wrote which part of cold, and which generations are trustworthy |
+| [`docs/engineering-standard.md`](docs/engineering-standard.md) | How changes here are expected to be built and tested |
+| [`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) | Gap analysis against the Obsrvr CLI Engineering Standard, and the staged plan |
 | `docs/baseline/cli-help.txt` | Recorded CLI contract, enforced by `make parity-baseline` |
 
 ## Related repositories
