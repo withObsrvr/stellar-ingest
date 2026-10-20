@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -65,7 +66,7 @@ func runFixture(t *testing.T, meta fixtures.Meta, ledgerPath, outputDir string) 
 		Bucket:            ledgerPath,
 	}
 
-	if err := NewOrchestrator(cfg).Run(); err != nil {
+	if err := NewOrchestrator(cfg).Run(context.Background()); err != nil {
 		t.Fatalf("extract %s: %v", meta.Name, err)
 	}
 

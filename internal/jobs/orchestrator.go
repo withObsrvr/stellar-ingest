@@ -130,7 +130,15 @@ func (o *Orchestrator) ManifestPath() string {
 }
 
 // Run splits the ledger range into shards and runs workers in parallel.
-func (o *Orchestrator) Run() error {
+//
+// The context is the caller's, and cancelling it stops the run. It used to
+// be context.Background(): every worker got a context that nothing could
+// cancel, so the signal context main.go threads through app.Run died here
+// and a SIGINT during extraction -- the long part of any backfill -- was
+// ignored until the range finished. Measured before the fix: a run survived
+// 60 seconds of SIGINT and had to be killed, losing the checkpoint and
+// leaving the range claim held until its lease expired.
+func (o *Orchestrator) Run(ctx context.Context) error {
 	if o.checkpointErr != nil {
 		return o.checkpointErr
 	}
@@ -160,7 +168,16 @@ func (o *Orchestrator) Run() error {
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, len(shards))
-	ctx, cancel := context.WithCancel(context.Background())
+	// Derived from the caller's, so a cancelled caller cancels every worker.
+	// The local cancel still exists so the first worker to fail stops the
+	// others rather than letting them finish work that is already wasted.
+	//
+	// caller is kept separate deliberately: both a stopped caller and a
+	// failed worker cancel the derived context, so asking the derived one
+	// "were we cancelled?" would report every worker failure as a clean
+	// shutdown and hand a scheduler exit 130 for a real bug.
+	caller := ctx
+	ctx, cancel := context.WithCancel(caller)
 	defer cancel()
 
 	// Start progress reporter
@@ -215,12 +232,36 @@ func (o *Orchestrator) Run() error {
 	o.progress.PrintStatus()
 
 	if len(errs) > 0 {
+		// A cancelled run is reported as cancellation, not as N failures.
+		// Every worker returns ctx.Err() when the caller stops the run, and
+		// calling that an internal failure would tell a scheduler to retry a
+		// deliberate shutdown -- and would hide the one piece of information
+		// the operator needs, which is that the stop was theirs.
+		if cause := caller.Err(); cause != nil {
+			o.config.Log.Info("Run stopped: %v (%d shard(s) interrupted)", cause, len(errs))
+			return cause
+		}
 		for _, err := range errs {
 			o.config.Log.Error("%v", err)
 		}
 		return fmt.Errorf("%d worker(s) failed", len(errs))
 	}
 
+	// Reaching here means every shard returned without error, so the attempt
+	// IS complete and the manifest describing it is true.
+	//
+	// There was a second cancellation check here. It was wrong twice over.
+	// It could not hold the invariant it looked like it held -- a context
+	// can be cancelled between the check and the write, and a file write
+	// cannot be made atomic with respect to a context -- and in the case it
+	// did catch, it threw away a finished attempt: every shard had
+	// succeeded, and suppressing the manifest only forced a rerun of work
+	// that was already on disk.
+	//
+	// The invariant that matters is narrower and is enforced above: no
+	// manifest for an INCOMPLETE attempt. A cancelled run always has
+	// interrupted shards, every one of which returns ctx.Err(), so it
+	// returns through the error path and never arrives here.
 	if err := domain.WriteAttemptManifest(o.ManifestPath(), o.attemptID, o.config, o.lineage.Records()); err != nil {
 		return fmt.Errorf("publish attempt manifest: %w", err)
 	}

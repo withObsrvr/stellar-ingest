@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"os"
@@ -104,7 +105,7 @@ func TestOrchestratorResumesIncompleteParquetShard(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(attempt, "manifest.json")); !os.IsNotExist(err) {
 				t.Fatalf("manifest exists before recovery: %v", err)
 			}
-			if err := NewOrchestrator(cfg).Run(); err != nil {
+			if err := NewOrchestrator(cfg).Run(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 			if hash, err := domain.FileSHA256(completedFile); err != nil || hash != completeHash {

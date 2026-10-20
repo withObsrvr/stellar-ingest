@@ -24,6 +24,13 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
 
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./internal)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
+
       - name: go vet
         run: go vet ./...
 
@@ -44,12 +51,88 @@ jobs:
       - name: CLI surface parity
         run: make parity-baseline
 
+  # TEST-4: concurrent code MUST pass the race detector. The orchestrator runs
+  # one goroutine per worker over shared progress, lineage and checkpoint
+  # state, and the Parquet writers are shared across them -- this is the code
+  # most worth instrumenting, and it was never run in CI, only available as a
+  # Makefile target nothing called.
+  #
+  # Scoped to the concurrent tests rather than ./... on purpose. The full
+  # module under -race takes 402 s on a 16-core machine and blew past Go's
+  # 600 s per-package timeout on a 2-core runner, which fails the gate without
+  # finding anything: the extra time is golden and parity tests replaying
+  # fixtures single-file, not concurrency. The pattern below covers the
+  # orchestrator fan-out, worker shards, chunk concurrency, cancellation,
+  # progress, lineage, checkpointing and recovery, plus every adapter test.
+  race:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
+
+      - name: Race detector over the concurrent code
+        run: |
+          go test -race -timeout 25m \
+            -run 'Orchestrator|Concurren|Worker|Shard|Chunk|Cancel|Progress|Lineage|Checkpoint|Resum|Recovery' \
+            ./internal/jobs/
+          go test -race -timeout 25m ./internal/adapters/
+
+  # SEC-6 and the §9 merge gate. Committed chain fixtures are allowlisted by
+  # path in .gitleaks.toml; everything else is scanned.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The official action requires a paid licence for organisation-owned
+      # repositories, so the binary is run directly. Pinned rather than
+      # :latest so a new release cannot change the merge gate under us.
+      - name: Install gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: gitleaks
+        run: gitleaks detect --no-banner --redact --config .gitleaks.toml --exit-code 1
+
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build --build-arg VERSION=ci -t stellar-ingest:ci .
+        run: |
+          docker build \
+            --build-arg VERSION=ci \
+            --build-arg REVISION="${GITHUB_SHA}" \
+            --build-arg BUILD_DATE="$(git log -1 --pretty=%cI)" \
+            -t stellar-ingest:ci .
+
+      # BUILD-4: the annotations are the point of setting them, so check they
+      # survived rather than trusting the build args reached the LABEL.
+      - name: Image carries its provenance
+        run: |
+          revision=$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' stellar-ingest:ci)
+          licenses=$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' stellar-ingest:ci)
+          echo "revision=$revision licenses=$licenses"
+          [ "$revision" = "$GITHUB_SHA" ] || { echo "revision annotation is '$revision', want $GITHUB_SHA"; exit 1; }
+          [ "$licenses" = "Apache-2.0" ] || { echo "licenses annotation is '$licenses', want Apache-2.0"; exit 1; }
       - name: Smoke-test both executable names
         run: |
           docker run --rm stellar-ingest:ci --help > /dev/null

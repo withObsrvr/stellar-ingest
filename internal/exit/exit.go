@@ -22,7 +22,9 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
+	"syscall"
 )
 
 // Class is a documented exit code.
@@ -43,11 +45,27 @@ const (
 	NotFound Class = 3
 	// Permission is a credential or authorisation failure.
 	Permission Class = 4
+	// Conflict is a failed precondition: a range another run already holds
+	// or has frozen, an attempt that already exists, a catalog whose version
+	// does not match. Retry after resolving it, not immediately.
+	Conflict Class = 5
 	// Timeout is --timeout elapsing, or a deadline passed in by a caller.
-	Timeout Class = 5
-	// Cancelled is SIGINT, SIGTERM, or a caller cancelling the context. It
-	// is distinct from Timeout because it means somebody asked for the stop.
-	Cancelled Class = 6
+	Timeout Class = 6
+	// Unavailable is a dependency the run cannot reach: the archive, the
+	// catalog, RPC, object storage. Retry with backoff -- this is the one
+	// class where retrying the identical invocation is the right move.
+	Unavailable Class = 7
+	// DataValidation is a quality failure in data the run produced or read:
+	// a ledger gap, a duplicate, a checksum or coverage mismatch, a schema
+	// that does not match. It is never a retry. Something is wrong with the
+	// data and a human has to look.
+	DataValidation Class = 8
+	// Cancelled is a run a signal or a caller stopped after a clean
+	// shutdown. CLI-15 puts an interrupted run at 128+n rather than in the
+	// 0-8 range, and 130 is SIGINT's. A SIGTERM reports 143; Code reads the
+	// signal off the error, because by the time an error reaches here the
+	// only record of which signal arrived is the one main.go attached.
+	Cancelled Class = 130
 )
 
 // String names the class for diagnostics and for the documented table.
@@ -63,8 +81,14 @@ func (c Class) String() string {
 		return "not-found"
 	case Permission:
 		return "permission"
+	case Conflict:
+		return "conflict"
 	case Timeout:
 		return "timeout"
+	case Unavailable:
+		return "unavailable"
+	case DataValidation:
+		return "data-validation"
 	case Cancelled:
 		return "cancelled"
 	default:
@@ -110,6 +134,19 @@ func Permissionf(format string, args ...any) error { return newf(Permission, for
 // Internalf reports an unexpected failure.
 func Internalf(format string, args ...any) error { return newf(Internal, format, args...) }
 
+// Conflictf reports a failed precondition: a range already claimed or
+// frozen, an attempt that already exists, a version that does not match.
+func Conflictf(format string, args ...any) error { return newf(Conflict, format, args...) }
+
+// Unavailablef reports a dependency the run could not reach.
+func Unavailablef(format string, args ...any) error { return newf(Unavailable, format, args...) }
+
+// DataValidationf reports a data quality failure: a gap, a duplicate, a
+// checksum or coverage mismatch, a schema that does not match.
+func DataValidationf(format string, args ...any) error {
+	return newf(DataValidation, format, args...)
+}
+
 // Wrap classifies an existing error, keeping it in the chain so errors.Is and
 // errors.As still reach it.
 func Wrap(class Class, err error) error {
@@ -117,6 +154,34 @@ func Wrap(class Class, err error) error {
 		return nil
 	}
 	return &Error{Class: class, Err: err}
+}
+
+// Signalled records which signal stopped the run.
+//
+// signal.NotifyContext cancels a context but throws away which signal did
+// it, and CLI-15 distinguishes 130 from 143. The handler in main.go wraps
+// the operation's error in one of these so Code can report 128+n without
+// the exit package having to know about signal handling.
+type Signalled struct {
+	Signal syscall.Signal
+	Err    error
+}
+
+func (e *Signalled) Error() string {
+	if e.Err == nil {
+		return e.Signal.String()
+	}
+	return e.Err.Error()
+}
+
+func (e *Signalled) Unwrap() error { return e.Err }
+
+// Interrupt marks an error as having been caused by a signal.
+func Interrupt(sig syscall.Signal, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &Signalled{Signal: sig, Err: err}
 }
 
 // ClassOf reports the exit class for an error.
@@ -144,17 +209,59 @@ func ClassOf(err error) Class {
 		return Permission
 	case errors.Is(err, fs.ErrNotExist):
 		return NotFound
+	case isUnreachable(err):
+		return Unavailable
 	}
 	return Internal
 }
 
+// isUnreachable reports whether an error is a dependency the run could not
+// reach, rather than one that answered and said no.
+//
+// Deliberately narrow: a refused connection, an unresolvable host and a
+// network timeout are unambiguous, and CLI-15 makes 7 the one class where a
+// scheduler retries the identical invocation. Anything broader -- treating
+// every error from a storage client as Unavailable, say -- would turn a
+// permanent misconfiguration into an infinite retry loop, which is the
+// failure this taxonomy exists to prevent.
+func isUnreachable(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.EHOSTUNREACH) ||
+		errors.Is(err, syscall.ENETUNREACH) {
+		return true
+	}
+	var dns *net.DNSError
+	if errors.As(err, &dns) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return false
+}
+
 // Code is the integer to hand os.Exit.
-func Code(err error) int { return int(ClassOf(err)) }
+//
+// A signal beats a class: a run stopped by SIGTERM exits 143 whatever the
+// error underneath says, because what a scheduler needs to know is that the
+// stop was ordered rather than encountered.
+func Code(err error) int {
+	if err == nil {
+		return int(OK)
+	}
+	var signalled *Signalled
+	if errors.As(err, &signalled) {
+		return 128 + int(signalled.Signal)
+	}
+	return int(ClassOf(err))
+}
 
 // Classes lists every class, so documentation and tests enumerate one list
 // rather than two that drift.
 func Classes() []Class {
-	return []Class{OK, Internal, Usage, NotFound, Permission, Timeout, Cancelled}
+	return []Class{OK, Internal, Usage, NotFound, Permission, Conflict, Timeout, Unavailable, DataValidation, Cancelled}
 }
 
 // Exit ends the process with the class the error names. Kept here so the

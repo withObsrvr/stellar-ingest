@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"path/filepath"
@@ -31,7 +32,7 @@ func extractWith(t *testing.T, db *sql.DB, meta fixtures.Meta, ledgerPath, outpu
 		StorageType:       "XDR",
 		Bucket:            ledgerPath,
 	}
-	if err := NewOrchestrator(cfg).Run(); err != nil {
+	if err := NewOrchestrator(cfg).Run(context.Background()); err != nil {
 		t.Fatalf("extract with workers=%d batch=%d: %v", workers, batchSize, err)
 	}
 
@@ -234,7 +235,7 @@ func TestCorruptedXDRIsRejected(t *testing.T) {
 				Bucket:            bad,
 			}
 
-			err := NewOrchestrator(cfg).Run()
+			err := NewOrchestrator(cfg).Run(context.Background())
 			if err == nil {
 				t.Errorf("corrupted stream (%s) extracted without error; "+
 					"a damaged range must not look like a successful one", tc.label)

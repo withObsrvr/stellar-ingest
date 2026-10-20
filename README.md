@@ -151,15 +151,49 @@ silently misreading a renamed field.
 `0` success, and documented classes for everything else, so a scheduler can
 tell "retry this" from "stop and ask someone":
 
-| Code | Class | Means |
-|---|---|---|
-| 0 | ok | |
-| 1 | internal | A bug, or a dependency behaving unexpectedly |
-| 2 | usage | Invalid input. Retrying the same invocation cannot help |
-| 3 | not-found | A resource the run needs is not there |
-| 4 | permission | A credential or authorisation failure |
-| 5 | timeout | `--timeout` elapsed |
-| 6 | cancelled | SIGINT or SIGTERM |
+| Code | Class | Means | Retry? |
+|---|---|---|---|
+| 0 | ok | | — |
+| 1 | internal | A bug, or a dependency behaving unexpectedly | Depends |
+| 2 | usage | Invalid input. Retrying the same invocation cannot help | No |
+| 3 | not-found | A resource the run needs is not there | No |
+| 4 | permission | A credential or authorisation failure | No |
+| 5 | conflict | A failed precondition: a range already claimed or frozen, a version mismatch | After resolving |
+| 6 | timeout | `--timeout` elapsed | Yes |
+| 7 | unavailable | A dependency could not be reached | Yes, with backoff |
+| 8 | data-validation | A gap, duplicate, checksum or coverage failure | No; investigate |
+| 130 / 143 | cancelled | SIGINT / SIGTERM, after a clean shutdown | Yes, resumes from checkpoint |
+
+These are the CLI-15 codes from the OBSRVR Engineering Standard. Codes 5 and
+6 changed meaning in the v2.0 alignment — see
+[ADR 0001](docs/adr/0001-align-exit-codes-with-cli-15.md) and the
+[changelog](CHANGELOG.md).
+
+On SIGINT or SIGTERM a run stops starting new work, finishes or rolls back
+the unit in flight, writes its checkpoint and exits 130 or 143. It publishes
+no manifest: a resumed backfill must not read a stopped attempt as a
+complete one. With `--range-state` it also gives its claim back, so the range
+is immediately redispatchable instead of blocked until the two-hour lease
+expires. A frozen range is never released — the push landed. A second signal
+exits immediately.
+
+### Version
+
+```sh
+$ stellar-ingest version
+stellar-ingest 0.1.0
+  commit    81acc92
+  built at  2026-10-20T13:07:07Z
+
+$ stellar-ingest version --output json
+{"schema":"stellar-ingest.version/v1","semver":"0.1.0","commit":"81acc92","built_at":"..."}
+```
+
+The release and the commit are both reported because they answer different
+questions. Manifests, lineage rows and checkpoints record the **commit**: two
+builds of one release can decode differently, and a provenance record that
+said only `0.1.0` would be ambiguous. The flat `--version` prints the commit
+alone, unchanged.
 
 ### A config file
 
@@ -540,9 +574,18 @@ The warning names the flag and the variables, never the value.
 | [`docs/bronze-storage-contract.md`](docs/bronze-storage-contract.md) | What a Bronze row costs, measured, and the rules decided from it |
 | [`docs/bronze-presentation-views.md`](docs/bronze-presentation-views.md) | The compact-identity change: what moved, what it recovered, what is deferred |
 | [`docs/cold-authority-matrix.md`](docs/cold-authority-matrix.md) | Which producer wrote which part of cold, and which generations are trustworthy |
-| [`docs/engineering-standard.md`](docs/engineering-standard.md) | How changes here are expected to be built and tested |
-| [`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) | Gap analysis against the Obsrvr CLI Engineering Standard, and the staged plan |
+| [`docs/engineering-profile.md`](docs/engineering-profile.md) | **Current.** Conformance against the Obsrvr Engineering Standard v2.0: contracts owned, exceptions, ordered gap list |
+| [`docs/adr/`](docs/adr/) | Decision records. A contract, architecture or security change is an ADR |
+| [`docs/engineering-standard.md`](docs/engineering-standard.md) | Superseded by the profile; v1.0-era conformance record, kept for history |
+| [`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) | Superseded by the profile; v1.0 gap analysis and staged plan |
 | `docs/baseline/cli-help.txt` | Recorded CLI contract, enforced by `make parity-baseline` |
+
+## Licence
+
+Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+To report a vulnerability, see [`SECURITY.md`](SECURITY.md) — not a public
+issue.
 
 ## Related repositories
 

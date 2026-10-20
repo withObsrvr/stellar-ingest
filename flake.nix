@@ -26,7 +26,7 @@
           # notice, because it never runs nix.
           #
           # Regenerate with `make nix-vendor-hash`.
-          vendorHash = "sha256-kmOLacGMhbcrTrXM+E68KUArEaO0EhEk6/2G95SlDEg=";
+          vendorHash = "sha256-rpfCBuieRAMlHH+fNiYrsN+i2c2d9apPUBtHo17DU8s=";
 
           # duckdb-go/v2 is cgo and bundles its own DuckDB, so unlike the other
           # Obsrvr services this cannot be built with CGO_ENABLED=0.
@@ -34,6 +34,10 @@
 
           nativeBuildInputs = [ pkgs.pkg-config ];
 
+          # BuildDate is deliberately left unset here. A flake build has no
+          # commit date available (the source is a store path, not a git
+          # tree), and inventing one would make `version` claim a precision
+          # the build does not have. Empty omits the field.
           ldflags = [ "-X" "github.com/withObsrvr/stellar-ingest/internal/domain.Version=${revision}" ];
 
           # The module is a single flat package main at the repository root.
