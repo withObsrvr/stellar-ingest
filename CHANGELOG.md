@@ -22,6 +22,13 @@ pre-1.0, so a minor bump may break (VER-2).
 - A cancelled run no longer publishes an attempt manifest. The manifest is
   the claim that an attempt is complete, and a resumed backfill reads it as
   one.
+- **A stopped run now gives its range claim back.** `Claim` only takes over a
+  `freezing` row once `DefaultClaimLease` has expired, so a Ctrl-C used to
+  leave every range it was working blocked from redispatch for two hours —
+  making SIGINT stop promptly was worth little while the ranges stayed
+  locked. `RangeStateStore.Release` deletes the row, guarded so a run can
+  only release its own claim and a frozen range can never be released. Emits
+  `range.released`.
 
 ### Changed
 

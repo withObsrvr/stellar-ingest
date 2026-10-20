@@ -49,6 +49,11 @@ const (
 	// the catalog records.
 	TypeRangeClaimed = "range.claimed"
 	TypeRangeFrozen  = "range.frozen"
+	// TypeRangeReleased means a claim was given back without freezing,
+	// because the run was stopped. It is the third durable transition: a
+	// watcher that saw range.claimed needs to know the range is free again
+	// rather than inferring it from a lease it cannot see.
+	TypeRangeReleased = "range.released"
 	// TypeExtractCompleted reports the Parquet phase.
 	TypeExtractCompleted = "extract.completed"
 	// TypeValidateCompleted reports the quality checks.

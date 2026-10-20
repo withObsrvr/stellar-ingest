@@ -172,7 +172,10 @@ These are the CLI-15 codes from the OBSRVR Engineering Standard. Codes 5 and
 On SIGINT or SIGTERM a run stops starting new work, finishes or rolls back
 the unit in flight, writes its checkpoint and exits 130 or 143. It publishes
 no manifest: a resumed backfill must not read a stopped attempt as a
-complete one. A second signal exits immediately.
+complete one. With `--range-state` it also gives its claim back, so the range
+is immediately redispatchable instead of blocked until the two-hour lease
+expires. A frozen range is never released — the push landed. A second signal
+exits immediately.
 
 ### Version
 

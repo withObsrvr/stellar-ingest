@@ -285,6 +285,38 @@ func (s *RangeStateStore) Freeze(ctx context.Context, r LedgerRange, attemptID s
 	return nil
 }
 
+// Release gives up a claim this run took but never froze.
+//
+// Without it a stopped run holds its range for the full DefaultClaimLease --
+// two hours during which no plan will redispatch it, because Claim only
+// takes over a 'freezing' row once the lease has expired. Making SIGINT stop
+// a backfill promptly is worth little if the ranges it was working stay
+// blocked for the rest of the afternoon.
+//
+// The row is deleted rather than marked: a range that was claimed and not
+// finished has nothing worth recording, and Plan treats an absent row as
+// work to do, which is exactly right.
+//
+// Both predicates are load-bearing. attempt_id means a run can only release
+// its own claim, so a lease that expired mid-run and was re-taken by someone
+// else is left alone. state = 'freezing' means a frozen range can never be
+// released -- the push landed, the data is in DuckLake, and that fact
+// outlives whoever stopped the process.
+func (s *RangeStateStore) Release(ctx context.Context, r LedgerRange, attemptID string) (bool, error) {
+	tag, err := s.pool.Exec(ctx, fmt.Sprintf(`
+		DELETE FROM %s
+		 WHERE era_id = $1 AND start_ledger = $2 AND end_ledger = $3
+		   AND attempt_id = $4 AND state = 'freezing'`,
+		s.table), s.eraID, int64(r.Start), int64(r.End), attemptID)
+	if err != nil {
+		return false, fmt.Errorf("release range %s: %w", r, err)
+	}
+	// Nothing matched is a normal outcome, not a failure: the range may have
+	// been frozen a moment ago, or another run may have taken it after our
+	// lease expired. Either way there is nothing of ours left to give up.
+	return tag.RowsAffected() == 1, nil
+}
+
 // Plan loads the catalog and diffs it against the wanted set.
 func (s *RangeStateStore) Plan(ctx context.Context, wanted []LedgerRange, lease time.Duration) (RangePlan, error) {
 	have, err := s.Load(ctx)

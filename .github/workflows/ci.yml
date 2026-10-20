@@ -117,7 +117,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build --build-arg VERSION=ci -t stellar-ingest:ci .
+        run: |
+          docker build \
+            --build-arg VERSION=ci \
+            --build-arg REVISION="${GITHUB_SHA}" \
+            --build-arg BUILD_DATE="$(git log -1 --pretty=%cI)" \
+            -t stellar-ingest:ci .
+
+      # BUILD-4: the annotations are the point of setting them, so check they
+      # survived rather than trusting the build args reached the LABEL.
+      - name: Image carries its provenance
+        run: |
+          revision=$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' stellar-ingest:ci)
+          licenses=$(docker inspect -f '{{ index .Config.Labels "org.opencontainers.image.licenses" }}' stellar-ingest:ci)
+          echo "revision=$revision licenses=$licenses"
+          [ "$revision" = "$GITHUB_SHA" ] || { echo "revision annotation is '$revision', want $GITHUB_SHA"; exit 1; }
+          [ "$licenses" = "Apache-2.0" ] || { echo "licenses annotation is '$licenses', want Apache-2.0"; exit 1; }
       - name: Smoke-test both executable names
         run: |
           docker run --rm stellar-ingest:ci --help > /dev/null

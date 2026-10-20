@@ -32,7 +32,14 @@ var SemVer = "0.1.0"
 
 // BuildDate is when the binary was built, RFC 3339 in UTC (CLI-13, DATA-3).
 //
-// Empty in a developer build, where there is no meaningful answer and a
-// fabricated one would be worse than none: a reproducible release sets it
-// from SOURCE_DATE_EPOCH, so the same commit gives the same timestamp.
+// The Makefile sets it from the COMMIT's date, not from the wall clock and
+// not from SOURCE_DATE_EPOCH, so two builds of one commit are byte-identical
+// (BUILD-3). SOURCE_DATE_EPOCH is the usual convention and is deliberately
+// not used: nix-shell exports it as 315532800 to pin file mtimes, which
+// would stamp every developer build 1980-01-01. Override with BUILD_DATE=...
+// when a release pipeline needs a different answer.
+//
+// Empty is a valid answer and omits the field. The flake build leaves it
+// unset because a Nix store path carries no commit date, and inventing one
+// would have `version` claim a precision the build does not have.
 var BuildDate = ""

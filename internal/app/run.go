@@ -339,6 +339,40 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 		}
 		log.Info("Range %s claimed (freezing)", thisRange)
 		_ = deps.Events.Emit(events.TypeRangeClaimed, resource, map[string]any{"attempt_id": rangeAttemptID})
+
+		// Give the claim back if the run is stopped before it can freeze.
+		//
+		// Claim only takes over a 'freezing' row once DefaultClaimLease has
+		// expired, so without this a Ctrl-C leaves every range it was
+		// working blocked from redispatch for two hours. Making SIGINT stop
+		// a backfill in under a second is worth little if the ranges stay
+		// locked for the rest of the afternoon.
+		//
+		// Registered after the Close defer so it runs BEFORE it: defers are
+		// LIFO, and releasing needs the pool still open.
+		//
+		// Only on cancellation, and only when the range did not freeze. A
+		// frozen range means the push landed, which outlives whoever stopped
+		// the process; and an ordinary failure is left to the lease, because
+		// a crash loop that released on every error would let two runs take
+		// the same range in turn with no backoff between them.
+		defer func() {
+			if ctx.Err() == nil || result.Range.Frozen {
+				return
+			}
+			releaseCtx, cancel := freezeContext(ctx)
+			defer cancel()
+			released, err := rangeStore.Release(releaseCtx, thisRange, rangeAttemptID)
+			switch {
+			case err != nil:
+				log.Warn("Range %s could not be released; it stays claimed until the "+
+					"lease expires in %s: %v", thisRange, jobs.DefaultClaimLease, err)
+			case released:
+				log.Info("Range %s released; a rerun can take it immediately", thisRange)
+				_ = deps.Events.Emit(events.TypeRangeReleased, resource,
+					map[string]any{"attempt_id": rangeAttemptID})
+			}
+		}()
 	}
 
 	// Skip extraction if only doing DuckLake push on existing output

@@ -26,13 +26,18 @@ FROM debian:bookworm-slim
 # BUILD-4: an image must say where it came from, so a running container can be
 # traced back to a commit without guessing from a tag.
 ARG VERSION=dev
-ARG REVISION=unknown
+# REVISION falls back to VERSION, which every build here already sets to the
+# commit. Defaulting it to a literal "unknown" meant a plain `docker build`
+# -- which is what CI runs -- produced an image whose revision annotation
+# named no commit at all, and BUILD-4 exists precisely so a running container
+# can be traced back to one.
+ARG REVISION=
 LABEL org.opencontainers.image.source="https://github.com/withObsrvr/stellar-ingest" \
-      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.revision="${REVISION:-${VERSION}}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.title="stellar-ingest" \
       org.opencontainers.image.description="Stellar ledger ingestion: acquire, decode Bronze, validate, publish" \
-      org.opencontainers.image.licenses="NOASSERTION"
+      org.opencontainers.image.licenses="Apache-2.0"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \

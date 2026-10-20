@@ -3,7 +3,7 @@
         parity-export parity-live parity-report parity-matrix parity-baseline-update \
         nix-build nix-run nix-shell nix-check nix-docker nix-vendor-hash \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
-        ci-build release help
+        ci-build release help integration-range-state
 
 # ---- Variables --------------------------------------------------------------
 #
@@ -130,6 +130,13 @@ version-stamp: build
 	  echo "✗ --version reports \"dev\": the linker flag did not reach $(LDFLAGS)"; exit 1; \
 	fi; \
 	echo "✓ build stamped $$stamp"
+
+# Range-claim lifecycle against a real catalog. The behaviour IS the SQL --
+# the two predicates on the DELETE are the whole guarantee -- so a fake would
+# only assert against a reimplementation of them.
+integration-range-state: integration-up
+	RANGE_STATE_TEST_POSTGRES="postgres://ingest:ingest@127.0.0.1:$(INTEGRATION_PG_PORT)/ducklake_catalog?sslmode=disable" \
+	  $(GOTEST) -count=1 -run Release ./internal/jobs/
 
 integration-up:
 	@test -n "$(CONTAINER_CLI)" || { echo "need podman or docker"; exit 1; }
@@ -347,6 +354,7 @@ docker-build:
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		-t $(DOCKER_IMAGE):$(VERSION_TAG) \
 		--build-arg VERSION=$(GIT_SHA) \
+		--build-arg REVISION=$(GIT_SHA) \
 		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		--label org.opencontainers.image.version=$(VERSION_TAG) \
 		--label org.opencontainers.image.revision=$(GIT_SHA) \
@@ -358,6 +366,8 @@ docker-build:
 docker-buildx:
 	$(CONTAINER_CLI) buildx build --platform $(DOCKER_PLATFORM) \
 		--build-arg VERSION=$(GIT_SHA) \
+		--build-arg REVISION=$(GIT_SHA) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) -t $(DOCKER_IMAGE):$(VERSION_TAG) .
 
 docker-push: docker-build

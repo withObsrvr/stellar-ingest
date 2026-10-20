@@ -54,7 +54,9 @@ Closed in the v2.0 conformance pass:
   orchestrator built its own root context, so the signal context died at the
   call site and extraction ignored cancellation entirely; measured against
   the live archive, a run survived 60 s of SIGINT and had to be killed.
-  Now 0.2 s, with the checkpoint written and no manifest published.
+  Now 0.2 s, with the checkpoint written, no manifest published, and the
+  range claim given back so a rerun can take it immediately rather than
+  waiting out a two-hour lease.
 - **CLI-15** — exit codes realigned, codes 7 and 8 added. ADR 0001.
 - **CONF-1 / DOC-4** — `docs/adr/` exists; the CLI-10 exposure is recorded
   with an expiry instead of standing unacknowledged.

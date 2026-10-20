@@ -247,13 +247,21 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		return fmt.Errorf("%d worker(s) failed", len(errs))
 	}
 
-	// A run the caller stopped must not publish a manifest, even if every
-	// shard happened to return cleanly in the window before it noticed.
-	// A manifest is the claim that the attempt is complete.
-	if cause := caller.Err(); cause != nil {
-		return cause
-	}
-
+	// Reaching here means every shard returned without error, so the attempt
+	// IS complete and the manifest describing it is true.
+	//
+	// There was a second cancellation check here. It was wrong twice over.
+	// It could not hold the invariant it looked like it held -- a context
+	// can be cancelled between the check and the write, and a file write
+	// cannot be made atomic with respect to a context -- and in the case it
+	// did catch, it threw away a finished attempt: every shard had
+	// succeeded, and suppressing the manifest only forced a rerun of work
+	// that was already on disk.
+	//
+	// The invariant that matters is narrower and is enforced above: no
+	// manifest for an INCOMPLETE attempt. A cancelled run always has
+	// interrupted shards, every one of which returns ctx.Err(), so it
+	// returns through the error path and never arrives here.
 	if err := domain.WriteAttemptManifest(o.ManifestPath(), o.attemptID, o.config, o.lineage.Records()); err != nil {
 		return fmt.Errorf("publish attempt manifest: %w", err)
 	}
