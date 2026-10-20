@@ -151,15 +151,28 @@ silently misreading a renamed field.
 `0` success, and documented classes for everything else, so a scheduler can
 tell "retry this" from "stop and ask someone":
 
-| Code | Class | Means |
-|---|---|---|
-| 0 | ok | |
-| 1 | internal | A bug, or a dependency behaving unexpectedly |
-| 2 | usage | Invalid input. Retrying the same invocation cannot help |
-| 3 | not-found | A resource the run needs is not there |
-| 4 | permission | A credential or authorisation failure |
-| 5 | timeout | `--timeout` elapsed |
-| 6 | cancelled | SIGINT or SIGTERM |
+| Code | Class | Means | Retry? |
+|---|---|---|---|
+| 0 | ok | | — |
+| 1 | internal | A bug, or a dependency behaving unexpectedly | Depends |
+| 2 | usage | Invalid input. Retrying the same invocation cannot help | No |
+| 3 | not-found | A resource the run needs is not there | No |
+| 4 | permission | A credential or authorisation failure | No |
+| 5 | conflict | A failed precondition: a range already claimed or frozen, a version mismatch | After resolving |
+| 6 | timeout | `--timeout` elapsed | Yes |
+| 7 | unavailable | A dependency could not be reached | Yes, with backoff |
+| 8 | data-validation | A gap, duplicate, checksum or coverage failure | No; investigate |
+| 130 / 143 | cancelled | SIGINT / SIGTERM, after a clean shutdown | Yes, resumes from checkpoint |
+
+These are the CLI-15 codes from the OBSRVR Engineering Standard. Codes 5 and
+6 changed meaning in the v2.0 alignment — see
+[ADR 0001](docs/adr/0001-align-exit-codes-with-cli-15.md) and the
+[changelog](CHANGELOG.md).
+
+On SIGINT or SIGTERM a run stops starting new work, finishes or rolls back
+the unit in flight, writes its checkpoint and exits 130 or 143. It publishes
+no manifest: a resumed backfill must not read a stopped attempt as a
+complete one. A second signal exits immediately.
 
 ### A config file
 

@@ -372,7 +372,7 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 		}
 
 		_ = deps.Status.Working("", fmt.Sprintf("Extracting %d-%d", startLedger, endLedger), 0)
-		if err := orchestrator.Run(); err != nil {
+		if err := orchestrator.Run(ctx); err != nil {
 			// Reported before returning, so a watcher sees why rather than
 			// seeing the record simply stop. error and done both survive
 			// process exit by design.
@@ -435,7 +435,12 @@ func Run(ctx context.Context, req RunRequest, deps Deps) (*RunResult, error) {
 			})
 			if err != nil {
 				_ = reporter.ReportChunkFailed(ctx, int64(startLedger), int64(endLedger), "validation", flowctlpb.FailureClass_FAILURE_CLASS_VERIFICATION, err.Error(), "inspect_output")
-				return nil, fmt.Errorf("validation failed: %w", err)
+				// CLI-15 code 8, not 1. The standard's table marks 1 as
+				// retryable and 8 as "No; investigate": a quality failure
+				// is the one outcome where running the identical command
+				// again is guaranteed to waste the same money and reach
+				// the same answer.
+				return nil, exit.Wrap(exit.DataValidation, fmt.Errorf("validation failed: %w", err))
 			}
 		}
 	}

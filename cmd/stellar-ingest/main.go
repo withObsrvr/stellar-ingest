@@ -34,12 +34,48 @@ import (
 )
 
 func main() {
-	// §5: "Gracefully handle SIGINT/SIGTERM." A cancelled context reaches
-	// every blocking layer now that the operation threads it through, so a
-	// stopped Nomad allocation unwinds its defers -- closing the pusher,
-	// releasing the range claim -- instead of being killed mid-push.
-	ctx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stopSignals()
+	// CLI-11: "stop starting new work, finish or roll back the current unit,
+	// write its checkpoint and exit with 130 or 143." A cancelled context
+	// reaches every blocking layer, so a stopped Nomad allocation unwinds its
+	// defers -- closing the pusher, releasing the range claim -- instead of
+	// being killed mid-push.
+	//
+	// Handled directly rather than with signal.NotifyContext, which discards
+	// which signal arrived. CLI-15 distinguishes 130 (SIGINT, a person at a
+	// terminal) from 143 (SIGTERM, a supervisor reclaiming the allocation),
+	// and a scheduler reads that difference.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	signals := make(chan os.Signal, 2)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(signals)
+
+	// received is written once by the watcher and read once below, after
+	// run returns. The buffered channel is the handoff: a nil read means no
+	// signal arrived.
+	received := make(chan syscall.Signal, 1)
+	go func() {
+		first, ok := <-signals
+		if !ok {
+			return
+		}
+		if sig, isUnix := first.(syscall.Signal); isUnix {
+			received <- sig
+		} else {
+			received <- syscall.SIGINT
+		}
+		cancel()
+		// A second signal means the operator has stopped waiting for a
+		// clean shutdown. CLI-11 allows forcing the exit, and the code
+		// still names the signal that caused it.
+		if second, ok := <-signals; ok {
+			if sig, isUnix := second.(syscall.Signal); isUnix {
+				os.Exit(128 + int(sig))
+			}
+			os.Exit(130)
+		}
+	}()
 
 	err := run(ctx)
 	if err != nil && ctx.Err() != nil {
@@ -48,6 +84,13 @@ func main() {
 		// failure, and a scheduler would retry it as though something were
 		// broken.
 		err = fmt.Errorf("%w (run was interrupted: %v)", ctx.Err(), err)
+		select {
+		case sig := <-received:
+			err = exit.Interrupt(sig, err)
+		default:
+			// Cancelled without a signal: a caller's deadline or a
+			// programmatic stop. ClassOf already reports 130 for that.
+		}
 	}
 	if err != nil {
 		// stderr: this is a diagnostic. One line, no timestamp, no stack --

@@ -17,8 +17,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"regexp"
+	"syscall"
 	"testing"
 )
 
@@ -64,7 +66,9 @@ func TestEveryDeclaredClassIsInClasses(t *testing.T) {
 	// Compare on the code instead, which both sides agree on.
 	byName := map[string]Class{
 		"OK": OK, "Internal": Internal, "Usage": Usage, "NotFound": NotFound,
-		"Permission": Permission, "Timeout": Timeout, "Cancelled": Cancelled,
+		"Permission": Permission, "Conflict": Conflict, "Timeout": Timeout,
+		"Unavailable": Unavailable, "DataValidation": DataValidation,
+		"Cancelled": Cancelled,
 	}
 	for _, match := range declared {
 		name := match[1]
@@ -178,6 +182,103 @@ func TestEveryFailureClassIsNonZero(t *testing.T) {
 		}
 		if int(c) == 0 {
 			t.Errorf("class %s is zero, so a failure would report success", c)
+		}
+	}
+}
+
+// The codes are a published contract (CLI-15 of the OBSRVR Engineering
+// Standard), and a scheduler's retry policy is written against them. Pinning
+// the integers means a reordering of the const block cannot quietly turn
+// "timed out, retry" into "conflict, resolve first".
+func TestCodesMatchTheStandardTable(t *testing.T) {
+	want := map[string]int{
+		"ok": 0, "internal": 1, "usage": 2, "not-found": 3, "permission": 4,
+		"conflict": 5, "timeout": 6, "unavailable": 7, "data-validation": 8,
+		"cancelled": 130,
+	}
+	for _, c := range Classes() {
+		if got, ok := want[c.String()]; !ok {
+			t.Errorf("class %q is not in the standard's table", c.String())
+		} else if int(c) != got {
+			t.Errorf("%s exits %d, the standard says %d", c.String(), int(c), got)
+		}
+	}
+	if len(want) != len(Classes()) {
+		t.Errorf("the table has %d entries, Classes() has %d", len(want), len(Classes()))
+	}
+}
+
+// 130 and 143 are 128+n, and which one depends on the signal. Reporting
+// SIGTERM as 130 would tell a supervisor the operator pressed Ctrl-C when
+// in fact the supervisor itself asked the process to stop.
+func TestSignalBeatsClass(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"SIGINT", Interrupt(syscall.SIGINT, context.Canceled), 130},
+		{"SIGTERM", Interrupt(syscall.SIGTERM, context.Canceled), 143},
+		{"signal wins over a classified error", Interrupt(syscall.SIGTERM, Usagef("bad flag")), 143},
+		{"wrapped signal still counts", fmt.Errorf("extract: %w",
+			Interrupt(syscall.SIGINT, context.Canceled)), 130},
+		{"no signal, bare cancellation", context.Canceled, 130},
+		{"no signal, deadline", context.DeadlineExceeded, 6},
+		{"nil", nil, 0},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := Code(c.err); got != c.want {
+				t.Errorf("Code = %d, want %d", got, c.want)
+			}
+		})
+	}
+}
+
+// The three classes added for CLI-15 must survive wrapping like the others,
+// since every one of them is produced deep in an operation and read at the
+// top of main.
+func TestNewClassesSurviveWrapping(t *testing.T) {
+	for _, c := range []struct {
+		class Class
+		err   error
+	}{
+		{Conflict, Conflictf("range already frozen")},
+		{Unavailable, Unavailablef("archive unreachable")},
+		{DataValidation, DataValidationf("ledger gap at 64000005")},
+	} {
+		wrapped := fmt.Errorf("run: %w", fmt.Errorf("extract: %w", c.err))
+		if got := ClassOf(wrapped); got != c.class {
+			t.Errorf("%s lost through two wraps: got %s", c.class, got)
+		}
+	}
+}
+
+// Code 7 is the one class the standard says a scheduler may retry with the
+// identical invocation, so what qualifies has to stay narrow. A refused
+// connection is a dependency being down; a permission error from the same
+// client is not, and retrying it forever is how a misconfiguration becomes
+// a bill.
+func TestUnreachableIsNarrow(t *testing.T) {
+	unreachable := []error{
+		fmt.Errorf("dial catalog: %w", syscall.ECONNREFUSED),
+		fmt.Errorf("lookup archive: %w", &net.DNSError{Err: "no such host", IsNotFound: true}),
+		fmt.Errorf("read ledger: %w", syscall.EHOSTUNREACH),
+	}
+	for _, err := range unreachable {
+		if got := ClassOf(err); got != Unavailable {
+			t.Errorf("%v classified %s, want unavailable", err, got)
+		}
+	}
+
+	notUnreachable := []error{
+		fmt.Errorf("catalog: %w", fs.ErrPermission),
+		errors.New("bucket does not exist"),
+		Usagef("--bucket is required"),
+	}
+	for _, err := range notUnreachable {
+		if got := ClassOf(err); got == Unavailable {
+			t.Errorf("%v classified unavailable; retrying it cannot help", err)
 		}
 	}
 }

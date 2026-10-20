@@ -49,8 +49,16 @@ Failures now carry a documented class:
 | 2 | invalid input |
 | 3 | missing resource |
 | 4 | permission |
-| 5 | timeout |
-| 6 | cancelled |
+| 5 | conflict / failed precondition |
+| 6 | timed out waiting |
+| 7 | dependency unavailable |
+| 8 | data validation failed |
+| 130 / 143 | interrupted (SIGINT / SIGTERM) |
+
+**Superseded for codes 5 and up.** The table above is the current one,
+aligned with CLI-15 of the OBSRVR Engineering Standard v2.0. It replaces an
+earlier table in which `5` meant timeout and `6` meant cancelled; see
+[ADR 0001](adr/0001-align-exit-codes-with-cli-15.md).
 
 **What this breaks:** nothing we can find, and the two consumers were
 checked rather than assumed. The chunk runner tests `err != nil` from
