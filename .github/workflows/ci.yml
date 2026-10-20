@@ -37,12 +37,8 @@ jobs:
       - name: Build both executables
         run: make build-all
 
-      # TEST-4: concurrent code MUST pass the race detector. The orchestrator
-      # runs one goroutine per worker over shared progress and lineage state,
-      # so this is the suite that matters most -- and it was never run in CI,
-      # only available as a Makefile target nothing called.
-      - name: Test (race detector)
-        run: go test -race ./...
+      - name: Test
+        run: go test ./...
 
       # Golden Bronze snapshot suite. Fixtures are committed raw pubnet XDR,
       # so this needs no network access and no cloud credentials.
@@ -54,6 +50,42 @@ jobs:
       # same commit.
       - name: CLI surface parity
         run: make parity-baseline
+
+  # TEST-4: concurrent code MUST pass the race detector. The orchestrator runs
+  # one goroutine per worker over shared progress, lineage and checkpoint
+  # state, and the Parquet writers are shared across them -- this is the code
+  # most worth instrumenting, and it was never run in CI, only available as a
+  # Makefile target nothing called.
+  #
+  # Scoped to the concurrent tests rather than ./... on purpose. The full
+  # module under -race takes 402 s on a 16-core machine and blew past Go's
+  # 600 s per-package timeout on a 2-core runner, which fails the gate without
+  # finding anything: the extra time is golden and parity tests replaying
+  # fixtures single-file, not concurrency. The pattern below covers the
+  # orchestrator fan-out, worker shards, chunk concurrency, cancellation,
+  # progress, lineage, checkpointing and recovery, plus every adapter test.
+  race:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
+
+      - name: Race detector over the concurrent code
+        run: |
+          go test -race -timeout 25m \
+            -run 'Orchestrator|Concurren|Worker|Shard|Chunk|Cancel|Progress|Lineage|Checkpoint|Resum|Recovery' \
+            ./internal/jobs/
+          go test -race -timeout 25m ./internal/adapters/
 
   # SEC-6 and the §9 merge gate. Committed chain fixtures are allowlisted by
   # path in .gitleaks.toml; everything else is scanned.

@@ -67,8 +67,9 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ### Added
 
-- CI now runs the **race detector** over the whole suite (TEST-4 — the
-  Makefile target existed and nothing called it), a **gofmt** check, and
+- CI now runs the **race detector** over the concurrent code in a dedicated
+  parallel job (TEST-4 — the Makefile target existed and nothing called it),
+  a **gofmt** check, and
   **secret scanning** with gitleaks (SEC-6). `.gitleaks.toml` allowlists
   `testdata/` by path: committed chain fixtures are public ledger data, and
   283 high-entropy strings in golden files otherwise trip the

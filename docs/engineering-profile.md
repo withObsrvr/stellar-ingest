@@ -62,7 +62,11 @@ Closed in the v2.0 conformance pass:
   catalog (`GO-2026-5004`). Nine remain, all in the Go standard library and
   all fixed in go1.26.9; see gap 1 below.
 - **TEST-4, SEC-6, §9 merge gate (partly)** — CI now runs the race detector,
-  a gofmt check and secret scanning. Committed chain fixtures are allowlisted
+  a gofmt check and secret scanning. Two things the measurement decided:
+  the race job is scoped to the concurrent tests, because the full module
+  under `-race` takes 402 s on 16 cores and exceeds Go's 600 s per-package
+  timeout on a 2-core runner — the extra time is golden and parity fixtures
+  replaying, not concurrency. And committed chain fixtures are allowlisted
   by path in `.gitleaks.toml`; without that, 283 high-entropy strings in
   golden files trip the generic-api-key rule.
 - **BUILD-3 / BUILD-4** — `-trimpath` on every build, OCI annotations on the
