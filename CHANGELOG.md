@@ -52,8 +52,31 @@ pre-1.0, so a minor bump may break (VER-2).
   backoff. The detection is deliberately narrow; anything broader would turn
   a permanent misconfiguration into an infinite retry loop.
 
+### Security
+
+- Seven reachable vulnerabilities closed by dependency bumps (SEC-9):
+  `pgx` v5.9.1 → v5.9.2 (**SQL injection via placeholder confusion with
+  dollar-quoted string literals**, `GO-2026-5004`, reachable from the range
+  catalog's `Load`), `golang.org/x/net` → v0.60.0, `golang.org/x/text` →
+  v0.42.0, `google.golang.org/grpc` → v1.83.1, `go.opentelemetry.io/otel/sdk`
+  → v1.45.0.
+
+  Nine reachable vulnerabilities remain, all in the Go standard library and
+  all fixed in go1.26.9. The flake pins an older toolchain, so that bump and
+  the blocking `govulncheck` CI gate go together in a follow-up.
+
 ### Added
 
+- CI now runs the **race detector** over the whole suite (TEST-4 — the
+  Makefile target existed and nothing called it), a **gofmt** check, and
+  **secret scanning** with gitleaks (SEC-6). `.gitleaks.toml` allowlists
+  `testdata/` by path: committed chain fixtures are public ledger data, and
+  283 high-entropy strings in golden files otherwise trip the
+  generic-api-key rule.
+- `-trimpath` on every build, so the same commit produces the same bytes
+  regardless of where it was built (BUILD-3). OCI annotations on the image,
+  so a running container names the commit it came from (BUILD-4).
+- `AGENTS.md` (DOC-1).
 - `docs/adr/`, with the two decision records this release required (DOC-4).
 - `docs/engineering-profile.md`, the §13 profile, carrying the contract
   list, the one recorded exception and the ordered gap list.

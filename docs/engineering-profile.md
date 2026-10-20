@@ -57,6 +57,17 @@ Closed in the v2.0 conformance pass:
 - **CLI-15** — exit codes realigned, codes 7 and 8 added. ADR 0001.
 - **CONF-1 / DOC-4** — `docs/adr/` exists; the CLI-10 exposure is recorded
   with an expiry instead of standing unacknowledged.
+- **SEC-9 (partly)** — seven reachable vulnerabilities closed by dependency
+  bumps, including a SQL-injection in `pgx` reachable from the range
+  catalog (`GO-2026-5004`). Nine remain, all in the Go standard library and
+  all fixed in go1.26.9; see gap 1 below.
+- **TEST-4, SEC-6, §9 merge gate (partly)** — CI now runs the race detector,
+  a gofmt check and secret scanning. Committed chain fixtures are allowlisted
+  by path in `.gitleaks.toml`; without that, 283 high-entropy strings in
+  golden files trip the generic-api-key rule.
+- **BUILD-3 / BUILD-4** — `-trimpath` on every build, OCI annotations on the
+  image.
+- **DOC-1 (partly)** — `AGENTS.md` and `CHANGELOG.md` added.
 
 Strongest areas: §9 (real pubnet fixtures with recorded ranges, golden
 suite, 21-table parity harness, CLI surface pinned in CI) and §2 (the layer
@@ -64,25 +75,33 @@ boundaries are enforced by a test, not by convention).
 
 ### Next gaps to close, in order
 
-1. **§12 repo hygiene** — no `LICENSE`, `SECURITY.md`, `CHANGELOG.md`
-   (added by this pass), `AGENTS.md`, `CONTRIBUTING`.
-2. **§9 merge gate** — CI runs build, vet, tests, golden and CLI-surface
-   parity, but not `-race` (the Makefile target exists and is never called),
-   `govulncheck`, secret scanning, `staticcheck`/`golangci-lint` or a gofmt
-   check.
-3. **CLI-13 / VER-2** — `version` prints a bare commit. No SemVer, no build
-   date, no `--output json`.
-4. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
+1. **Toolchain bump, and then the govulncheck gate** (SEC-9, BUILD-2). Nine
+   reachable vulnerabilities remain, all in the Go standard library and all
+   fixed in **go1.26.9**. The flake pins an older Go, so the bump means
+   updating `flake.lock` — which can cascade into the cgo DuckDB build and
+   so belongs in its own change. Once the toolchain is current, add
+   `toolchain` to `go.mod` and make `govulncheck` a blocking CI gate. These
+   are one piece of work, not three.
+2. **`golangci-lint` in the merge gate** (§9). Measured: 47 issues today —
+   41 `errcheck` (mostly unchecked `fmt.Fprintf` in tests) and 6
+   `staticcheck`. Enabling it means fixing those first, which is unrelated
+   churn and wants its own PR.
+3. **§12 repo hygiene** — no `LICENSE`, `SECURITY.md`, `CONTRIBUTING`.
+   `LICENSE` and the `SECURITY.md` contact address are decisions, not
+   drafting work.
+4. **CLI-13 / VER-2** — `version` prints a bare commit. No SemVer, no build
+   date, no `--output json`. There are no git tags, so the starting version
+   is a decision.
+5. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
    `network`; lineage carries no protocol version.
-5. **CLI-9** — no `STELLAR_INGEST_*` environment layer and no XDG user
-   config; precedence is flags › config file › defaults.
 6. **TEST-3** — no fuzz tests, and the tool's primary input is XDR.
-7. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
+7. **CLI-9** — no `STELLAR_INGEST_*` environment layer and no XDG user
+   config; precedence is flags › config file › defaults.
+8. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
    no `cancel`.
-8. **§10** — no justfile, no `-trimpath`/`SOURCE_DATE_EPOCH`, no OCI image
-   annotations, no `toolchain` line in `go.mod`.
-9. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
-   reconstructed from operations and effects are not marked as derived.
-10. **CLI-22** — no control-character stripping for chain-derived text.
+9. **§10** — no justfile, and no `SOURCE_DATE_EPOCH` in release builds.
+10. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
+    reconstructed from operations and effects are not marked as derived.
+11. **CLI-22** — no control-character stripping for chain-derived text.
     Latent today: no command renders a memo or asset code to the terminal,
     and nothing pins that it stays that way.

@@ -45,7 +45,10 @@ DOCKER_PLATFORM  ?= linux/amd64
 # not a go.work exists above this directory.
 GOCMD      := go
 GOENV      := GOWORK=off CGO_ENABLED=1
-GOBUILD    := $(GOENV) $(GOCMD) build
+# -trimpath drops the building machine's paths from the binary (BUILD-3):
+# the same commit then produces the same bytes whether it was built in
+# /home/someone/src or in a CI runner's workspace.
+GOBUILD    := $(GOENV) $(GOCMD) build -trimpath
 GOTEST     := $(GOENV) $(GOCMD) test
 GOCLEAN    := $(GOCMD) clean
 # Version lives in internal/domain, which is what stamps it into manifests,

@@ -1,0 +1,23 @@
+# Secret scanning config (SEC-6, and the §9 merge gate).
+#
+# Extends the default rule set rather than replacing it, so new rules arrive
+# with new gitleaks releases.
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Committed chain fixtures are public ledger data, not secrets.
+
+Golden files and XDR fixtures are full of high-entropy strings -- base64
+LedgerCloseMeta, transaction hashes, StrKey addresses, contract IDs -- and
+the generic-api-key rule matches 283 of them. Every one is data the Stellar
+network already publishes, committed on purpose: TEST-1 requires functional
+tests to run against real chain data, and these files are that data.
+
+Scoped to paths rather than to the rule, so a credential accidentally
+committed anywhere else is still caught.
+"""
+paths = [
+  '''^testdata/''',
+]

@@ -24,14 +24,25 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
 
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l ./cmd ./internal)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'd:"; echo "$unformatted"; exit 1
+          fi
+
       - name: go vet
         run: go vet ./...
 
       - name: Build both executables
         run: make build-all
 
-      - name: Test
-        run: go test ./...
+      # TEST-4: concurrent code MUST pass the race detector. The orchestrator
+      # runs one goroutine per worker over shared progress and lineage state,
+      # so this is the suite that matters most -- and it was never run in CI,
+      # only available as a Makefile target nothing called.
+      - name: Test (race detector)
+        run: go test -race ./...
 
       # Golden Bronze snapshot suite. Fixtures are committed raw pubnet XDR,
       # so this needs no network access and no cloud credentials.
@@ -43,6 +54,20 @@ jobs:
       # same commit.
       - name: CLI surface parity
         run: make parity-baseline
+
+  # SEC-6 and the §9 merge gate. Committed chain fixtures are allowlisted by
+  # path in .gitleaks.toml; everything else is scanned.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
 
   docker:
     runs-on: ubuntu-latest

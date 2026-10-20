@@ -17,10 +17,21 @@ COPY . .
 # Build binary with version from build arg. The legacy executable name is the
 # same program under a transitional alias; see docs/compatibility.md.
 ARG VERSION=dev
-RUN CGO_ENABLED=1 GOWORK=off go build -ldflags "-X github.com/withObsrvr/stellar-ingest/internal/domain.Version=${VERSION}" -o stellar-ingest ./cmd/stellar-ingest && \
+RUN CGO_ENABLED=1 GOWORK=off go build -trimpath -ldflags "-X github.com/withObsrvr/stellar-ingest/internal/domain.Version=${VERSION}" -o stellar-ingest ./cmd/stellar-ingest && \
     cp stellar-ingest stellar-history-loader
 
 FROM debian:bookworm-slim
+
+# BUILD-4: an image must say where it came from, so a running container can be
+# traced back to a commit without guessing from a tag.
+ARG VERSION=dev
+ARG REVISION=unknown
+LABEL org.opencontainers.image.source="https://github.com/withObsrvr/stellar-ingest" \
+      org.opencontainers.image.revision="${REVISION}" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.title="stellar-ingest" \
+      org.opencontainers.image.description="Stellar ledger ingestion: acquire, decode Bronze, validate, publish" \
+      org.opencontainers.image.licenses="NOASSERTION"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
