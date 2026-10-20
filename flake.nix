@@ -34,6 +34,10 @@
 
           nativeBuildInputs = [ pkgs.pkg-config ];
 
+          # BuildDate is deliberately left unset here. A flake build has no
+          # commit date available (the source is a store path, not a git
+          # tree), and inventing one would make `version` claim a precision
+          # the build does not have. Empty omits the field.
           ldflags = [ "-X" "github.com/withObsrvr/stellar-ingest/internal/domain.Version=${revision}" ];
 
           # The module is a single flat package main at the repository root.

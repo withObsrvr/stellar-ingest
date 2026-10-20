@@ -174,6 +174,24 @@ the unit in flight, writes its checkpoint and exits 130 or 143. It publishes
 no manifest: a resumed backfill must not read a stopped attempt as a
 complete one. A second signal exits immediately.
 
+### Version
+
+```sh
+$ stellar-ingest version
+stellar-ingest 0.1.0
+  commit    81acc92
+  built at  2026-10-20T13:07:07Z
+
+$ stellar-ingest version --output json
+{"schema":"stellar-ingest.version/v1","semver":"0.1.0","commit":"81acc92","built_at":"..."}
+```
+
+The release and the commit are both reported because they answer different
+questions. Manifests, lineage rows and checkpoints record the **commit**: two
+builds of one release can decode differently, and a provenance record that
+said only `0.1.0` would be ambiguous. The flat `--version` prints the commit
+alone, unchanged.
+
 ### A config file
 
 A mainnet dispatch passes about twenty flags, the same twenty every time. A
@@ -553,9 +571,18 @@ The warning names the flag and the variables, never the value.
 | [`docs/bronze-storage-contract.md`](docs/bronze-storage-contract.md) | What a Bronze row costs, measured, and the rules decided from it |
 | [`docs/bronze-presentation-views.md`](docs/bronze-presentation-views.md) | The compact-identity change: what moved, what it recovered, what is deferred |
 | [`docs/cold-authority-matrix.md`](docs/cold-authority-matrix.md) | Which producer wrote which part of cold, and which generations are trustworthy |
-| [`docs/engineering-standard.md`](docs/engineering-standard.md) | How changes here are expected to be built and tested |
-| [`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) | Gap analysis against the Obsrvr CLI Engineering Standard, and the staged plan |
+| [`docs/engineering-profile.md`](docs/engineering-profile.md) | **Current.** Conformance against the Obsrvr Engineering Standard v2.0: contracts owned, exceptions, ordered gap list |
+| [`docs/adr/`](docs/adr/) | Decision records. A contract, architecture or security change is an ADR |
+| [`docs/engineering-standard.md`](docs/engineering-standard.md) | Superseded by the profile; v1.0-era conformance record, kept for history |
+| [`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) | Superseded by the profile; v1.0 gap analysis and staged plan |
 | `docs/baseline/cli-help.txt` | Recorded CLI contract, enforced by `make parity-baseline` |
+
+## Licence
+
+Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+To report a vulnerability, see [`SECURITY.md`](SECURITY.md) — not a public
+issue.
 
 ## Related repositories
 

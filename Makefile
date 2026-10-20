@@ -34,7 +34,18 @@ DOCKER_ORG       := withobsrvr
 DOCKER_IMAGE     := $(DOCKER_ORG)/$(BINARY_NAME)
 GIT_SHA          := $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
 BUILD_TIMESTAMP  := $(shell date -u +%Y%m%d%H%M%S)
-BUILD_DATE       := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# The commit's own date, not the wall clock (BUILD-3): two builds of one
+# commit must produce the same bytes, and a timestamp read at build time is
+# the usual reason they do not.
+#
+# Deliberately NOT SOURCE_DATE_EPOCH, even though that is the Reproducible
+# Builds convention. nix-shell exports it as 315532800 -- 1980-01-01 -- to
+# pin file mtimes, so honouring it here stamps every developer build with a
+# date sixteen years before Stellar existed. The commit date is reproducible
+# in the same way and means something. Override with BUILD_DATE=... when a
+# release pipeline needs a different answer.
+BUILD_EPOCH      := $(shell git log -1 --pretty=%ct 2>/dev/null || echo 0)
+BUILD_DATE       ?= $(shell date -u -d @$(BUILD_EPOCH) +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r $(BUILD_EPOCH) +%Y-%m-%dT%H:%M:%SZ)
 VERSION_TAG      := $(GIT_SHA)-$(BUILD_TIMESTAMP)
 DOCKER_TAG       ?= latest
 DOCKER_PLATFORM  ?= linux/amd64
@@ -54,7 +65,8 @@ GOCLEAN    := $(GOCMD) clean
 # Version lives in internal/domain, which is what stamps it into manifests,
 # lineage rows and parity records. The linker path moved with it; a build that
 # still said main.Version would silently stamp "dev".
-LDFLAGS    := -X github.com/withObsrvr/stellar-ingest/internal/domain.Version=$(GIT_SHA)
+LDFLAGS    := -X github.com/withObsrvr/stellar-ingest/internal/domain.Version=$(GIT_SHA) \
+              -X github.com/withObsrvr/stellar-ingest/internal/domain.BuildDate=$(BUILD_DATE)
 
 all: build-all
 
@@ -335,6 +347,7 @@ docker-build:
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		-t $(DOCKER_IMAGE):$(VERSION_TAG) \
 		--build-arg VERSION=$(GIT_SHA) \
+		--build-arg BUILD_DATE=$(BUILD_DATE) \
 		--label org.opencontainers.image.version=$(VERSION_TAG) \
 		--label org.opencontainers.image.revision=$(GIT_SHA) \
 		--label org.opencontainers.image.created=$(BUILD_DATE) \

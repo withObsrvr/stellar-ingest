@@ -17,7 +17,8 @@ COPY . .
 # Build binary with version from build arg. The legacy executable name is the
 # same program under a transitional alias; see docs/compatibility.md.
 ARG VERSION=dev
-RUN CGO_ENABLED=1 GOWORK=off go build -trimpath -ldflags "-X github.com/withObsrvr/stellar-ingest/internal/domain.Version=${VERSION}" -o stellar-ingest ./cmd/stellar-ingest && \
+ARG BUILD_DATE=""
+RUN CGO_ENABLED=1 GOWORK=off go build -trimpath -ldflags "-X github.com/withObsrvr/stellar-ingest/internal/domain.Version=${VERSION} -X github.com/withObsrvr/stellar-ingest/internal/domain.BuildDate=${BUILD_DATE}" -o stellar-ingest ./cmd/stellar-ingest && \
     cp stellar-ingest stellar-history-loader
 
 FROM debian:bookworm-slim

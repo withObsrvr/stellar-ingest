@@ -77,6 +77,26 @@ pre-1.0, so a minor bump may break (VER-2).
 - `-trimpath` on every build, so the same commit produces the same bytes
   regardless of where it was built (BUILD-3). OCI annotations on the image,
   so a running container names the commit it came from (BUILD-4).
+- **`LICENSE` (Apache-2.0)** and `NOTICE`. The project had no licence file,
+  which left every consumer without permission to use it (DOC-1).
+- **`SECURITY.md`** (SEC-12), naming `security@withobsrvr.com`, a
+  three-business-day acknowledgement, what is in scope — decoding
+  attacker-influenced ledger input is the interesting part — and the one
+  accepted exposure with its expiry date.
+- **`version` now reports a release, a commit and a build date**, with
+  `--output json` carrying the `stellar-ingest.version/v1` schema
+  (CLI-13, CLI-6, VER-2). The first release is **v0.1.0**.
+
+  `domain.Version` keeps its meaning: it is the **commit**, and manifests,
+  lineage rows and checkpoints go on recording it, because two builds of one
+  release can decode differently. The release number is reported beside it,
+  not instead of it. The flat `--version` is unchanged — it prints the
+  commit, which is the contract `make version-stamp` checks.
+- Builds are byte-identical across runs (BUILD-3): `-trimpath`, plus a build
+  date taken from the commit rather than the wall clock. Not
+  `SOURCE_DATE_EPOCH`, despite the convention — nix-shell exports it as
+  1980-01-01 to pin file mtimes, which would stamp every developer build
+  with a date sixteen years before Stellar existed.
 - `AGENTS.md` (DOC-1).
 - `docs/adr/`, with the two decision records this release required (DOC-4).
 - `docs/engineering-profile.md`, the §13 profile, carrying the contract

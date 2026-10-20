@@ -13,6 +13,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -202,15 +203,66 @@ func newOperationCommand(use, short, long string, examples []string, op operatio
 	return cmd
 }
 
+// SchemaVersion identifies the version-result schema. CLI-6 requires every
+// machine-readable output to name its schema, including this one: a release
+// pipeline reading `version --output json` is a consumer like any other.
+const SchemaVersion = "stellar-ingest.version/v1"
+
+// versionResult is what `version --output json` emits.
+//
+// Three fields rather than one because they answer different questions.
+// semver says which release, commit says which build of it -- two builds of
+// v0.1.0 can decode differently, which is why the commit is what manifests
+// and lineage rows carry -- and built_at says when, so a binary found on a
+// host can be placed without consulting a registry.
+type versionResult struct {
+	Schema  string `json:"schema"`
+	SemVer  string `json:"semver"`
+	Commit  string `json:"commit"`
+	BuiltAt string `json:"built_at,omitempty"`
+}
+
 func newVersionCommand(out io.Writer) *cobra.Command {
-	return &cobra.Command{
+	var format string
+	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the build version",
+		Long: "Print the build version.\n\n" +
+			"semver is the release, commit is the build of it. Manifests and lineage\n" +
+			"rows record the commit, because two builds of one release can decode\n" +
+			"differently.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Fprintln(out, domain.Version)
+			result := versionResult{
+				Schema:  SchemaVersion,
+				SemVer:  domain.SemVer,
+				Commit:  domain.Version,
+				BuiltAt: domain.BuildDate,
+			}
+			switch format {
+			case "json", "ndjson":
+				// One document either way: a version is a single record, so
+				// ndjson is the same bytes plus the trailing newline the
+				// format already requires.
+				encoded, err := json.Marshal(result)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintln(out, string(encoded))
+			case "", "table":
+				fmt.Fprintf(out, "stellar-ingest %s\n", domain.SemVer)
+				fmt.Fprintf(out, "  commit    %s\n", domain.Version)
+				if domain.BuildDate != "" {
+					fmt.Fprintf(out, "  built at  %s\n", domain.BuildDate)
+				}
+			default:
+				return exit.Usagef("unknown --output %q: want table, json or ndjson", format)
+			}
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&format, "output", "",
+		"Response format: table|json|ndjson")
+	return cmd
 }
 
 func joinExamples(examples []string) string {

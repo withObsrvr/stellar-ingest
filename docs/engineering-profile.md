@@ -18,6 +18,7 @@ this file, this file is current.
 | Contract | Version | Owner |
 |---|---|---|
 | CLI flag surface | pinned in `docs/baseline/cli-help.txt`, diffed in CI | Tillman Mosley III |
+| `version` output | `stellar-ingest.version/v1`; release line is SemVer | Tillman Mosley III |
 | `--output json` / `ndjson` result | `stellar-ingest.run/v1` | Tillman Mosley III |
 | Exit codes | CLI-15 table, [ADR 0001](adr/0001-align-exit-codes-with-cli-15.md) | Tillman Mosley III |
 | Bronze Parquet schema (21 tables) | [`bronze-row-contract.md`](bronze-row-contract.md), [`bronze-storage-contract.md`](bronze-storage-contract.md) | Tillman Mosley III |
@@ -71,7 +72,15 @@ Closed in the v2.0 conformance pass:
   golden files trip the generic-api-key rule.
 - **BUILD-3 / BUILD-4** — `-trimpath` on every build, OCI annotations on the
   image.
-- **DOC-1 (partly)** — `AGENTS.md` and `CHANGELOG.md` added.
+- **DOC-1** — `LICENSE` (Apache-2.0), `NOTICE`, `SECURITY.md`, `AGENTS.md`
+  and `CHANGELOG.md` added.
+- **SEC-12** — `SECURITY.md` names the reporting address, the response time,
+  what is in scope, and the one accepted exposure with its expiry.
+- **CLI-13 / VER-2** — `version` reports the release, the commit and the
+  build date, with `--output json` carrying `stellar-ingest.version/v1`.
+  First release is **v0.1.0**.
+- **BUILD-3** — builds are byte-identical across runs: `-trimpath`, and a
+  build date taken from the commit rather than the wall clock.
 
 Strongest areas: §9 (real pubnet fixtures with recorded ranges, golden
 suite, 21-table parity harness, CLI surface pinned in CI) and §2 (the layer
@@ -90,12 +99,10 @@ boundaries are enforced by a test, not by convention).
    41 `errcheck` (mostly unchecked `fmt.Fprintf` in tests) and 6
    `staticcheck`. Enabling it means fixing those first, which is unrelated
    churn and wants its own PR.
-3. **§12 repo hygiene** — no `LICENSE`, `SECURITY.md`, `CONTRIBUTING`.
-   `LICENSE` and the `SECURITY.md` contact address are decisions, not
-   drafting work.
-4. **CLI-13 / VER-2** — `version` prints a bare commit. No SemVer, no build
-   date, no `--output json`. There are no git tags, so the starting version
-   is a decision.
+3. **§12 repo hygiene** — `CONTRIBUTING` is the remaining one, and it is
+   only required once the repo is public (DOC-1).
+4. **VER-12** — no signed release tag yet. The version is `v0.1.0`; tagging
+   and signing it is a release action, not a code change.
 5. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
    `network`; lineage carries no protocol version.
 6. **TEST-3** — no fuzz tests, and the tool's primary input is XDR.
