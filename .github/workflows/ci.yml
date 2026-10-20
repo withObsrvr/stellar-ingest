@@ -87,6 +87,37 @@ jobs:
             ./internal/jobs/
           go test -race -timeout 25m ./internal/adapters/
 
+  # SEC-9: CI MUST fail on reachable known vulnerabilities.
+  #
+  # This gate was held back until the toolchain could satisfy it. Before the
+  # go1.26.9 pin there were nine reachable advisories in the standard library
+  # alone -- net/http, net/textproto, crypto/tls -- so enabling it would have
+  # meant a permanently red gate, which teaches people to ignore red gates.
+  #
+  # Reachability is the whole point: govulncheck reports only advisories in
+  # code paths this binary can actually execute, so a finding here is work to
+  # do rather than noise from a transitive dependency nobody calls.
+  vulncheck:
+    runs-on: ubuntu-latest
+    env:
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
+
   # SEC-6 and the §9 merge gate. Committed chain fixtures are allowlisted by
   # path in .gitleaks.toml; everything else is scanned.
   secret-scan:

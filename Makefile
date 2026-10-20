@@ -3,7 +3,7 @@
         parity-export parity-live parity-report parity-matrix parity-baseline-update \
         nix-build nix-run nix-shell nix-check nix-docker nix-vendor-hash \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
-        ci-build release help integration-range-state
+        ci-build release help integration-range-state dist dist-clean release-check
 
 # ---- Variables --------------------------------------------------------------
 #
@@ -395,6 +395,60 @@ ci-build: deps vet build-all test parity-baseline golden version-stamp
 
 release: docker-build docker-push
 	@echo "✓ released $(DOCKER_IMAGE):$(VERSION_TAG)"
+
+# ---- Distribution artifacts -------------------------------------------------
+
+DIST_DIR  ?= dist
+DIST_OS   ?= $(shell $(GOCMD) env GOOS)
+DIST_ARCH ?= $(shell $(GOCMD) env GOARCH)
+
+# RELEASE_VERSION is read from the source, which is where the release number
+# lives (internal/domain.SemVer). Read with sed rather than by running the
+# binary, so naming an artifact does not require compiling one.
+#
+# Defined BEFORE DIST_NAME on purpose: DIST_NAME is an immediate assignment,
+# so a RELEASE_VERSION defined after it expands to empty and every artifact
+# comes out named stellar-ingest__linux_amd64.
+RELEASE_VERSION ?= $(shell sed -n 's/^var SemVer = "\(.*\)"$$/\1/p' internal/domain/version.go)
+DIST_NAME       := $(BINARY_NAME)_$(RELEASE_VERSION)_$(DIST_OS)_$(DIST_ARCH)
+
+# release-check refuses to build artifacts the source does not claim.
+#
+# The failure it prevents is quiet and expensive: tagging v0.2.0 while
+# domain.SemVer still says 0.1.0 ships a binary that reports the wrong
+# release into every manifest and lineage row, and nothing downstream can
+# tell. The tag is the assertion, the source is the fact, and they have to
+# agree; the release workflow passes the tag in as EXPECT_VERSION.
+release-check:
+	@test -n "$(RELEASE_VERSION)" || { echo "✗ could not read SemVer from internal/domain/version.go"; exit 1; }
+	@if [ -n "$(EXPECT_VERSION)" ] && [ "$(RELEASE_VERSION)" != "$(EXPECT_VERSION)" ]; then \
+		echo "✗ tag says $(EXPECT_VERSION), internal/domain.SemVer says $(RELEASE_VERSION)"; \
+		echo "  update SemVer in internal/domain/version.go, or tag the version the source claims"; \
+		exit 1; \
+	fi
+	@echo "✓ release version $(RELEASE_VERSION)"
+
+# dist builds what a release publishes: the binary, its compat alias, the
+# licence and notice, and a checksum line. Kept in make rather than in
+# workflow YAML so a maintainer can reproduce byte-for-byte what CI
+# published (BUILD-1, BUILD-3).
+dist: release-check
+	@rm -rf $(DIST_DIR)/$(DIST_NAME) && mkdir -p $(DIST_DIR)/$(DIST_NAME)
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(DIST_DIR)/$(DIST_NAME)/$(BINARY_NAME) ./cmd/stellar-ingest
+	@cp $(DIST_DIR)/$(DIST_NAME)/$(BINARY_NAME) $(DIST_DIR)/$(DIST_NAME)/$(COMPAT_NAME)
+	@cp LICENSE NOTICE README.md CHANGELOG.md $(DIST_DIR)/$(DIST_NAME)/
+	@built=$$($(DIST_DIR)/$(DIST_NAME)/$(BINARY_NAME) version | head -1 | awk '{print $$2}'); \
+	if [ "$$built" != "$(RELEASE_VERSION)" ]; then \
+		echo "✗ artifact reports $$built, expected $(RELEASE_VERSION) — check LDFLAGS"; \
+		exit 1; \
+	fi
+	@tar -C $(DIST_DIR) -czf $(DIST_DIR)/$(DIST_NAME).tar.gz $(DIST_NAME)
+	@rm -rf $(DIST_DIR)/$(DIST_NAME)
+	@cd $(DIST_DIR) && sha256sum $(DIST_NAME).tar.gz >> SHA256SUMS
+	@echo "✓ $(DIST_DIR)/$(DIST_NAME).tar.gz"
+
+dist-clean:
+	rm -rf $(DIST_DIR)
 
 # ---- Help -------------------------------------------------------------------
 

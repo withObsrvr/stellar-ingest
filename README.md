@@ -576,6 +576,7 @@ The warning names the flag and the variables, never the value.
 | [`docs/cold-authority-matrix.md`](docs/cold-authority-matrix.md) | Which producer wrote which part of cold, and which generations are trustworthy |
 | [`docs/engineering-profile.md`](docs/engineering-profile.md) | **Current.** Conformance against the Obsrvr Engineering Standard v2.0: contracts owned, exceptions, ordered gap list |
 | [`docs/adr/`](docs/adr/) | Decision records. A contract, architecture or security change is an ADR |
+| [`docs/releasing.md`](docs/releasing.md) | How a release is cut, signed, attested and verified |
 | [`docs/engineering-standard.md`](docs/engineering-standard.md) | Superseded by the profile; v1.0-era conformance record, kept for history |
 | [`docs/cli-standard-adoption.md`](docs/cli-standard-adoption.md) | Superseded by the profile; v1.0 gap analysis and staged plan |
 | `docs/baseline/cli-help.txt` | Recorded CLI contract, enforced by `make parity-baseline` |

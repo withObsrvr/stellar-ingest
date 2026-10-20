@@ -1,0 +1,222 @@
+name: Release
+
+# SEC-10: released binaries and images MUST be built in CI from a signed tag
+# and signed with Sigstore, shipping an SBOM and SLSA provenance. VER-12: the
+# artifacts carry checksums, and a release that cannot be reproduced from its
+# tag is not a release.
+#
+# workflow_dispatch exists so the pipeline can be exercised without cutting a
+# release. It defaults to a dry run: everything builds, the SBOM and the
+# attestations are produced, and nothing is published.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build and attest, but publish nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The tag is the input to everything below, so it is checked before any
+  # artifact exists. Two things can be wrong and both are silent: an
+  # unsigned tag (SEC-10 wants provenance rooted in one), and a tag whose
+  # number disagrees with internal/domain.SemVer, which would ship a binary
+  # reporting a release it is not.
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      dry_run: ${{ steps.v.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: v
+        name: Resolve and check the release version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+            dry_run=false
+          else
+            version=$(sed -n 's/^var SemVer = "\(.*\)"$/\1/p' internal/domain/version.go)
+            dry_run=${{ inputs.dry_run }}
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$dry_run" >> "$GITHUB_OUTPUT"
+          echo "releasing $version (dry_run=$dry_run)"
+          make release-check EXPECT_VERSION="$version"
+
+      - name: Tag must be annotated and signed
+        if: github.ref_type == 'tag'
+        run: |
+          kind=$(git cat-file -t "$GITHUB_REF_NAME")
+          if [ "$kind" != "tag" ]; then
+            echo "::error::$GITHUB_REF_NAME is a lightweight tag; releases are cut from annotated, signed tags (VER-12)"
+            exit 1
+          fi
+          if git cat-file tag "$GITHUB_REF_NAME" | grep -q 'SSH SIGNATURE\|PGP SIGNATURE'; then
+            echo "✓ tag carries a signature"
+          else
+            echo "::error::$GITHUB_REF_NAME is not signed (VER-12). Re-tag with git tag -s."
+            exit 1
+          fi
+          # Whether GitHub can VERIFY it depends on the signing key being
+          # registered on the account, which CI cannot fix. Surfaced, not enforced.
+          verified=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(git rev-parse "$GITHUB_REF_NAME")" \
+            --jq '.verification.verified' 2>/dev/null || echo unknown)
+          [ "$verified" = "true" ] || echo "::warning::GitHub reports the tag signature as unverified ($verified). Register the signing key at github.com/settings/keys."
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  binaries:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write      # Sigstore, via the attestation action
+      attestations: write
+    env:
+      GOWORK: "off"
+      CGO_ENABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
+
+      # The same target a maintainer runs locally, so what CI publishes can
+      # be reproduced without reading this file.
+      - name: Build artifacts
+        run: make dist EXPECT_VERSION=${{ needs.verify.outputs.version }}
+
+      - name: SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./dist
+          format: cyclonedx-json
+          output-file: dist/stellar-ingest_${{ needs.verify.outputs.version }}.cyclonedx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      # SLSA v1 provenance, signed through Sigstore and recorded in the
+      # transparency log. This is what makes "built in CI from this commit"
+      # checkable by someone who trusts neither us nor the artifact.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/
+          retention-days: 7
+
+  image:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ghcr rather than Docker Hub: it authenticates with the workflow's own
+      # token, so a release needs no long-lived registry credential stored as
+      # a secret (SEC-1). Mirroring to another registry is a separate step
+      # with its own credential if it is ever wanted.
+      - uses: docker/login-action@v3
+        if: needs.verify.outputs.dry_run == 'false'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ needs.verify.outputs.dry_run == 'false' }}
+          build-args: |
+            VERSION=${{ needs.verify.outputs.version }}
+            REVISION=${{ github.sha }}
+            BUILD_DATE=${{ github.event.repository.pushed_at }}
+          tags: |
+            ghcr.io/withobsrvr/stellar-ingest:${{ needs.verify.outputs.version }}
+            ghcr.io/withobsrvr/stellar-ingest:latest
+          provenance: false   # replaced by the attestation below
+
+      - name: Attest image provenance
+        if: needs.verify.outputs.dry_run == 'false'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/withobsrvr/stellar-ingest
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  publish:
+    needs: [verify, binaries, image]
+    if: needs.verify.outputs.dry_run == 'false'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist
+
+      # The notes are the changelog's own section, not a generated commit
+      # list: VER-11 asks for a human entry, and duplicating it here by hand
+      # is how the two drift.
+      - name: Extract the changelog section
+        run: |
+          awk -v v="${{ needs.verify.outputs.version }}" '
+            $0 ~ "^## \\[" v "\\]" {f=1; next}
+            f && /^## \[/ {exit}
+            f && /^\[.*\]: http/ {next}   # link definitions belong to the file, not the notes
+            f {print}
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no section for ${{ needs.verify.outputs.version }} (VER-11)"
+            exit 1
+          fi
+          {
+            echo
+            echo "---"
+            echo
+            echo "Artifacts carry SLSA build provenance and a CycloneDX SBOM. Verify with:"
+            echo
+            echo '```sh'
+            echo "gh attestation verify stellar-ingest_${{ needs.verify.outputs.version }}_linux_amd64.tar.gz -R $GITHUB_REPOSITORY"
+            echo '```'
+          } >> release-notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.cyclonedx.json
+            dist/SHA256SUMS
+          body_path: release-notes.md
+          draft: false
+          prerelease: ${{ contains(needs.verify.outputs.version, '-') }}
