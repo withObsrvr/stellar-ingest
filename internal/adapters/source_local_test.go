@@ -15,7 +15,7 @@ func TestXDRStreamSourceRejectsTruncatedFrame(t *testing.T) {
 		t.Fatalf("write fixture: %v", err)
 	}
 
-	_, err := NewXDRStreamSource(path)
+	_, err := NewXDRStreamSource(path, 0)
 	if err == nil || !strings.Contains(err.Error(), "XDR stream decode error") {
 		t.Fatalf("error = %v, want truncated XDR decode error", err)
 	}

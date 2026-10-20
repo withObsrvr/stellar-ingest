@@ -15,6 +15,9 @@ import (
 // stellar-raw-ledger-origin LedgerStream factory.
 type SDKStreamSource struct {
 	stream ledgerbackend.LedgerStream
+	// prefetchBuffer sizes the read-ahead channel each StreamRange hands
+	// out. Zero takes domain.DefaultPrefetchBuffer.
+	prefetchBuffer int
 }
 
 func NewSDKStreamSource(config domain.OrchestratorConfig) (*SDKStreamSource, error) {
@@ -41,7 +44,7 @@ func NewSDKStreamSource(config domain.OrchestratorConfig) (*SDKStreamSource, err
 	if err != nil {
 		return nil, fmt.Errorf("create canonical ledger stream: %w", err)
 	}
-	return &SDKStreamSource{stream: stream}, nil
+	return &SDKStreamSource{stream: stream, prefetchBuffer: config.PrefetchBuffer}, nil
 }
 
 // splitArchiveLocation accepts the loader's existing bucket[/prefix] flag and
@@ -58,7 +61,7 @@ func splitArchiveLocation(location string) (string, string) {
 }
 
 func (s *SDKStreamSource) StreamRange(ctx context.Context, start, end uint32) <-chan domain.PrefetchedLedger {
-	ch := make(chan domain.PrefetchedLedger, domain.DefaultPrefetchBuffer)
+	ch := make(chan domain.PrefetchedLedger, domain.PrefetchBufferOrDefault(s.prefetchBuffer))
 	go func() {
 		defer close(ch)
 		expected := start

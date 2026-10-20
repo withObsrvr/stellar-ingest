@@ -32,7 +32,7 @@ func TestCreateContractOperationsAreCoveredByContractCreations(t *testing.T) {
 	const fixture = "pubnet-contract-creation"
 	meta, _ := fixtures.LoadMeta(t, fixture)
 	path := fixtures.Materialize(t, filepath.Join("..", "..", "testdata", "fixtures", fixture), t.TempDir())
-	src, err := NewXDRStreamSource(path)
+	src, err := NewXDRStreamSource(path, 0)
 	if err != nil {
 		t.Fatalf("open fixture: %v", err)
 	}

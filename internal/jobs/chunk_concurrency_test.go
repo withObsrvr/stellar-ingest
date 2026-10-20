@@ -73,9 +73,9 @@ func TestResultsStayInChunkOrder(t *testing.T) {
 }
 
 // The bound must actually bind. Memory scales with concurrency times
-// --workers times the 200-ledger prefetch buffer, so a semaphore that let
-// extra chunks through would OOM a backfill rather than slow it down -- the
-// failure the first validation dispatch hit at 12 GB.
+// --workers times --prefetch-buffer (200 ledgers by default), so a semaphore
+// that let extra chunks through would OOM a backfill rather than slow it
+// down -- the failure the first validation dispatch hit at 12 GB.
 func TestConcurrencyBoundIsRespected(t *testing.T) {
 	const limit = 3
 	var mu sync.Mutex

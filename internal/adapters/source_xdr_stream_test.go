@@ -23,7 +23,7 @@ import (
 func TestXDRStreamSourceReadsCompleteFile(t *testing.T) {
 	meta, path := fixtures.LoadMeta(t, "pubnet-genesis-p1")
 
-	source, err := NewXDRStreamSource(path)
+	source, err := NewXDRStreamSource(path, 0)
 	if err != nil {
 		t.Fatalf("NewXDRStreamSource(%s): %v", path, err)
 	}

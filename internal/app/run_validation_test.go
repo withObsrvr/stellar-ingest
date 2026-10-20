@@ -32,6 +32,7 @@ func valid(outputDir string) RunRequest {
 		Workers:           1,
 		BatchSize:         1,
 		ChunkConcurrency:  1,
+		PrefetchBuffer:    1,
 		OutputDir:         outputDir,
 		StorageType:       "FS",
 		Bucket:            "testdata",
@@ -52,6 +53,7 @@ func TestInvalidInputIsRejectedAsUsage(t *testing.T) {
 		{"zero workers", func(r *RunRequest) { r.Workers = 0 }, "--workers"},
 		{"zero batch size", func(r *RunRequest) { r.BatchSize = 0 }, "--batch-size"},
 		{"zero chunk concurrency", func(r *RunRequest) { r.ChunkConcurrency = 0 }, "--chunk-concurrency"},
+		{"zero prefetch buffer", func(r *RunRequest) { r.PrefetchBuffer = 0 }, "--prefetch-buffer"},
 		{"concurrency without chunks", func(r *RunRequest) { r.ChunkConcurrency = 2 }, "--chunk-size"},
 		{"concurrency without range state", func(r *RunRequest) {
 			r.ChunkConcurrency = 2
@@ -211,6 +213,7 @@ func TestValidateOnlyNeedsNeitherSourceNorRange(t *testing.T) {
 		Workers:          1,
 		BatchSize:        1,
 		ChunkConcurrency: 1,
+		PrefetchBuffer:   1,
 	}
 
 	// The directory is empty, so the quality checks themselves fail. That is
@@ -232,7 +235,7 @@ func TestTheValidateExemptionIsNarrow(t *testing.T) {
 	base := func() RunRequest {
 		return RunRequest{
 			OutputDir: t.TempDir(), RunValidate: true, StorageType: "FS",
-			Workers: 1, BatchSize: 1, ChunkConcurrency: 1,
+			Workers: 1, BatchSize: 1, ChunkConcurrency: 1, PrefetchBuffer: 1,
 		}
 	}
 	cases := []struct {

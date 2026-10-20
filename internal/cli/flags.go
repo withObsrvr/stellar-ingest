@@ -19,6 +19,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/withObsrvr/stellar-ingest/internal/app"
+	"github.com/withObsrvr/stellar-ingest/internal/domain"
 )
 
 // Values holds every flag the tool accepts.
@@ -52,6 +53,7 @@ type Values struct {
 	RangeStateTable          string
 	PlanOnly                 bool
 	ChunkConcurrency         int
+	PrefetchBuffer           int
 	B2KeyID                  string
 	B2KeySecret              string
 	B2Endpoint               string
@@ -144,7 +146,7 @@ var flagSpecs = []flagSpec{
 		Target: func(v *Values) any { return &v.Output },
 	},
 	{
-		Name: "batch-size", Usage: "Ledgers per extraction batch",
+		Name: "batch-size", Usage: "Ledgers of extracted rows each worker holds before flushing to Parquet. The dominant memory term: ~3.8 MB/ledger at classic-era ledgers and ~32 MB at Soroban-era ones, times --workers",
 		Kind: kindInt, DefInt: 1000,
 		Target: func(v *Values) any { return &v.BatchSize },
 	},
@@ -262,6 +264,18 @@ var flagSpecs = []flagSpec{
 		Name: "chunk-concurrency", Usage: "Chunks to build at once when --chunk-size is set; 1 is sequential. Memory scales with this times --workers",
 		Kind: kindInt, DefInt: 1,
 		Target: func(v *Values) any { return &v.ChunkConcurrency },
+	},
+	{
+		// The smaller of a worker's two buffers. 200 is sized for
+		// genesis-era ledgers, where one is 412 bytes; at the Soroban end a
+		// raw ledger is ~2.3 MB. Measured against --batch-size, which holds
+		// extracted rows rather than raw bytes, this term is roughly 7x the
+		// cheaper -- so --batch-size is the first knob to reach for, and
+		// the usage text says so rather than letting this one take the
+		// credit.
+		Name: "prefetch-buffer", Usage: "Raw ledgers each worker reads ahead (the smaller of its two buffers; --batch-size is the bigger one). Lower both to afford more workers on recent ledgers",
+		Kind: kindInt, DefInt: domain.DefaultPrefetchBuffer,
+		Target: func(v *Values) any { return &v.PrefetchBuffer },
 	},
 	{
 		Name: "b2-key-id", Usage: "B2/S3 access key ID (deprecated: set B2_KEY_ID or B2_KEY_ID_FILE)",
@@ -524,6 +538,7 @@ func (v *Values) request() app.RunRequest {
 		RangeStateTable:          v.RangeStateTable,
 		PlanOnly:                 v.PlanOnly,
 		ChunkConcurrency:         v.ChunkConcurrency,
+		PrefetchBuffer:           v.PrefetchBuffer,
 		B2KeyID:                  v.B2KeyID,
 		B2KeySecret:              v.B2KeySecret,
 		B2Endpoint:               v.B2Endpoint,

@@ -77,6 +77,13 @@ type OrchestratorConfig struct {
 	FilesPerPartition uint32
 	EraID             string
 	OnlyTables        map[string]bool
+
+	// PrefetchBuffer is how many decoded ledgers each worker reads ahead.
+	// Zero takes DefaultPrefetchBuffer. It belongs on the config rather than
+	// staying a package constant because it is the one number that trades
+	// memory for parallelism, and the trade is different at genesis than it
+	// is in the Soroban tail.
+	PrefetchBuffer int
 }
 
 // LineageRecord tracks one pipeline run's output for a specific table.
@@ -99,14 +106,36 @@ func MapToDuckLakeTable(dirName string) string {
 	return DuckLakeTableBySource[dirName]
 }
 
-// DefaultPrefetchBuffer is how many decoded ledgers a worker buffers.
+// DefaultPrefetchBuffer is how many decoded ledgers a worker buffers when
+// --prefetch-buffer is not given.
 //
 // Shared rather than owned: the source fills this channel and the worker
 // drains it, so neither layer can hold the number without the other reaching
 // across. It is also the whole of the loader's memory model -- peak is
 // roughly chunks x workers x this x ledger size -- which is why it is worth
 // stating in one place.
+//
+// 200 is sized for genesis-era ledgers, which are small. It is the wrong
+// number at the recent end of history, where a ledger is roughly 17x heavier
+// and the same worker count costs 17x the RAM: the backfill is memory-bound
+// before it is CPU-bound, and the bound tightens as the range moves forward
+// in time. That is why the number is a default rather than a constant --
+// see PrefetchBufferOrDefault and --prefetch-buffer.
 const DefaultPrefetchBuffer = 200
+
+// PrefetchBufferOrDefault resolves a configured buffer size.
+//
+// Zero and below mean "not configured", which is how every caller that has
+// no opinion -- tests, fixtures, the parity harness -- asks for the default
+// without naming it. The CLI rejects a non-positive --prefetch-buffer before
+// it ever reaches here, so a zero arriving at a source is an internal
+// caller's silence rather than a user's mistake.
+func PrefetchBufferOrDefault(size int) int {
+	if size <= 0 {
+		return DefaultPrefetchBuffer
+	}
+	return size
+}
 
 // A method on BatchData, so it travels with the type.
 //
