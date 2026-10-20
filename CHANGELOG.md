@@ -6,6 +6,15 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.0] - 2026-10-20
+
+First tagged release. The tool predates it by some months; this is the point
+at which its contracts — the CLI surface, the exit codes, the result
+envelope, the Bronze schema — became things with a version number attached
+rather than whatever `main` happened to be.
+
 ### Fixed
 
 - **SIGINT and SIGTERM now stop a run.** The orchestrator created its own
@@ -117,3 +126,6 @@ pre-1.0, so a minor bump may break (VER-2).
   flags are accepted until **2027-04-20** under a recorded exception
   ([ADR 0002](docs/adr/0002-exception-credential-flags.md)); they are
   removed in the first release after that date.
+
+[unreleased]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/withObsrvr/stellar-ingest/releases/tag/v0.1.0
