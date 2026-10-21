@@ -6,7 +6,30 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **A release pipeline** (SEC-10, VER-12). A signed tag now builds artifacts
+  in CI, attaches a CycloneDX SBOM and SLSA build provenance signed through
+  Sigstore, pushes an attested image to `ghcr.io/withobsrvr/stellar-ingest`,
+  and opens a GitHub Release whose notes are this file's section for that
+  version. `make dist` builds the same artifacts locally, so what CI
+  published can be reproduced without reading workflow YAML.
+- `make release-check` refuses to build a release whose tag disagrees with
+  `internal/domain.SemVer`. Tagging v0.2.0 while the source says 0.1.0 would
+  otherwise ship a binary reporting a release it is not, into every manifest
+  and lineage row downstream.
+- [`docs/releasing.md`](docs/releasing.md), the release runbook (DOC-6),
+  including how to rehearse the pipeline without publishing.
+
+### Changed
+
+- **Go toolchain pinned to 1.26.9** (BUILD-2), via `flake.lock` and a
+  `toolchain` directive in `go.mod`. DuckDB is unchanged at v1.5.5.
+- **`govulncheck` is now a blocking CI gate** (SEC-9). It was held back
+  because the old toolchain carried nine reachable standard-library
+  advisories — net/http, net/textproto, crypto/tls — and a permanently red
+  gate teaches people to ignore red gates. **Reachable vulnerabilities: 0**,
+  down from 16 at the start of this work.
 
 ## [0.1.0] - 2026-10-20
 

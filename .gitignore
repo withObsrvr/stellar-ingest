@@ -17,3 +17,6 @@ build/
 # nix build output symlink
 result
 result-*
+
+# release artifacts
+dist/
