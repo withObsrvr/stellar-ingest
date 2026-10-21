@@ -6,6 +6,16 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The release SBOM was empty.** The first dry run produced a well-formed
+  CycloneDX document listing **zero components**: `syft` was pointed at
+  `dist/`, which by then held only a `.tar.gz` it does not open. It now
+  scans the binary, where Go build info names every module compiled in —
+  118 components instead of 0 — and a gate fails the release if the count
+  is zero. An empty SBOM is valid CycloneDX and passes every schema check,
+  so nothing else would have caught it.
+
 ### Security
 
 - **Go toolchain pinned to 1.26.10**, closing `GO-2026-6809` in `crypto/x509`
@@ -103,6 +113,16 @@ rather than whatever `main` happened to be.
   network timeout — now exits **7**, which a scheduler may retry with
   backoff. The detection is deliberately narrow; anything broader would turn
   a permanent misconfiguration into an infinite retry loop.
+
+### Fixed
+
+- **The release SBOM was empty.** The first dry run produced a well-formed
+  CycloneDX document listing **zero components**: `syft` was pointed at
+  `dist/`, which by then held only a `.tar.gz` it does not open. It now
+  scans the binary, where Go build info names every module compiled in —
+  118 components instead of 0 — and a gate fails the release if the count
+  is zero. An empty SBOM is valid CycloneDX and passes every schema check,
+  so nothing else would have caught it.
 
 ### Security
 

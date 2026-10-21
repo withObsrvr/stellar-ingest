@@ -3,7 +3,7 @@
         parity-export parity-live parity-report parity-matrix parity-baseline-update \
         nix-build nix-run nix-shell nix-check nix-docker nix-vendor-hash \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
-        ci-build release help integration-range-state dist dist-clean release-check
+        ci-build release help integration-range-state dist dist-clean release-check print-dist-stage
 
 # ---- Variables --------------------------------------------------------------
 #
@@ -443,9 +443,16 @@ dist: release-check
 		exit 1; \
 	fi
 	@tar -C $(DIST_DIR) -czf $(DIST_DIR)/$(DIST_NAME).tar.gz $(DIST_NAME)
-	@rm -rf $(DIST_DIR)/$(DIST_NAME)
 	@cd $(DIST_DIR) && sha256sum $(DIST_NAME).tar.gz >> SHA256SUMS
 	@echo "✓ $(DIST_DIR)/$(DIST_NAME).tar.gz"
+
+# The staging directory is left in place on purpose. An SBOM has to be
+# generated from the binary -- syft reads Go build info out of it and lists
+# every module compiled in -- and a scanner pointed at a directory holding
+# only a .tar.gz catalogues nothing. The first release dry run shipped an
+# SBOM with zero components for exactly that reason.
+print-dist-stage:
+	@echo $(DIST_DIR)/$(DIST_NAME)
 
 dist-clean:
 	rm -rf $(DIST_DIR)
