@@ -28,7 +28,7 @@ var Version = "dev"
 // build may override it at link time from the tag, which is what makes a
 // tagged artifact say v0.1.0 and an untagged developer build say the version
 // the tree is working towards.
-var SemVer = "0.1.0"
+var SemVer = "0.1.1"
 
 // BuildDate is when the binary was built, RFC 3339 in UTC (CLI-13, DATA-3).
 //

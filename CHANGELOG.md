@@ -6,6 +6,14 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.1] - 2026-10-21
+
+The release machinery itself, and the first advisory it caught. No contract
+changed: the CLI surface, exit codes, result envelope and Bronze schema are
+identical to 0.1.0, which is why this is a patch.
+
 ### Fixed
 
 - **The release SBOM was empty.** The first dry run produced a well-formed
@@ -183,5 +191,6 @@ rather than whatever `main` happened to be.
   ([ADR 0002](docs/adr/0002-exception-credential-flags.md)); they are
   removed in the first release after that date.
 
-[unreleased]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.0...HEAD
+[unreleased]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/withObsrvr/stellar-ingest/releases/tag/v0.1.0

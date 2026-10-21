@@ -11,7 +11,15 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
 
-        version = "0.1.0";
+        # Read from the Go source rather than restated here. The two had
+        # already drifted once -- the flake still said 0.1.0 while
+        # internal/domain.SemVer had moved on -- and a nix build quietly
+        # naming the wrong release is exactly the kind of mismatch
+        # release-check exists to catch everywhere else. A regex that stops
+        # matching fails the evaluation loudly, which is the right failure.
+        version = builtins.head (builtins.match
+          ".*\n*var SemVer = \"([^\"]+)\".*"
+          (builtins.readFile ./internal/domain/version.go));
         revision = self.shortRev or self.dirtyShortRev or "dev";
 
         stellar-ingest = pkgs.buildGoModule {
