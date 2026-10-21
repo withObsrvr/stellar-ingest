@@ -6,7 +6,19 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **The portable build failed in CI** with `error obtaining VCS status`.
+  Go stamps VCS data by running git, and git refuses a repository owned by
+  another user — which is every CI checkout seen from inside the build
+  container, though not a local rootless one, so it passed locally and
+  failed there. `-buildvcs=false`; nothing is lost, since the commit and
+  build date are stamped explicitly through LDFLAGS.
+- **The image job published without the artifacts.** It ran in parallel
+  with `binaries`, so when the artifact build failed for v0.1.2, ghcr got
+  `:0.1.2` and `:latest` for a release that did not exist — no tarball, no
+  SBOM, no GitHub Release. The image now waits on the artifacts. A registry
+  tag is the most public thing the workflow writes; it should be the last.
 
 ## [0.1.2] - 2026-10-21
 

@@ -183,8 +183,13 @@ jobs:
             dist/SHA256SUMS
           retention-days: 7
 
+  # Depends on binaries, not just verify. They used to run in parallel, and
+  # when the artifact build failed for v0.1.2 the image published anyway --
+  # ghcr got :0.1.2 and :latest for a release that does not exist, with no
+  # tarball, no SBOM and no GitHub Release beside it. A registry tag is the
+  # most public thing this workflow writes; it should be the last.
   image:
-    needs: verify
+    needs: [verify, binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: read

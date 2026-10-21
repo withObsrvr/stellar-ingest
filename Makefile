@@ -426,12 +426,22 @@ DIST_BUILD_IMAGE ?= docker.io/library/golang:1.26-bookworm@sha256:bcef992b77b1e2
 # user on the host, so dist/ comes out owned correctly. Passing --user
 # instead breaks that mapping and the build cannot create dist/ at all.
 # Under docker the output is root-owned, which is what CI wants anyway.
+#
+# -buildvcs=false because of that same uid difference. Go stamps VCS data by
+# running git, and git refuses a repository owned by another user -- which
+# is every CI checkout seen from inside this container, though not a local
+# rootless one, so it passed here and failed there. Nothing is lost: the
+# commit and build date are stamped explicitly through LDFLAGS, which is
+# what `version` reports and what manifests record.
+#
+# GOFLAGS deliberately does NOT carry -mod=mod. A release build must fail on
+# an incomplete go.mod rather than quietly rewrite it.
 dist-portable:
 	@test -n "$(CONTAINER_CLI)" || { echo "✗ need podman or docker"; exit 1; }
 	$(CONTAINER_CLI) run --rm \
 	  -v "$(CURDIR)":/src:z -w /src \
 	  -e HOME=/tmp -e GOCACHE=/tmp/go-build -e GOMODCACHE=/tmp/gomod \
-	  -e GOWORK=off -e CGO_ENABLED=1 -e GOFLAGS=-mod=mod \
+	  -e GOWORK=off -e CGO_ENABLED=1 -e GOFLAGS=-buildvcs=false \
 	  $(DIST_BUILD_IMAGE) \
 	  make dist EXPECT_VERSION="$(EXPECT_VERSION)" GIT_SHA="$(GIT_SHA)" BUILD_DATE="$(BUILD_DATE)"
 
