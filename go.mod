@@ -2,7 +2,7 @@ module github.com/withObsrvr/stellar-ingest
 
 go 1.26.1
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/duckdb/duckdb-go/v2 v2.10504.0

@@ -189,3 +189,23 @@ jobs:
           nix build .#stellar-ingest --print-build-logs
           ./result/bin/stellar-ingest --help > /dev/null
           ./result/bin/stellar-history-loader --help > /dev/null
+
+      # nixpkgs sets GOTOOLCHAIN=local, so the flake build IGNORES go.mod's
+      # toolchain directive and silently uses whatever Go the pinned nixpkgs
+      # carries. That is the right call for a sandboxed build -- it cannot
+      # download one -- but it means the flake output can be built by an
+      # older Go than every other path uses, carrying standard-library
+      # advisories the gate has already cleared elsewhere.
+      #
+      # Warned rather than failed: released artifacts come from `make dist`
+      # under setup-go, not from here, and blocking on nixpkgs catching up
+      # would hold the repo hostage to another project's release cadence.
+      # The warning exists so the divergence cannot be silent.
+      - name: Flake toolchain matches go.mod
+        run: |
+          want=$(grep '^toolchain ' go.mod | awk '{print $2}')
+          got=$(nix run nixpkgs#go -- version -m ./result/bin/stellar-ingest | head -1 | awk '{print $2}')
+          echo "go.mod pins $want; the flake built with $got"
+          if [ "$want" != "$got" ]; then
+            echo "::warning::flake builds with $got but go.mod pins $want. Bump flake.lock once nixpkgs carries $want so the two reconverge."
+          fi

@@ -82,6 +82,20 @@ published.
 gh workflow run release.yml -f dry_run=true
 ```
 
+## When a new standard-library advisory lands
+
+The `govulncheck` gate will go red on `main` without anyone changing code —
+that is the gate working. The fix is a toolchain bump, in two places:
+
+1. `toolchain goX.Y.Z` in `go.mod`. This is what CI, `make dist` and the
+   release artifacts use, so it closes the advisory for everything shipped.
+2. `nix flake update nixpkgs`, once nixpkgs carries that Go. Until then the
+   flake build keeps using the older toolchain — nixpkgs sets
+   `GOTOOLCHAIN=local`, so it ignores the directive — and CI warns about the
+   mismatch rather than failing on it.
+
+Both, or the divergence becomes permanent and silent.
+
 ## Known gaps
 
 - **linux/amd64 only.** The binary is cgo and bundles DuckDB, so

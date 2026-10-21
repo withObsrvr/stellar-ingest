@@ -6,6 +6,19 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+### Security
+
+- **Go toolchain pinned to 1.26.10**, closing `GO-2026-6809` in `crypto/x509`
+  — published after the 1.26.9 pin and caught by the `govulncheck` gate on
+  its first day of existence, which is the gate working as designed.
+
+  The pinned nixpkgs still carries 1.26.9, and nixpkgs sets
+  `GOTOOLCHAIN=local`, so the flake build ignores the `toolchain` directive
+  and quietly builds with the older Go. Released artifacts come from
+  `make dist` under `setup-go` and are unaffected, but `nix build` output
+  diverges until nixpkgs catches up. CI now warns when the two disagree
+  rather than letting it pass unnoticed.
+
 ### Added
 
 - **A release pipeline** (SEC-10, VER-12). A signed tag now builds artifacts
