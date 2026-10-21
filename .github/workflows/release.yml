@@ -52,27 +52,40 @@ jobs:
           echo "releasing $version (dry_run=$dry_run)"
           make release-check EXPECT_VERSION="$version"
 
+      # Checked through the API, not with git.
+      #
+      # actions/checkout fetches a tag push as `+<sha>:refs/tags/<name>`,
+      # which recreates the tag LOCALLY as a lightweight ref pointing at the
+      # commit -- the annotation object, and with it the signature, is never
+      # fetched. `git cat-file -t v0.1.1` therefore says "commit" for a tag
+      # that is annotated and signed on the remote, and the first real
+      # release failed on exactly that. The API reports the tag as it
+      # actually exists.
       - name: Tag must be annotated and signed
         if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          kind=$(git cat-file -t "$GITHUB_REF_NAME")
-          if [ "$kind" != "tag" ]; then
+          type=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.type')
+          if [ "$type" != "tag" ]; then
             echo "::error::$GITHUB_REF_NAME is a lightweight tag; releases are cut from annotated, signed tags (VER-12)"
             exit 1
           fi
-          if git cat-file tag "$GITHUB_REF_NAME" | grep -q 'SSH SIGNATURE\|PGP SIGNATURE'; then
-            echo "✓ tag carries a signature"
-          else
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.sha')
+          signed=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.verification.signature != null')
+          if [ "$signed" != "true" ]; then
             echo "::error::$GITHUB_REF_NAME is not signed (VER-12). Re-tag with git tag -s."
             exit 1
           fi
-          # Whether GitHub can VERIFY it depends on the signing key being
-          # registered on the account, which CI cannot fix. Surfaced, not enforced.
-          verified=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$(git rev-parse "$GITHUB_REF_NAME")" \
-            --jq '.verification.verified' 2>/dev/null || echo unknown)
-          [ "$verified" = "true" ] || echo "::warning::GitHub reports the tag signature as unverified ($verified). Register the signing key at github.com/settings/keys."
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "✓ $GITHUB_REF_NAME is annotated and signed"
+          # Whether GitHub can VERIFY the signature depends on the signing key
+          # being registered on the account, which CI cannot fix. Surfaced,
+          # not enforced: an unregistered key is a profile setting, not a
+          # defect in the release.
+          verified=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.verification.verified')
+          reason=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq '.verification.reason')
+          echo "GitHub verification: verified=$verified reason=$reason"
+          [ "$verified" = "true" ] || echo "::warning::tag signature is unverified ($reason). Register the signing key at github.com/settings/keys as a Signing Key."
 
   binaries:
     needs: verify

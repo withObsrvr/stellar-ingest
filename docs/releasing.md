@@ -58,7 +58,7 @@ the release still builds; the workflow warns.
 
 | Job | Does |
 | --- | --- |
-| `verify` | Tag is annotated and signed; `SemVer` matches the tag |
+| `verify` | Tag is annotated and signed (checked via the API, not git — see below); `SemVer` matches the tag |
 | `binaries` | `make dist`, CycloneDX SBOM, SLSA provenance via Sigstore |
 | `image` | Builds and pushes `ghcr.io/withobsrvr/stellar-ingest`, attests the digest |
 | `publish` | GitHub Release with the tarball, SBOM, `SHA256SUMS` and the changelog section |
@@ -81,6 +81,15 @@ published.
 ```sh
 gh workflow run release.yml -f dry_run=true
 ```
+
+### Why the tag check uses the API
+
+`actions/checkout` fetches a tag push as `+<sha>:refs/tags/<name>`, which
+recreates the tag **locally** as a lightweight ref pointing straight at the
+commit. The annotation object — and with it the signature — is never
+fetched, so `git cat-file -t vX.Y.Z` reports `commit` for a tag that is
+annotated and signed on the remote. The first real release failed on exactly
+that. The check asks the API what the tag actually is.
 
 ## When a new standard-library advisory lands
 

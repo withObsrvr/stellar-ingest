@@ -6,7 +6,14 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **The release workflow rejected its own signed tag.** `actions/checkout`
+  fetches a tag push as `+<sha>:refs/tags/<name>`, recreating it locally as
+  a lightweight ref — the annotation object, and with it the signature, is
+  never fetched — so `git cat-file -t` reported `commit` for a tag that is
+  annotated and signed on the remote. The check now asks the API what the
+  tag actually is.
 
 ## [0.1.1] - 2026-10-21
 
