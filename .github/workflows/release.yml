@@ -133,7 +133,15 @@ jobs:
         run: make dist-verify-portable
 
       - id: stage
-        run: echo "path=$(make -s print-dist-stage)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "path=$(make -s print-dist-stage)" >> "$GITHUB_OUTPUT"
+          # The SBOM is written OUTSIDE dist/. The portable build runs in a
+          # container; under docker that container is root, so dist/ and
+          # everything in it comes out root-owned, and the SBOM action --
+          # which runs as the runner user -- cannot create a file there.
+          # Writing somewhere we own avoids both sudo and juggling --user
+          # flags that behave differently under docker and rootless podman.
+          mkdir -p sbom
 
       # Scanned against the BINARY, not the dist directory. syft reads Go
       # build info out of the executable and lists every module compiled in;
@@ -147,7 +155,7 @@ jobs:
         with:
           file: ${{ steps.stage.outputs.path }}/stellar-ingest
           format: cyclonedx-json
-          output-file: dist/stellar-ingest_${{ needs.verify.outputs.version }}.cyclonedx.json
+          output-file: sbom/stellar-ingest_${{ needs.verify.outputs.version }}.cyclonedx.json
           upload-artifact: false
           upload-release-assets: false
 
@@ -156,7 +164,7 @@ jobs:
       # and passes every schema check.
       - name: SBOM lists something
         run: |
-          sbom=dist/stellar-ingest_${{ needs.verify.outputs.version }}.cyclonedx.json
+          sbom=sbom/stellar-ingest_${{ needs.verify.outputs.version }}.cyclonedx.json
           count=$(python3 -c "import json;print(len(json.load(open('$sbom')).get('components',[])))")
           echo "SBOM lists $count components"
           if [ "$count" -lt 1 ]; then
@@ -167,20 +175,36 @@ jobs:
       # SLSA v1 provenance, signed through Sigstore and recorded in the
       # transparency log. This is what makes "built in CI from this commit"
       # checkable by someone who trusts neither us nor the artifact.
+      # Everything publishable gathered into one directory the runner owns.
+      #
+      # Two reasons it is not just dist/. The container build leaves dist/
+      # root-owned under docker, and the artifacts come from two places now
+      # (dist/ and sbom/) -- upload-artifact would root them at the workspace
+      # and the publish job's globs would have to know that. One flat
+      # directory keeps the published set explicit and the globs simple.
+      - name: Assemble the release set
+        run: |
+          mkdir -p out
+          cp dist/*.tar.gz dist/SHA256SUMS out/
+          cp sbom/*.cyclonedx.json out/
+          ls -l out
+
+      # SLSA v1 provenance, signed through Sigstore and recorded in the
+      # transparency log. This is what makes "built in CI from this commit"
+      # checkable by someone who trusts neither us nor the artifact.
+      #
+      # Attests the exact files that get published, not the ones they were
+      # copied from -- same bytes, but the subject should be the artifact a
+      # consumer downloads.
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: dist/*.tar.gz
+          subject-path: out/*.tar.gz
 
-      # Only the publishable files: the staging directory stays on disk for
-      # the SBOM scan and would otherwise double the upload.
       - uses: actions/upload-artifact@v4
         with:
           name: release-artifacts
-          path: |
-            dist/*.tar.gz
-            dist/*.cyclonedx.json
-            dist/SHA256SUMS
+          path: out/
           retention-days: 7
 
   # Depends on binaries, not just verify. They used to run in parallel, and
@@ -246,7 +270,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: release-artifacts
-          path: dist
+          path: out
 
       # The notes are the changelog's own section, not a generated commit
       # list: VER-11 asks for a human entry, and duplicating it here by hand
@@ -277,9 +301,9 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/*.tar.gz
-            dist/*.cyclonedx.json
-            dist/SHA256SUMS
+            out/*.tar.gz
+            out/*.cyclonedx.json
+            out/SHA256SUMS
           body_path: release-notes.md
           draft: false
           prerelease: ${{ contains(needs.verify.outputs.version, '-') }}

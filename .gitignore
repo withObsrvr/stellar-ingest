@@ -20,3 +20,7 @@ result-*
 
 # release artifacts
 dist/
+
+# release assembly
+sbom/
+out/

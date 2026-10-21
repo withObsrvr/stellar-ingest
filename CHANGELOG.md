@@ -14,6 +14,12 @@ pre-1.0, so a minor bump may break (VER-2).
   container, though not a local rootless one, so it passed locally and
   failed there. `-buildvcs=false`; nothing is lost, since the commit and
   build date are stamped explicitly through LDFLAGS.
+- **The SBOM step could not write its output.** The portable build runs in
+  a container, and under docker that container is root, so `dist/` came out
+  root-owned and the SBOM action — which runs as the runner user — got
+  `EACCES` creating a file there. The release set is now assembled into a
+  directory the runner owns, which also keeps the published files explicit
+  rather than implied by globs over a build directory.
 - **The image job published without the artifacts.** It ran in parallel
   with `binaries`, so when the artifact build failed for v0.1.2, ghcr got
   `:0.1.2` and `:latest` for a release that did not exist — no tarball, no
