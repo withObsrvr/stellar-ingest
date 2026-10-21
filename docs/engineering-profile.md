@@ -97,26 +97,32 @@ boundaries are enforced by a test, not by convention).
 
 ### Next gaps to close, in order
 
-1. **`golangci-lint` in the merge gate** (§9). Measured: 47 issues today —
+1. **Reconverge the flake toolchain.** `go.mod` pins go1.26.10 (for
+   `GO-2026-6809`); the pinned nixpkgs carries 1.26.9 and sets
+   `GOTOOLCHAIN=local`, so the flake build silently uses the older Go. CI
+   warns. Bump `flake.lock` as soon as nixpkgs carries 1.26.10. Recurring by
+   nature: every standard-library advisory needs a toolchain bump on both
+   sides, and nixpkgs lags by days.
+2. **`golangci-lint` in the merge gate** (§9). Measured: 47 issues today —
    41 `errcheck` (mostly unchecked `fmt.Fprintf` in tests) and 6
    `staticcheck`. Enabling it means fixing those first, which is unrelated
    churn and wants its own PR.
-2. **§12 repo hygiene** — `CONTRIBUTING` is the remaining one. The repo is
+3. **§12 repo hygiene** — `CONTRIBUTING` is the remaining one. The repo is
    public, so DOC-1 asks for it.
-3. **SLSA Build Level 3** (SEC-10). The GitHub-native attestation puts
+4. **SLSA Build Level 3** (SEC-10). The GitHub-native attestation puts
    releases at L2; L3 for public releases needs a hardened isolated builder.
    Also linux/amd64 only — the cgo DuckDB bundle makes an arm64 artifact a
    native-runner question, not a flag.
-4. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
+5. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
    `network`; lineage carries no protocol version.
-5. **TEST-3** — no fuzz tests, and the tool's primary input is XDR.
-6. **CLI-9** — no `STELLAR_INGEST_*` environment layer and no XDG user
+6. **TEST-3** — no fuzz tests, and the tool's primary input is XDR.
+7. **CLI-9** — no `STELLAR_INGEST_*` environment layer and no XDG user
    config; precedence is flags › config file › defaults.
-7. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
+8. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
    no `cancel`.
-8. **§10** — no justfile, and no `SOURCE_DATE_EPOCH` in release builds.
-9. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
+9. **§10** — no justfile, and no `SOURCE_DATE_EPOCH` in release builds.
+10. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
     reconstructed from operations and effects are not marked as derived.
-10. **CLI-22** — no control-character stripping for chain-derived text.
+11. **CLI-22** — no control-character stripping for chain-derived text.
     Latent today: no command renders a memo or asset code to the terminal,
     and nothing pins that it stays that way.
