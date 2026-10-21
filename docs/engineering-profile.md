@@ -109,20 +109,25 @@ boundaries are enforced by a test, not by convention).
    churn and wants its own PR.
 3. **§12 repo hygiene** — `CONTRIBUTING` is the remaining one. The repo is
    public, so DOC-1 asks for it.
-4. **SLSA Build Level 3** (SEC-10). The GitHub-native attestation puts
+4. **RHEL 9 cannot run the release tarball.** The floor is `libstdc++`
+   (GLIBCXX 3.4.30, from bookworm's GCC 12), not glibc. Closing it means a
+   GCC 11 build base or changing how duckdb-go links -- `-static-libstdc++`
+   and `CGO_LDFLAGS` are both overridden by its cgo directives, verified
+   with `ldd`. The container image and source builds are unaffected.
+5. **SLSA Build Level 3** (SEC-10). The GitHub-native attestation puts
    releases at L2; L3 for public releases needs a hardened isolated builder.
    Also linux/amd64 only — the cgo DuckDB bundle makes an arm64 artifact a
    native-runner question, not a flag.
-5. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
+6. **DATA-6 / DATA-11** — the result envelope and lineage records carry no
    `network`; lineage carries no protocol version.
-6. **TEST-3** — no fuzz tests, and the tool's primary input is XDR.
-7. **CLI-9** — no `STELLAR_INGEST_*` environment layer and no XDG user
+7. **TEST-3** — no fuzz tests, and the tool's primary input is XDR.
+8. **CLI-9** — no `STELLAR_INGEST_*` environment layer and no XDG user
    config; precedence is flags › config file › defaults.
-8. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
+9. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
    no `cancel`.
-9. **§10** — no justfile, and no `SOURCE_DATE_EPOCH` in release builds.
-10. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
+10. **§10** — no justfile, and no `SOURCE_DATE_EPOCH` in release builds.
+11. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
     reconstructed from operations and effects are not marked as derived.
-11. **CLI-22** — no control-character stripping for chain-derived text.
+12. **CLI-22** — no control-character stripping for chain-derived text.
     Latent today: no command renders a memo or asset code to the terminal,
     and nothing pins that it stays that way.

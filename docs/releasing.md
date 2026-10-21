@@ -127,10 +127,29 @@ named in the ELF header is not there. Static linking would fix it in
 principle; with cgo and a bundled DuckDB it is not a flag change.
 
 So the release binary is built inside `golang:1.26-bookworm`, pinned by
-digest, which puts the floor at **GLIBC 2.34** — Debian 12, Ubuntu 22.04,
-RHEL 9 and Amazon Linux 2023 all run it. Built on the runner instead, as
-v0.1.1 was, the floor is whatever `ubuntu-latest` happens to be: 2.38 at the
-time, which none of those four can run.
+digest, which puts the glibc floor at **2.34**. Built on the runner instead,
+as v0.1.1 was, the floor is whatever `ubuntu-latest` happens to be — 2.38 at
+the time, which Debian 12 and Ubuntu 22.04 cannot run.
+
+glibc is not the only floor. DuckDB is C++, so `libstdc++` matters too, and
+it is the binding constraint on the RHEL family. Tested by running the
+artifact:
+
+| distribution | result |
+| --- | --- |
+| Debian 12 (bookworm) | ✅ |
+| Debian 13 (trixie) | ✅ |
+| Ubuntu 22.04 | ✅ |
+| Ubuntu 24.04 | ✅ |
+| Amazon Linux 2023 | ✅ |
+| **RHEL 9 / Rocky 9 / Alma 9** | ❌ `GLIBCXX_3.4.30 not found` |
+
+RHEL 9 ships GCC 11's `libstdc++` (GLIBCXX 3.4.29); bookworm's GCC 12 emits
+3.4.30. Static-linking the C++ runtime is the usual answer and does not
+work here — `-extldflags -static-libstdc++` and `CGO_LDFLAGS` are both
+overridden by duckdb-go's own cgo directives, verified by `ldd` on the
+result. Closing that means either building on a GCC 11 base or changing how
+duckdb-go links, and is carried as a known gap rather than guessed at.
 
 `make dist-portable` does it, `make dist-verify-portable` checks it by
 running the artifact on the oldest base rather than by reading symbol
@@ -141,6 +160,9 @@ versions, and both are make targets so the pipeline is reproducible by hand.
 - **linux/amd64 only.** The binary is cgo and bundles DuckDB, so
   cross-compiling is not a flag change. An arm64 artifact needs a native
   runner in the matrix.
+- **RHEL 9 and its rebuilds cannot run the tarball** — `libstdc++`, not
+  glibc. See the table above. Those users can build from source or use the
+  container image, whose runtime base is bookworm.
 - **Docker Hub is not published to.** ghcr needs no stored credential; a
   mirror would need one (SEC-1 wants it scoped and rotatable).
 - **SLSA Build Level.** The GitHub-native attestation puts this at L2.

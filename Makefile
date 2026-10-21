@@ -400,9 +400,10 @@ release: docker-build docker-push
 
 # The glibc floor of a released binary is set by the machine that built it,
 # and building on whatever GitHub's ubuntu-latest happens to be set it at
-# 2.38 for v0.1.1 -- which does not run on Debian 12, Ubuntu 22.04, RHEL 9 or
-# Amazon Linux 2023. Building inside bookworm lowers it to 2.34, which covers
-# all of them.
+# 2.38 for v0.1.1 -- which does not run on Debian 12, Ubuntu 22.04 or Amazon
+# Linux 2023. Building inside bookworm lowers it to 2.34, which covers all
+# three. RHEL 9 and its rebuilds still cannot run it, on libstdc++ rather
+# than glibc; see the table in docs/releasing.md.
 #
 # Pinned by DIGEST, not by tag. The floor is a property of this image, so a
 # floating tag would let it move without a commit saying so -- the same

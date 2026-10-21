@@ -6,14 +6,28 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.2] - 2026-10-21
+
+Makes the released tarball actually runnable on the distributions most
+people deploy on. No contract changed.
+
 ### Fixed
 
 - **The v0.1.1 tarball required GLIBC 2.38** and so did not run on Debian
-  12, Ubuntu 22.04, RHEL 9 or Amazon Linux 2023 — the floor was whatever
-  GitHub's `ubuntu-latest` happened to be. Release binaries are now built
-  inside `golang:1.26-bookworm`, pinned by digest, which puts the floor at
+  12, Ubuntu 22.04 or Amazon Linux 2023 — the floor was whatever GitHub's
+  `ubuntu-latest` happened to be. Release binaries are now built inside
+  `golang:1.26-bookworm`, pinned by digest, putting the glibc floor at
   **2.34**. A gate runs the artifact on the oldest supported base, so this
   cannot regress quietly.
+
+  Verified by running it: Debian 12 and 13, Ubuntu 22.04 and 24.04, and
+  Amazon Linux 2023 all work. **RHEL 9 and its rebuilds still do not** —
+  that floor is `libstdc++` (GLIBCXX 3.4.30), not glibc, and static-linking
+  the C++ runtime is overridden by duckdb-go's own cgo directives. Carried
+  as a known gap in [`docs/releasing.md`](docs/releasing.md); those users
+  can build from source or use the container image.
 
   Not solved with Nix, though it was considered: a Nix-built binary
   hard-codes an interpreter path into the store and will not execute
@@ -210,6 +224,7 @@ rather than whatever `main` happened to be.
   ([ADR 0002](docs/adr/0002-exception-credential-flags.md)); they are
   removed in the first release after that date.
 
-[unreleased]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.1...HEAD
+[unreleased]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/withObsrvr/stellar-ingest/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/withObsrvr/stellar-ingest/releases/tag/v0.1.0
