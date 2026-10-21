@@ -105,6 +105,37 @@ that is the gate working. The fix is a toolchain bump, in two places:
 
 Both, or the divergence becomes permanent and silent.
 
+## Why the release binary is built in a container, not by Nix
+
+Two different jobs, and only one of them is Nix's.
+
+**Nix is the reproducibility story.** `nix build` pins every input and gives
+the same output from the same commit. It is what the dev shell and `nix
+flake check` use, and it stays.
+
+**It cannot be the distribution story.** A Nix-built binary hard-codes its
+interpreter into the store:
+
+```
+$ patchelf --print-interpreter result/bin/stellar-ingest
+/nix/store/pqyiidz5mi73wv5f91d48s9plcqyj5bz-glibc-2.44-57/lib/ld-linux-x86-64.so.2
+```
+
+On any machine without that exact store path it does not fail with "needs a
+newer glibc" — it fails with *no such file or directory*, because the loader
+named in the ELF header is not there. Static linking would fix it in
+principle; with cgo and a bundled DuckDB it is not a flag change.
+
+So the release binary is built inside `golang:1.26-bookworm`, pinned by
+digest, which puts the floor at **GLIBC 2.34** — Debian 12, Ubuntu 22.04,
+RHEL 9 and Amazon Linux 2023 all run it. Built on the runner instead, as
+v0.1.1 was, the floor is whatever `ubuntu-latest` happens to be: 2.38 at the
+time, which none of those four can run.
+
+`make dist-portable` does it, `make dist-verify-portable` checks it by
+running the artifact on the oldest base rather than by reading symbol
+versions, and both are make targets so the pipeline is reproducible by hand.
+
 ## Known gaps
 
 - **linux/amd64 only.** The binary is cgo and bundles DuckDB, so

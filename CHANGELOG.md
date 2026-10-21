@@ -8,6 +8,18 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ### Fixed
 
+- **The v0.1.1 tarball required GLIBC 2.38** and so did not run on Debian
+  12, Ubuntu 22.04, RHEL 9 or Amazon Linux 2023 — the floor was whatever
+  GitHub's `ubuntu-latest` happened to be. Release binaries are now built
+  inside `golang:1.26-bookworm`, pinned by digest, which puts the floor at
+  **2.34**. A gate runs the artifact on the oldest supported base, so this
+  cannot regress quietly.
+
+  Not solved with Nix, though it was considered: a Nix-built binary
+  hard-codes an interpreter path into the store and will not execute
+  anywhere else at all. Nix stays the reproducibility story; the container
+  is the distribution one. Reasoning in [`docs/releasing.md`](docs/releasing.md).
+
 - **The release workflow rejected its own signed tag.** `actions/checkout`
   fetches a tag push as `+<sha>:refs/tags/<name>`, recreating it locally as
   a lightweight ref — the annotation object, and with it the signature, is
