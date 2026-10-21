@@ -110,10 +110,27 @@ jobs:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc g++
 
-      # The same target a maintainer runs locally, so what CI publishes can
-      # be reproduced without reading this file.
-      - name: Build artifacts
-        run: make dist EXPECT_VERSION=${{ needs.verify.outputs.version }}
+      # Built inside bookworm, not on the runner. The glibc floor of a
+      # released binary is set by the machine that built it, and
+      # ubuntu-latest set v0.1.1's at 2.38 -- which does not run on Debian
+      # 12, Ubuntu 22.04, RHEL 9 or Amazon Linux 2023. Measured floor from
+      # this image: 2.34.
+      #
+      # Still a make target, so a maintainer can reproduce what CI published
+      # without reading this file.
+      - name: Build artifacts (portable)
+        run: |
+          make dist-portable \
+            EXPECT_VERSION=${{ needs.verify.outputs.version }} \
+            GIT_SHA="$(git rev-parse --short HEAD)" \
+            BUILD_DATE="$(git log -1 --pretty=%cI)"
+
+      # The floor is the point, so it is checked rather than assumed, and on
+      # the oldest base we claim to support. Reading symbol versions would
+      # test the same thing less honestly than letting the dynamic linker
+      # do what a user's first invocation does.
+      - name: Artifact runs on the oldest supported base
+        run: make dist-verify-portable
 
       - id: stage
         run: echo "path=$(make -s print-dist-stage)" >> "$GITHUB_OUTPUT"

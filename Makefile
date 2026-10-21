@@ -3,7 +3,7 @@
         parity-export parity-live parity-report parity-matrix parity-baseline-update \
         nix-build nix-run nix-shell nix-check nix-docker nix-vendor-hash \
         docker-build docker-buildx docker-push docker-run docker-shell docker-clean \
-        ci-build release help integration-range-state dist dist-clean release-check print-dist-stage
+        ci-build release help integration-range-state dist dist-clean release-check print-dist-stage dist-portable dist-verify-portable
 
 # ---- Variables --------------------------------------------------------------
 #
@@ -395,6 +395,55 @@ ci-build: deps vet build-all test parity-baseline golden version-stamp
 
 release: docker-build docker-push
 	@echo "✓ released $(DOCKER_IMAGE):$(VERSION_TAG)"
+
+# ---- Portable release build -------------------------------------------------
+
+# The glibc floor of a released binary is set by the machine that built it,
+# and building on whatever GitHub's ubuntu-latest happens to be set it at
+# 2.38 for v0.1.1 -- which does not run on Debian 12, Ubuntu 22.04, RHEL 9 or
+# Amazon Linux 2023. Building inside bookworm lowers it to 2.34, which covers
+# all of them.
+#
+# Pinned by DIGEST, not by tag. The floor is a property of this image, so a
+# floating tag would let it move without a commit saying so -- the same
+# reasoning as pinning the toolchain.
+#
+# Not Nix, deliberately. The flake build is reproducible and is what `nix
+# build` and the dev shell use, but its binary hard-codes an interpreter path
+# into the Nix store (/nix/store/...-glibc-2.44/lib/ld-linux-x86-64.so.2) and
+# therefore cannot execute anywhere else at all -- not "needs a newer glibc",
+# but "no such file or directory". Static linking would fix that in principle;
+# with cgo and a bundled DuckDB it is not a flag change. Nix stays the
+# reproducibility story; the container is the distribution story.
+DIST_BUILD_IMAGE ?= docker.io/library/golang:1.26-bookworm@sha256:bcef992b77b1e2031aaaa51da75cebc32da8e9c182e12e633ea79023c79d9eff
+
+# Runs the ordinary dist target inside that image. Git metadata is passed in
+# rather than read inside the container, where the mounted tree is owned by
+# another uid and git refuses to look at it.
+#
+# No --user: under rootless podman, root in the container IS the invoking
+# user on the host, so dist/ comes out owned correctly. Passing --user
+# instead breaks that mapping and the build cannot create dist/ at all.
+# Under docker the output is root-owned, which is what CI wants anyway.
+dist-portable:
+	@test -n "$(CONTAINER_CLI)" || { echo "✗ need podman or docker"; exit 1; }
+	$(CONTAINER_CLI) run --rm \
+	  -v "$(CURDIR)":/src:z -w /src \
+	  -e HOME=/tmp -e GOCACHE=/tmp/go-build -e GOMODCACHE=/tmp/gomod \
+	  -e GOWORK=off -e CGO_ENABLED=1 -e GOFLAGS=-mod=mod \
+	  $(DIST_BUILD_IMAGE) \
+	  make dist EXPECT_VERSION="$(EXPECT_VERSION)" GIT_SHA="$(GIT_SHA)" BUILD_DATE="$(BUILD_DATE)"
+
+# The floor is the whole point, so it is checked rather than assumed. Running
+# the artifact on the oldest base we claim to support is a better test than
+# reading symbol versions: it exercises the dynamic linker the same way a
+# user's first invocation will.
+dist-verify-portable:
+	@stage=$$($(MAKE) -s print-dist-stage); \
+	echo "→ running $(BINARY_NAME) on debian:bookworm-slim"; \
+	$(CONTAINER_CLI) run --rm -v "$(CURDIR)/$$stage":/a:ro \
+	  docker.io/library/debian:bookworm-slim /a/$(BINARY_NAME) version | head -1
+	@echo "✓ artifact runs on the oldest supported base"
 
 # ---- Distribution artifacts -------------------------------------------------
 
