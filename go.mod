@@ -12,7 +12,7 @@ require (
 	github.com/spf13/pflag v1.0.9
 	github.com/stellar/go-stellar-sdk v0.7.3
 	github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5
-	github.com/withobsrvr/flowctl v0.0.10
+	github.com/withobsrvr/flowctl v0.0.12
 )
 
 require (
