@@ -295,8 +295,8 @@ github.com/withObsrvr/stellar-extract v0.3.6 h1:gHW7bmzhUbnwirN2qS+mkU0/u7DNQEaq
 github.com/withObsrvr/stellar-extract v0.3.6/go.mod h1:8L4iEtLYWng2mPDCkS7TE81dH1KAlr03eKKxmQ8akd4=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5 h1:LGtNObgYA4a90VKx45CANiTotO4BP2QHmvJJBEcpwmE=
 github.com/withObsrvr/stellar-raw-ledger-origin/source v0.2.5/go.mod h1:b9tgM3xdNi0+Sm+QV9PE7DQUDCgwV5/DNW5HZdhogjM=
-github.com/withobsrvr/flowctl v0.0.10 h1:hz5Kv2ZetZ0s4lFeF+IZySTEX1E+jrk3rgRRwlkTR8Y=
-github.com/withobsrvr/flowctl v0.0.10/go.mod h1:URr+2oiBtAmQ0kdjGcf9ybkTsYmDwrMsJ+iaO19UrHU=
+github.com/withobsrvr/flowctl v0.0.12 h1:1rdDj32pMkJN90Ro8vxDYpO48upky56OD+NtT05AB78=
+github.com/withobsrvr/flowctl v0.0.12/go.mod h1:4Dbn7Qekgi/g5eDbnXL8LgcfPW0hWejBXfXcraIogJU=
 github.com/xdrpp/goxdr v0.1.1 h1:E1B2c6E8eYhOVyd7yEpOyopzTPirUeF6mVOfXfGyJyc=
 github.com/xdrpp/goxdr v0.1.1/go.mod h1:dXo1scL/l6s7iME1gxHWo2XCppbHEKZS7m/KyYWkNzA=
 github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f h1:J9EGpcZtP0E/raorCMxlFGSTBrsSlaDGf3jU/qvAE2c=

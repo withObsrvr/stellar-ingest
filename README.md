@@ -523,8 +523,22 @@ extracting. It requires DuckLake credentials and, unless
 
 Control-plane reporting is opt-in and off by default. With `ENABLE_FLOWCTL`
 unset, the program never contacts a control plane and never fails on its
-absence. Setting `ENABLE_FLOWCTL=true` requires `FLOWCTL_ENDPOINT` and is
-fail-closed: registration failure aborts the run.
+absence. Setting `ENABLE_FLOWCTL=true` requires `FLOWCTL_ENDPOINT` and
+`FLOWCTL_COMPONENT_ID`, and is fail-closed: registration failure aborts the
+run before any work is done.
+
+The component registers as a flowctl `SOURCE` carrying its version, network,
+storage type and ledger range, then reports each phase of a chunk —
+`extract`, `extract_complete`, `validation`, `ducklake_setup`,
+`ducklake_push` — and a terminal completed or failed state. A failure
+carries a `FailureClass`, so an orchestrator can tell a retryable
+infrastructure fault from a poison chunk it must not retry.
+
+Registration is the only fatal report. Once a run is under way, a control
+plane that stops answering produces warnings, not a failed backfill.
+
+All of the above is covered by tests against a stub control plane in
+`internal/app`; they need no network and no running flowctl.
 
 ## Credentials
 
