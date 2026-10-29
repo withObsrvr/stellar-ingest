@@ -66,6 +66,10 @@ CREATE OR REPLACE VIEW bronze.contract_data_snapshot_v1 AS
     SELECT contract_id, ledger_sequence, ledger_key_hash, contract_key_type, contract_durability, asset_code, asset_issuer, asset_type, balance_holder, balance, last_modified_ledger, ledger_entry_change, deleted, closed_at, contract_data_xdr, ingested_at, ledger_range, token_name, token_symbol, token_decimals, era_id, version_label
     FROM bronze_store.contract_data_snapshot_v1;
 
+-- Soroban contract events exist only from protocol 20 and are always read
+-- from transaction metadata, never reconstructed -- so unlike
+-- token_transfers there is no observed/derived split to expose here. The
+-- spec is named for STL-1; the comment follows the view definition.
 CREATE OR REPLACE VIEW bronze.contract_events_stream_v1 AS
     SELECT lower(hex(t.transaction_hash)) || ':' || CAST(e.event_index AS VARCHAR) AS event_id,
            e.contract_id,
@@ -97,6 +101,9 @@ CREATE OR REPLACE VIEW bronze.contract_events_stream_v1 AS
     LEFT JOIN bronze_store.transactions_row_v2 t
       ON t.transaction_id = e.transaction_id
      AND t.ledger_range = e.ledger_range;
+
+COMMENT ON VIEW bronze.contract_events_stream_v1 IS
+    'Soroban contract events, read from transaction metadata. Carries all three event lists per transaction, tagged by event_stream (diagnostic, operation, transaction); CAP-67 moved these out of SorobanMeta into meta V4 at protocol 23. Always observed, never reconstructed. See STL-1 of the OBSRVR Engineering Standard.';
 
 CREATE OR REPLACE VIEW bronze.effects_row_v1 AS
     SELECT ledger_sequence, transaction_hash, operation_index, effect_index, effect_type, effect_type_string, account_id, amount, asset_code, asset_issuer, asset_type, trustline_limit, authorize_flag, clawback_flag, signer_account, signer_weight, offer_id, seller_account, closed_at, ledger_range, era_id, version_label, details_json, operation_id
@@ -201,9 +208,39 @@ CREATE OR REPLACE VIEW bronze.restored_keys_state_v1 AS
     SELECT key_hash, ledger_sequence, contract_id, key_type, durability, restored_from_ledger, closed_at, ledger_range, ingested_at, era_id, version_label
     FROM bronze_store.restored_keys_state_v1;
 
+-- STL-3: CAP-67 events are the source of truth for asset movements from
+-- protocol 23. Before that the protocol emitted no such events, and every
+-- row here was reconstructed by the SDK from operations, operation results
+-- and ledger-entry changes. Both kinds share this table, and until now
+-- nothing told them apart -- a consumer reading a range that spans the
+-- protocol 23 boundary could not tell an observed transfer from a
+-- reconstructed one.
+--
+-- Computed rather than stored, per storage contract rule 2: it is a pure
+-- function of the ledger's protocol version, so storing it would add a
+-- column to every row of the largest stream in the lake to repeat something
+-- the ledgers table already knows.
+--
+-- The granularity is the ledger, which is the granularity the chain
+-- actually provides: the SDK normalises older metadata into the current
+-- shape and does not report, per event, whether it read or reconstructed it.
+-- Protocol version is the real determinant either way.
 CREATE OR REPLACE VIEW bronze.token_transfers_stream_v1 AS
-    SELECT ledger_sequence, transaction_id, operation_id, operation_index, event_index, event_type, asset, asset_type, asset_code, asset_issuer, amount, amount_raw, contract_id, closed_at, ingested_at, ledger_range, era_id, version_label
-    FROM bronze_store.token_transfers_stream_v1;
+    SELECT t.ledger_sequence, t.transaction_id, t.operation_id, t.operation_index, t.event_index, t.event_type, t.asset, t.asset_type, t.asset_code, t.asset_issuer, t.amount, t.amount_raw, t.contract_id, t.closed_at, t.ingested_at, t.ledger_range, t.era_id, t.version_label,
+           CASE
+             WHEN l.protocol_version IS NULL THEN 'unknown'
+             WHEN l.protocol_version >= 23 THEN 'cap67_observed'
+             ELSE 'derived_from_operations'
+           END AS event_provenance
+    FROM bronze_store.token_transfers_stream_v1 t
+    LEFT JOIN bronze_store.ledgers_row_v2 l
+      ON l.sequence = t.ledger_sequence
+     AND l.ledger_range = t.ledger_range;
+
+-- STL-1: the spec this dataset implements, named with its status, in the
+-- schema metadata rather than only in prose a consumer will not read.
+COMMENT ON VIEW bronze.token_transfers_stream_v1 IS
+    'Asset movements. Implements CAP-67 Unified Asset Events (Final, protocol 23). event_provenance distinguishes cap67_observed (protocol >= 23, events read from ledger metadata) from derived_from_operations (protocol < 23, reconstructed by go-stellar-sdk token_transfer from operations, results and ledger-entry changes). See STL-1 and STL-3 of the OBSRVR Engineering Standard.';
 
 CREATE OR REPLACE VIEW bronze.trades_row_v1 AS
     SELECT ledger_sequence, transaction_hash, operation_index, trade_index, trade_type, trade_timestamp, seller_account, selling_asset_code, selling_asset_issuer, selling_amount, buyer_account, buying_asset_code, buying_asset_issuer, buying_amount, price, liquidity_pool_id, closed_at, ledger_range, era_id, version_label

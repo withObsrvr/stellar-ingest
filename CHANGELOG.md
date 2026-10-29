@@ -8,6 +8,37 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ### Added
 
+- **Reconstructed asset movements are now marked as such** (STL-3).
+  `bronze.token_transfers_stream_v1` gains `event_provenance`:
+  `cap67_observed` for protocol 23 and later, where CAP-67 events are read
+  from ledger metadata, and `derived_from_operations` before that, where the
+  SDK reconstructs them from operations, results and ledger-entry changes.
+
+  The table has always carried both and nothing told them apart — measured
+  on the committed fixtures, 7,822 reconstructed rows at protocol 19 against
+  11,736 observed at protocol 29. A consumer querying across the protocol 23
+  boundary got a mix with no way to separate them.
+
+  Computed in the view, not stored (storage contract rule 2): it is a pure
+  function of the ledger's protocol version, so storing it would add a
+  column to every row of the largest stream in the lake to repeat what the
+  ledgers table already knows. A ledger row that has not arrived yields
+  `unknown` rather than being claimed as observed.
+
+- **The views name the spec they implement** (STL-1). `COMMENT ON VIEW`
+  records CAP-67 Unified Asset Events (Final, protocol 23) on both
+  `token_transfers_stream_v1` and `contract_events_stream_v1`, so it travels
+  with the lake instead of living only in prose. See
+  [ADR 0003](docs/adr/0003-mark-reconstructed-asset-movements.md).
+
+### Fixed
+
+- `splitSQLStatements` was not string-literal aware, so a semicolon inside a
+  `COMMENT ON ... IS '...'` cut the statement mid-literal and the whole
+  schema file failed to apply. It already handled semicolons in comments for
+  the same reason; literals are the other place prose appears in a schema
+  file.
+
 - **The flowctl integration is now tested against a stub control plane.**
   Previously the only coverage was a pure-function check of failure
   classification; that the component registers at all, registers as a
