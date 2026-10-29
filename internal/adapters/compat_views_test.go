@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -107,13 +108,34 @@ func TestEveryViewReproducesTheLegacyColumnOrder(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if len(got) != len(want) {
+			// A view may ADD columns -- that is Additive under VER-3, and
+			// consumers are required to ignore ones they do not know. What
+			// it may not do is drop, reorder or rename the legacy ones,
+			// because those are what existing queries select and join on.
+			// So the legacy columns must still be a prefix, in order.
+			if len(got) < len(want) {
 				t.Fatalf("view has %d columns, the table had %d\n got: %v\nwant: %v",
 					len(got), len(want), got, want)
 			}
 			for i := range want {
 				if got[i] != want[i] {
 					t.Errorf("column %d is %q, was %q", i, got[i], want[i])
+				}
+			}
+			if extra := got[len(want):]; len(extra) > 0 {
+				// Named rather than merely tolerated, so an accidental
+				// addition is still a test failure someone has to look at.
+				allowed := map[string][]string{
+					"token_transfers_stream_v1": {"event_provenance"},
+				}
+				want := allowed[table]
+				if len(extra) != len(want) {
+					t.Fatalf("view adds %v; only %v is an agreed addition", extra, want)
+				}
+				for i := range want {
+					if extra[i] != want[i] {
+						t.Errorf("view adds %q, expected %q", extra[i], want[i])
+					}
 				}
 			}
 		})
@@ -251,5 +273,109 @@ func TestChildRowsDoNotMatchAParentInAnotherPartition(t *testing.T) {
 	if rendered != nil {
 		t.Errorf("a parent in another partition was joined anyway, rendering %q; the partition "+
 			"equality is not doing what this test documents", *rendered)
+	}
+}
+
+// STL-3: a consumer must be able to tell an observed asset movement from a
+// reconstructed one.
+//
+// CAP-67 made events the source of truth for asset movements at protocol
+// 23. Before that the protocol emitted none, and every token_transfers row
+// was reconstructed by the SDK from operations, results and ledger-entry
+// changes. Both kinds share one table, and a range spanning the boundary
+// mixes them -- measured on the committed fixtures, 7,822 reconstructed
+// rows at protocol 19 against 11,736 observed at protocol 29, with nothing
+// in the schema telling them apart.
+func TestTokenTransfersMarkObservedAndDerivedApart(t *testing.T) {
+	db := buildCompatSchema(t)
+
+	// One ledger either side of the CAP-67 boundary, and one transfer in
+	// each. ledger_range matches so the view's join succeeds.
+	for _, row := range []struct {
+		seq      int
+		protocol int
+	}{{50000000, 19}, {64938240, 29}} {
+		if _, err := db.Exec(
+			"INSERT INTO memory.bronze_store.ledgers_row_v2 (sequence, protocol_version, ledger_range) VALUES (?, ?, 0)",
+			row.seq, row.protocol); err != nil {
+			t.Fatalf("insert ledger %d: %v", row.seq, err)
+		}
+		if _, err := db.Exec(
+			"INSERT INTO memory.bronze_store.token_transfers_stream_v1 (ledger_sequence, ledger_range) VALUES (?, 0)",
+			row.seq); err != nil {
+			t.Fatalf("insert transfer for %d: %v", row.seq, err)
+		}
+	}
+
+	rows, err := db.Query(
+		"SELECT ledger_sequence, event_provenance FROM memory.bronze.token_transfers_stream_v1 ORDER BY ledger_sequence")
+	if err != nil {
+		t.Fatalf("query view: %v", err)
+	}
+	defer rows.Close()
+
+	got := map[int]string{}
+	for rows.Next() {
+		var seq int
+		var provenance string
+		if err := rows.Scan(&seq, &provenance); err != nil {
+			t.Fatal(err)
+		}
+		got[seq] = provenance
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got[50000000] != "derived_from_operations" {
+		t.Errorf("protocol 19 transfer marked %q; CAP-67 did not exist before protocol 23, so it was reconstructed",
+			got[50000000])
+	}
+	if got[64938240] != "cap67_observed" {
+		t.Errorf("protocol 29 transfer marked %q; want cap67_observed", got[64938240])
+	}
+}
+
+// A transfer whose ledger row has not arrived must not be claimed as
+// observed. Partitions land independently, and defaulting an unknown to
+// "observed" would overstate what the data actually shows.
+func TestUnknownProtocolIsNotClaimedAsObserved(t *testing.T) {
+	db := buildCompatSchema(t)
+
+	if _, err := db.Exec(
+		"INSERT INTO memory.bronze_store.token_transfers_stream_v1 (ledger_sequence, ledger_range) VALUES (99, 0)"); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+
+	var provenance string
+	if err := db.QueryRow(
+		"SELECT event_provenance FROM memory.bronze.token_transfers_stream_v1 WHERE ledger_sequence = 99").
+		Scan(&provenance); err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if provenance != "unknown" {
+		t.Errorf("a transfer with no ledger row is marked %q, want unknown", provenance)
+	}
+}
+
+// STL-1: the spec a dataset implements must be named in its schema
+// metadata, not only in prose somewhere a consumer will not read.
+func TestViewsNameTheSpecTheyImplement(t *testing.T) {
+	db := buildCompatSchema(t)
+
+	for view, want := range map[string]string{
+		"token_transfers_stream_v1": "CAP-67",
+		"contract_events_stream_v1": "CAP-67",
+	} {
+		var comment *string
+		err := db.QueryRow(
+			"SELECT comment FROM duckdb_views() WHERE schema_name = 'bronze' AND view_name = ?", view).
+			Scan(&comment)
+		if err != nil {
+			t.Fatalf("%s: read comment: %v", view, err)
+		}
+		if comment == nil || !strings.Contains(*comment, want) {
+			t.Errorf("%s does not name %s in its schema metadata", view, want)
+		}
 	}
 }

@@ -71,6 +71,10 @@ Closed in the v2.0 conformance pass:
   directive, because the dev shell cannot answer this: `go version` there
   reports the pinned toolchain even when the flake's compiler is older,
   since Go auto-switches on the `toolchain` directive.
+- **STL-1 / STL-3** — the Bronze views name CAP-67 in their schema
+  metadata, and `token_transfers` marks reconstructed asset movements
+  apart from observed ones
+  ([ADR 0003](adr/0003-mark-reconstructed-asset-movements.md)).
 - **SEC-10 / VER-12 (to SLSA L2)** — releases build in CI from a signed tag,
   with a CycloneDX SBOM and Sigstore-signed SLSA provenance, an attested
   image on ghcr, and notes taken from the changelog. Runbook in
@@ -124,8 +128,6 @@ boundaries are enforced by a test, not by convention).
 8. **CLI-12** — no `events --follow` verb (there is an `--events` flag) and
    no `cancel`.
 9. **§10** — no justfile, and no `SOURCE_DATE_EPOCH` in release builds.
-10. **STL-1 / STL-3** — no CAP or SEP named in schema metadata; records
-    reconstructed from operations and effects are not marked as derived.
-11. **CLI-22** — no control-character stripping for chain-derived text.
+10. **CLI-22** — no control-character stripping for chain-derived text.
     Latent today: no command renders a memo or asset code to the terminal,
     and nothing pins that it stays that way.

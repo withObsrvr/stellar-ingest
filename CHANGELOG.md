@@ -6,20 +6,30 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
-### Changed
-
-- **The flake toolchain reconverged with `go.mod`.** `flake.lock` moves to a
-  nixpkgs carrying go1.26.10, so `nix build` no longer produces a binary
-  with the `crypto/x509` advisory that every other path had already closed.
-  The CI warning about the mismatch goes quiet.
-
-  Worth knowing for next time: inside `nix develop`, `go version` reports
-  the pinned toolchain even when the flake's own compiler is older, because
-  Go auto-switches on the `toolchain` directive. The shell looks converged
-  when it is not. The CI check compares the built binary instead, which is
-  why it kept warning correctly.
-
 ### Added
+
+- **Reconstructed asset movements are now marked as such** (STL-3).
+  `bronze.token_transfers_stream_v1` gains `event_provenance`:
+  `cap67_observed` for protocol 23 and later, where CAP-67 events are read
+  from ledger metadata, and `derived_from_operations` before that, where the
+  SDK reconstructs them from operations, results and ledger-entry changes.
+
+  The table has always carried both and nothing told them apart — measured
+  on the committed fixtures, 7,822 reconstructed rows at protocol 19 against
+  11,736 observed at protocol 29. A consumer querying across the protocol 23
+  boundary got a mix with no way to separate them.
+
+  Computed in the view, not stored (storage contract rule 2): it is a pure
+  function of the ledger's protocol version, so storing it would add a
+  column to every row of the largest stream in the lake to repeat what the
+  ledgers table already knows. A ledger row that has not arrived yields
+  `unknown` rather than being claimed as observed.
+
+- **The views name the spec they implement** (STL-1). `COMMENT ON VIEW`
+  records CAP-67 Unified Asset Events (Final, protocol 23) on both
+  `token_transfers_stream_v1` and `contract_events_stream_v1`, so it travels
+  with the lake instead of living only in prose. See
+  [ADR 0003](docs/adr/0003-mark-reconstructed-asset-movements.md).
 
 - **The flowctl integration is now tested against a stub control plane.**
   Previously the only coverage was a pure-function check of failure
@@ -36,8 +46,27 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ### Changed
 
+- **The flake toolchain reconverged with `go.mod`.** `flake.lock` moves to a
+  nixpkgs carrying go1.26.10, so `nix build` no longer produces a binary
+  with the `crypto/x509` advisory that every other path had already closed.
+  The CI warning about the mismatch goes quiet.
+
+  Worth knowing for next time: inside `nix develop`, `go version` reports
+  the pinned toolchain even when the flake's own compiler is older, because
+  Go auto-switches on the `toolchain` directive. The shell looks converged
+  when it is not. The CI check compares the built binary instead, which is
+  why it kept warning correctly.
+
 - flowctl bumped v0.0.10 → v0.0.12. The `ControlPlaneServer` interface is
   byte-identical between the two, so nothing in the integration changed.
+
+### Fixed
+
+- `splitSQLStatements` was not string-literal aware, so a semicolon inside a
+  `COMMENT ON ... IS '...'` cut the statement mid-literal and the whole
+  schema file failed to apply. It already handled semicolons in comments for
+  the same reason; literals are the other place prose appears in a schema
+  file.
 
 ## [0.1.2] - 2026-10-21
 

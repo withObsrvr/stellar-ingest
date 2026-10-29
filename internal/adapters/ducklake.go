@@ -772,11 +772,36 @@ func splitSQLStatements(sql string) []string {
 		code = append(code, line)
 	}
 
+	// Split on semicolons that are not inside a string literal. The comment
+	// stripping above handles prose; this handles the other place a
+	// semicolon is ordinary rather than a terminator -- COMMENT ON ... IS
+	// '...' carries documentation into the lake's own metadata, and
+	// documentation has semicolons in it. Without this the statement is cut
+	// mid-literal and the parser sees an unterminated string.
+	//
+	// SQL escapes a quote by doubling it, which needs no special case here:
+	// the first quote closes the literal and the second reopens it, leaving
+	// the state correct either way.
+	joined := strings.Join(code, "\n")
 	var out []string
-	for _, stmt := range strings.Split(strings.Join(code, "\n"), ";") {
-		if s := strings.TrimSpace(stmt); s != "" {
-			out = append(out, s)
+	var current strings.Builder
+	inString := false
+	for _, r := range joined {
+		switch {
+		case r == '\'':
+			inString = !inString
+			current.WriteRune(r)
+		case r == ';' && !inString:
+			if s := strings.TrimSpace(current.String()); s != "" {
+				out = append(out, s)
+			}
+			current.Reset()
+		default:
+			current.WriteRune(r)
 		}
+	}
+	if s := strings.TrimSpace(current.String()); s != "" {
+		out = append(out, s)
 	}
 	return out
 }
