@@ -6,6 +6,19 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+### Changed
+
+- **The flake toolchain reconverged with `go.mod`.** `flake.lock` moves to a
+  nixpkgs carrying go1.26.10, so `nix build` no longer produces a binary
+  with the `crypto/x509` advisory that every other path had already closed.
+  The CI warning about the mismatch goes quiet.
+
+  Worth knowing for next time: inside `nix develop`, `go version` reports
+  the pinned toolchain even when the flake's own compiler is older, because
+  Go auto-switches on the `toolchain` directive. The shell looks converged
+  when it is not. The CI check compares the built binary instead, which is
+  why it kept warning correctly.
+
 ### Added
 
 - **The flowctl integration is now tested against a stub control plane.**
