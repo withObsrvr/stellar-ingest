@@ -31,14 +31,6 @@ pre-1.0, so a minor bump may break (VER-2).
   with the lake instead of living only in prose. See
   [ADR 0003](docs/adr/0003-mark-reconstructed-asset-movements.md).
 
-### Fixed
-
-- `splitSQLStatements` was not string-literal aware, so a semicolon inside a
-  `COMMENT ON ... IS '...'` cut the statement mid-literal and the whole
-  schema file failed to apply. It already handled semicolons in comments for
-  the same reason; literals are the other place prose appears in a schema
-  file.
-
 - **The flowctl integration is now tested against a stub control plane.**
   Previously the only coverage was a pure-function check of failure
   classification; that the component registers at all, registers as a
@@ -54,8 +46,27 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ### Changed
 
+- **The flake toolchain reconverged with `go.mod`.** `flake.lock` moves to a
+  nixpkgs carrying go1.26.10, so `nix build` no longer produces a binary
+  with the `crypto/x509` advisory that every other path had already closed.
+  The CI warning about the mismatch goes quiet.
+
+  Worth knowing for next time: inside `nix develop`, `go version` reports
+  the pinned toolchain even when the flake's own compiler is older, because
+  Go auto-switches on the `toolchain` directive. The shell looks converged
+  when it is not. The CI check compares the built binary instead, which is
+  why it kept warning correctly.
+
 - flowctl bumped v0.0.10 → v0.0.12. The `ControlPlaneServer` interface is
   byte-identical between the two, so nothing in the integration changed.
+
+### Fixed
+
+- `splitSQLStatements` was not string-literal aware, so a semicolon inside a
+  `COMMENT ON ... IS '...'` cut the statement mid-literal and the whole
+  schema file failed to apply. It already handled semicolons in comments for
+  the same reason; literals are the other place prose appears in a schema
+  file.
 
 ## [0.1.2] - 2026-10-21
 
