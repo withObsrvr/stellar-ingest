@@ -6,6 +6,31 @@ pre-1.0, so a minor bump may break (VER-2).
 
 ## [Unreleased]
 
+### Added
+
+- **The flowctl integration is now tested against a stub control plane.**
+  Previously the only coverage was a pure-function check of failure
+  classification; that the component registers at all, registers as a
+  SOURCE, reports each extraction phase, and classifies failures was true
+  by reading the code and asserted nowhere. The stub implements the three
+  RPCs the reporter uses and embeds `UnimplementedControlPlaneServer`, so a
+  fourth would fail loudly rather than go unnoticed.
+
+  This also pins the documented fail-closed behaviour: with
+  `ENABLE_FLOWCTL=true` and an unreachable control plane, a run stops
+  before doing any work. That is a real operational trade and should be a
+  decision somebody made, not something rediscovered by running the binary.
+
+### Changed
+
+- flowctl bumped v0.0.10 → v0.0.12. The `ControlPlaneServer` interface is
+  byte-identical between the two, so nothing in the integration changed.
+
+## [0.1.2] - 2026-10-21
+
+Makes the released tarball actually runnable on the distributions most
+people deploy on. No contract changed.
+
 ### Fixed
 
 - **The portable build failed in CI** with `error obtaining VCS status`.
@@ -25,13 +50,6 @@ pre-1.0, so a minor bump may break (VER-2).
   `:0.1.2` and `:latest` for a release that did not exist — no tarball, no
   SBOM, no GitHub Release. The image now waits on the artifacts. A registry
   tag is the most public thing the workflow writes; it should be the last.
-
-## [0.1.2] - 2026-10-21
-
-Makes the released tarball actually runnable on the distributions most
-people deploy on. No contract changed.
-
-### Fixed
 
 - **The v0.1.1 tarball required GLIBC 2.38** and so did not run on Debian
   12, Ubuntu 22.04 or Amazon Linux 2023 — the floor was whatever GitHub's
